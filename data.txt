@@ -1,0 +1,3 @@
+Contents of file 1
+
+password = "This si secret"

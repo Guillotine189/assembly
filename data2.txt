@@ -1,0 +1,3 @@
+CONTENTS OF FILE 2
+
+username = "__00VSEVEFDRVZED00__"
