@@ -1,4 +1,4 @@
-; this files takes in input of 1024bytes from fd0, outputs the input and the arguments provided.
+; this files takes in input of 1024bytes from fd0, write the input and the arguments provided to fd1.
 
 
 ; Linux automaically adds the arguments you pass when you run the binary with args in stack
@@ -93,7 +93,7 @@ _print_arguments:
 		mov rax, 1 						; read syscall
 		mov rdi, 1 						; fd=1 terminal:out
 		mov rsi, rsp
-		mov rdx, 1 						; because i only pushed 1 byte of actual info, i need to only print 1 byte
+		mov rdx, 1 						; because 1 byte of actual info, i need to only print 1 byte
 		syscall
 		pop rax
 
