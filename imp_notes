@@ -1,0 +1,109 @@
+                         RAX — 64 bits
+        ┌───────────────────────────────────────────────┐
+        │                                               │
+        │                  64 bits                      │
+        │                                               │
+        └───────────────────────────────────────────────┘
+        │                       │
+        │<────── upper 32 ─────>│<────── EAX ─────────>│
+                                ┌───────────────────────┐
+                                │       EAX — 32 bits   │
+                                └───────────────────────┘
+                                │          │
+                                │          │
+                                │<── AX ──>│
+                                           ┌────────────┐
+                                           │ AX — 16bit │
+                                           └────────────┘
+                                           │      │
+                                           │      │
+                                      ┌────┴──┐ ┌─┴────┐
+                                      │  AH   │ │  AL  │
+                                      │ 8bit  │ │ 8bit │
+                                      └───────┘ └──────┘
+
+1) writing to eax WILL CHNAGE the top 32bits
+2) writing to AX, AH, or AL WILL NOT change the top bits
+
+
+
+say rbx holds an address
+1) mov rax, [rbx]
+ -> This will copy 8 bytes from that address  and put it to rax
+ use mov al, [rbx] -> to tell cpu to go to that address and decode info and copy only 1 byte.
+ ---- The output register here is defining how many bytes to copy
+
+
+
+
+mul instruction:
+        mul rbx
+        -> multiplies rbx and rax
+        -> result stored as rdx:rax
+                           rdx     rax
+                        [64bits][64bits]
+
+div instruction:
+        div rbx
+        -> it does [rdx]: [rax] / rbx
+        -> quotient in rax, remainder in rdx
+        Remeber to CLEAR rdx before div
+
+
+You cannot push/pop a sub register to stack:
+        push eax/ax/al/ah -> invalid
+        pop eax/ax/al/ah -> invalid
+        manually add subtract rsp and move data
+
+
+
+
+
+                                The stack layout on process start
+
+;               RSP
+;                   │
+;                   ▼
+;               ┌──────────────────────────────┐
+;               │ argc                         │  ← 8-byte value in the x86-64 stack
+;               ├──────────────────────────────┤
+;               │ argv[0 address]              │  ← char * (8 bytes)
+;               │ argv[1 address]              │
+;               │ ...                          │
+;               │ argv[argc-1 address]         │
+;               │ NULL                         │  ← terminates argv[]
+;               ├──────────────────────────────┤
+;               │ envp[0 address]              │  ← char *
+;               │ envp[1 address]              │
+;               │ ...                          │
+;               │ envp[n-1 address]            │
+;               │ NULL                         │  ← terminates envp[]
+;               ├──────────────────────────────┤
+;               │ auxv[0].type                 │  ← 8 bytes
+;               │ auxv[0].value                │  ← 8 bytes
+;               ├──────────────────────────────┤
+;               │ auxv[1].type                 │
+;               │ auxv[1].value                │
+;               ├──────────────────────────────┤
+;               │ ...                          │
+;               ├──────────────────────────────┤
+;               │ AT_NULL                      │  ← type = 0
+;               │ 0                            │  ← value = 0
+;               ├──────────────────────────────┤
+;               │ padding/alignment (possible) │
+;               ├──────────────────────────────┤
+;               │ environment strings          │
+;               │ "PATH=/usr/bin\0"            │
+;               │ "HOME=/home/me\0"            │
+;               │ "USER=me\0"                  │
+;               │ ...                          │
+;               ├──────────────────────────────┤
+;               │ argument strings             │
+;               │ "./program\0"                │
+;               │ "hello\0"                    │
+;               │ "world\0"                    │
+;               │ ...                          │
+;               └──────────────────────────────┘
+;                   │
+;               HIGH ADDRESSES
+
