@@ -1,3 +1,6 @@
+; some basic clib functions
+
+
 section .data
 	arg1 DB "STRING1", 0
 	arg2 DB "STRING2", 0
@@ -15,7 +18,7 @@ global _start
 ; rax 	 : size n
 ; rdi 	 : dest address
 ; rsi 	 : src address
-; returns: pointer to dest address in  rax 
+; returns: dest address in  rax 
 _memcpy:
 
 	xor r9, r9							; this will store how many bytes i have copied
