@@ -107,3 +107,36 @@ You cannot push/pop a sub register to stack:
 ;                   │
 ;               HIGH ADDRESSES
 
+
+
+
+                                        sys _ stat 
+
+
+give a buffer size of 144 bytes name it like statbuf
+
+outptus
+
+offset   size     field
+────────────────────────────
+0        8        st_dev
+8        8        st_ino
+16       8        st_nlink
+24       4        st_mode
+28       4        st_uid
+32       4        st_gid
+36       4        padding
+40       8        st_rdev
+48       8        st_size
+56       8        st_blksize
+64       8        st_blocks
+....
+
+
+-> for st_mode just read 4bytes from [statbuf + 24]
+then 
+        use a mask value, then AND it with st_mode to find required result
+        eg: st_mode = 0100644
+            s_IFMT  = 0170000
+                 &  = 0100000 -> file
+                 if & was = 0040000 -> direcotry

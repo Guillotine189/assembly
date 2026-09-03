@@ -5,7 +5,7 @@ global _print
 
 
 ; address of string in rdi
-; return stored in rdx
+; return stored in rax
 _strlen:
 
 	.intialize:
@@ -39,7 +39,7 @@ _print:
 
 		mov rsi, rdi 					; buffer in rsi
 		mov rdi, 1						; rdi : fd nuber
-		mov rdx, rax					; rsi total bytes
+		mov rdx, rax					; rdx total bytes
 		mov rax, 1
 		syscall
 

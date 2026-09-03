@@ -1,13 +1,9 @@
 ; expects a file, counts characters, words, lines
-; fix word count basic
-; fix word count: when first 8192 ending word amd mew 8192 starting word continous word
-
-
 
 section .data
-	arg_error db "Usage: ./mycat <filePath>",10,0 			; 10: ascii for \n
-	file_open_error db "Error opening file",10,0
-	reading_error db "Error reading file",10,0
+	arg_error db "Usage: ./mycat <filePath>",0 			; 10: ascii for \n
+	file_open_error db "Error opening file",0
+	reading_error db "Error reading file",0
 
 	char_count_line DB "Characters: ", 0 					; 12bytes
 	word_count_line DB "Words: ", 0 						; 7bytes
