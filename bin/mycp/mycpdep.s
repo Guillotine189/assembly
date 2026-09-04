@@ -4,6 +4,7 @@ global _strlen
 global _print
 global _memcpy_with_end_char
 global _file_name_address
+global _cmp_equal_memory
 
 ; rax: number of bytes to print 
 ; rdi: fd to write to
@@ -103,4 +104,35 @@ _file_name_address:
 
 	.done:
 
+		ret
+
+
+; rax: lenth of memory to compare
+; rdi: address 1
+; rsi: address 2
+; returns : 0 if same, 1 if different
+_cmp_equal_memory:
+
+	xor r8, r8 				; stores how many bytes compared
+
+	.loop:
+
+		cmp r8, rax
+		je .equal
+
+		mov cl, [rdi + r8]						; 1 byte comparision
+		mov dl, [rsi + r8]						; TODO: change it later for efficiency
+		cmp cl, dl
+		jne .not_equal
+
+		inc r8
+		jmp .loop
+
+
+	.not_equal:
+		mov rax, 1
+		ret
+
+	.equal:
+		mov rax, 0
 		ret

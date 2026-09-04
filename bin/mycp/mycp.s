@@ -1,9 +1,10 @@
 section .data
 	usage_line0 db "Usage: ",0
 	usage_line0_len equ $ - usage_line0
-
-	usage_line1 db " <filePath1> <filePath2>",10,0
+	usage_line1 db " [-flag: r] <filePath1> <filePath2>",10,0
 	usage_line1_len equ $ - usage_line1
+
+	recursive_flag db "-r",0
 
 	error_opening_file db "Error opening file: ", 0
 	error_opening_file_len equ $ - error_opening_file
@@ -17,10 +18,31 @@ section .data
 	error_writing_to_file db "Error writing to file: ", 0
 	error_writing_to_file_len equ $ - error_writing_to_file
 
+	error_unkown_flag db "Error: Unkown flag passed: ", 0
+	error_unkown_flag_len equ $ - error_unkown_flag
+
+	error_input_dir_no_rec_flag0 db "Error: ", 0
+	error_input_dir_no_rec_flag0_len equ $ - error_input_dir_no_rec_flag0
+	error_input_dir_no_rec_flag1 db " is a directory. Use -r flag to copy a directory.", 0
+	error_input_dir_no_rec_flag1_len equ $ - error_input_dir_no_rec_flag1
+
+	error_status_code dq 0
+
 section .bss
 	buffer resb 16384
 	buffer_size equ 16384
-	statbuf resb 144				; yes it is always 144 bytes
+	statBufFp1 resb 144				; yes it is always 144 bytes
+	statBufFp2 resb 144				; yes it is always 144 bytes
+
+	flag_address resb 8
+	flag_address_len resq 1
+
+	fp1_address resb 8
+	fp1_address_len resq 1
+	fp1_fd resq 1
+	fp2_address resb 8
+	fp2_address_len resq 1
+	fp2_fd resq 1
 
 	finalFilePath resb 4096
 
@@ -28,6 +50,8 @@ section .bss
 	S_IFREG equ 0o100000			; value file when : mask AND eax 
 	S_IFDIR equ 0o040000			; value dir  when : mask AND eax 
 
+	DT_REG equ 8    ; regular file
+	DT_DIR equ 4    ; directory
 
 
 section .text
@@ -36,6 +60,7 @@ extern _print
 extern _strlen
 extern _memcpy_with_end_char
 extern _file_name_address
+extern _cmp_equal_memory
 
 global _start
 
@@ -45,47 +70,173 @@ _start:
 	; handle args passed
 
 	mov rax, [rsp]							; argc in rax
+
 	cmp rax, 3
-	jne _usage
+	je .no_flag_passed
 
-	; open 1st file
+	cmp rax, 4
+	je .flag_passed
 
-	mov rax, 2 								; open syscall
-	mov rdi, [rsp + 16]						; address of filepath
-	mov rsi, 0 								; 0 flag: readOnly
+	jmp _usage
+
+
+	.flag_passed:
+
+	; save the file path and length to variables and flag
+
+	mov rcx, [rsp + 16]
+	mov [rel flag_address], rcx
+	mov rcx, [rsp + 24]
+	mov [rel fp1_address], rcx
+	mov rcx, [rsp + 32]
+	mov [rel fp2_address], rcx
+
+	mov rdi, [rel flag_address]
+	call _strlen
+	mov [rel flag_address_len], rax
+
+	mov rdi, [rel fp1_address]
+	call _strlen
+	mov [rel fp1_address_len], rax
+
+	mov rdi, [rel fp2_address]
+	call _strlen
+	mov [rel fp2_address_len], rax
+
+	jmp .check_flag
+
+
+	.check_flag:
+
+		cmp [rel flag_address_len], 2
+		jne .error_unkown_flag
+
+		mov rax, 2
+		mov rdi, recursive_flag
+		mov rsi, [rel flag_address]
+		call _cmp_equal_memory		; check if the flag is -r, 0is same, 1 if not
+
+		cmp rax, 0
+		jne .error_unkown_flag
+
+		; at this point I know that -r flag has been passed
+		; check if the 1st file is a file or dir
+
+		mov rax, 4 								; stat syscall
+		mov rdi, [rel fp1_address]
+		lea rsi, [rel statBufFp1]
+		syscall
+
+		cmp rax, 0
+		jl .error_opening_file_one
+
+		; read the mode
+		mov eax, [rel statBufFp1 + 24]						;read 4 bytes
+		and eax, S_IFMT
+
+
+		cmp eax, S_IFREG
+		je .start_program
+
+		cmp eax, S_IFDIR
+		je .input_is_dir
+
+
+	.input_is_dir:
+
+
+
+
+
+
+
+		call _exit
+
+
+
+	.no_flag_passed:
+
+	; save the file path and length to variables
+	mov rcx, [rsp + 16]
+	mov [rel fp1_address], rcx
+	mov rcx, [rsp + 24]
+	mov [rel fp2_address], rcx
+
+	mov rdi, [rel fp1_address]
+	call _strlen
+	mov [rel fp1_address_len], rax
+
+	mov rdi, [rel fp2_address]
+	call _strlen
+	mov [rel fp2_address_len], rax
+
+	; check if file 1 is file or dir
+	mov rax, 4 								; stat syscall
+	mov rdi, [rel fp1_address]
+	lea rsi, [rel statBufFp1]
 	syscall
 
 	cmp rax, 0
 	jl .error_opening_file_one
 
-	mov r12, rax							; r12 stores fd1
+	; read the mode
+	mov eax, [rel statBufFp1 + 24]						;read 4 bytes
+	and eax, S_IFMT
+
+
+	cmp eax, S_IFREG
+	je .start_program
+
+	cmp eax, S_IFDIR
+	je .error_input_dir_no_rec_flag
+
+
+
+
+
+	.start_program:
+
+
+	; open 1st file, 
+	; If you are here, it means the fp1 exists
+
+	mov rax, 2 								; open syscall
+	mov rdi, [rel fp1_address]						; address of filepath
+	mov rsi, 0 								; 0 flag: readOnly
+	syscall
+
+	mov [rel fp1_fd], rax							; [rel fp1_fd] stores fd1
 	
+
+
+
+
 	; check if 2nd arg is file/dir
 
 
 	mov rax, 4 								; stat syscall
-	mov rdi, [rsp + 24]						; address filepath
-	mov rsi, statbuf						; address to put data 
+	mov rdi, [rel fp2_address]						; address filepath
+	lea rsi, [rel statBufFp2]						; address to put data 
 	syscall									; if rax < 0 -> error 
 
 	cmp rax, 0
-	jl .check_if_filepath_can_be_created_original_path
+	jl .check_if_filepath2_can_be_opened_original_path
 
 	; get the st_mode	
-	mov eax, [rel statbuf + 24] 				; st_mode offset 24, only 4bytes in size
+	mov eax, [rel statBufFp2 + 24] 				; st_mode offset 24, only 4bytes in size
 
 	and eax, S_IFMT
 	
 	; if the output filepath is a file
 	cmp eax, S_IFREG
-	je .loop
+	je .check_if_filepath2_can_be_opened_original_path
 
 	; handle when output path is a directory
 	
-	mov rdi, [rsp + 24]
+	mov rdi, [rel fp2_address]
 	call _strlen
 
-	mov rcx, [rsp + 24]
+	mov rcx, [rel fp2_address]
 	cmp byte [rcx + rax - 1], '/'
 	je .initialize_memcpy			; if the end of filepath2 is /
 
@@ -100,17 +251,17 @@ _start:
 	
 	.copy_dest_address_to_final_path:
 		mov rdi, finalFilePath
-		mov rsi, [rsp + 24]
+		mov rsi, [rel fp2_address]
 		call _memcpy_with_end_char 				; move filepath2 to final address
 		
 	
 	.copy_file_name_to_final_address:
 		mov r14, rax
 
-		mov rdi, [rsp + 16]
+		mov rdi, [rel fp1_address]
 		call _strlen
 	
-		mov rdi, [rsp + 16]								; address destination 
+		mov rdi, [rel fp1_address]								; address destination 
 		; pointer to filename in rdi, size of original string in rax
 		call _file_name_address 
 	
@@ -123,9 +274,9 @@ _start:
 		jmp .check_if_filepath_can_be_created_new_path
 
 
-	.check_if_filepath_can_be_created_original_path:
+	.check_if_filepath2_can_be_opened_original_path:
 		mov rax, 2 								; open syscall
-		mov rdi, [rsp + 24]						; address of filepath
+		mov rdi, [rel fp2_address]						; address of filepath
 		mov rsi, 65 							; 1 + 64 flag: writeOnly + create
 		mov rdx, 0644o							; 64 : permission 644
 		syscall
@@ -133,7 +284,7 @@ _start:
 		cmp rax, 0
 		jl .error_creating_file_two
 		
-		mov r13, rax							; r13 stores fd2
+		mov [rel fp2_fd], rax							; [rel fp2_fd] stores fd2
 		jmp .loop
 		
 
@@ -147,14 +298,14 @@ _start:
 		cmp rax, 0
 		jl .error_creating_file_two
 		
-		mov r13, rax							; r13 stores fd2
+		mov [rel fp2_fd], rax							; [rel fp2_fd] stores fd2
 
 
 	.loop:
 		; copy to buffer from file 1 into memory
 
 		mov rax, 0 							; read syscall
-		mov rdi, r12						; fd to read from
+		mov rdi, [rel fp1_fd]						; fd to read from
 		mov rsi, buffer 					; address to store data
 		mov rdx, buffer_size 				; how much to read (macro)
 		syscall								; rax stores how many bytes read
@@ -167,7 +318,7 @@ _start:
 
 		mov rdx, rax						; number of bytes to print
 		mov rax, 1 							; write syscall
-		mov rdi, r13						; fd number
+		mov rdi, [rel fp2_fd]						; fd number
 		mov rsi, buffer 					; address of input
 		syscall								; return bytes written in rax
 
@@ -177,102 +328,122 @@ _start:
 		jmp .loop
 
 
+	.error_unkown_flag:
+		mov rax, error_unkown_flag_len			; length (this is a macro)
+		mov rdi, 2 								; fd
+		lea rsi, [rel error_unkown_flag]				; address
+		call _print
+
+		mov rax, [rel flag_address_len]
+		mov rdi, 2 								; fd of output
+		mov rsi, [rel flag_address]						; address
+		call _print
+
+		mov [rel error_status_code], 1
+		jmp _exit_with_status_code
+
+
+	.error_input_dir_no_rec_flag:
+	
+
+		mov rax, error_input_dir_no_rec_flag0_len			; length (this is a macro)
+		mov rdi, 2 								; fd
+		lea rsi, [rel error_input_dir_no_rec_flag0]				; address
+		call _print
+
+		mov rax, [rel fp1_address_len]
+		mov rdi, 2 								; fd of output
+		mov rsi, [rel fp1_address]						; address
+		call _print
+
+
+		mov rax, error_input_dir_no_rec_flag1_len		; length (this is a macro)
+		mov rdi, 2 								; fd
+		lea rsi, [rel error_input_dir_no_rec_flag1]				; address
+		call _print
+
+		mov [rel error_status_code], 1
+		jmp _exit_with_status_code
+
+
 	.error_opening_file_one:
 
 		mov rax, error_opening_file_len			; length (this is a macro)
 		mov rdi, 2 								; fd
-		mov rsi, error_opening_file				; address
+		lea rsi, [rel error_opening_file]				; address of string itself
 		call _print
 
-		; find length of the arg
-		mov rdi, [rsp + 16]						; address of input string
-		call _strlen 							; output len in rax
-
-		; print the argv[1]/filepath1
+		mov rax, [rel fp1_address_len]
 		mov rdi, 2 								; fd of output
-		mov rsi, [rsp + 16]						; address
+		mov rsi, [rel fp1_address]						; address
 		call _print
 
-		mov rax, 1
+		mov [rel error_status_code], 1
 		jmp _exit_with_status_code
 
 	.error_creating_file_two:
 
 		mov rax, error_creating_file_len			; length (this is a macro)
 		mov rdi, 2 									; fd
-		mov rsi, error_creating_file 				; address
+		lea rsi, [rel error_creating_file] 				; address
 		call _print
 
-		; find length of the arg
-		mov rdi, [rsp + 24]						; address of input string
-		call _strlen 							; output len in rax
-
-		; print the argv[1]/filepath1
+		mov rax, [rel fp2_address_len]						; address of input string
 		mov rdi, 2 								; fd of output
-		mov rsi, [rsp + 24]						; address
+		mov rsi, [rel fp2_address]						; address
 		call _print
 		
 		call _close_fd1
-		mov rax, 1
+		mov [rel error_status_code], 1
 		jmp _exit_with_status_code
 
 	.error_reading_from_file:
 
 		mov rax, error_reading_from_file_len	; length (this is a macro)
 		mov rdi, 2 								; fd
-		mov rsi, error_reading_from_file 		; address
+		lea rsi, [rel error_reading_from_file] 		; address
 		call _print
 
-		; find length of the arg
-		mov rdi, [rsp + 16]						; address of input string
-		call _strlen 							; output len in rax
-
-		; print the argv[1]/filepath1
+		mov rax, [rel fp1_address_len]
 		mov rdi, 2 								; fd of output
-		mov rsi, [rsp + 16]						; address
+		mov rsi, [rel fp1_address]						; address
 		call _print
 		
-		mov rax, 1 								; exit code
+		mov [rel error_status_code], 1
 		jmp .close_both_fd
 
 	.error_writing_to_file:
 
 		mov rax, error_writing_to_file_len		; length (this is a macro)
 		mov rdi, 2 								; fd
-		mov rsi, error_writing_to_file 			; address
+		lea rsi, [rel error_writing_to_file] 			; address
 		call _print
 
-		; find length of the arg
-		mov rdi, [rsp + 24]						; address of input string
-		call _strlen 							; output len in rax
-
-		; print the argv[1]/filepath1
+		mov rax, [rel fp2_address_len]						; address of input string
 		mov rdi, 2 								; fd of output
-		mov rsi, [rsp + 24]						; address
+		mov rsi, [rel fp2_address]						; address
 		call _print
 
-		mov rax, 1 								; exit code
+		mov [rel error_status_code], 1
 		jmp .close_both_fd
-		
+	
 
 	.close_both_fd:
-		mov r12, rax
 		call _close_fd2
 		call _close_fd1
-		mov rax, r12
 		jmp _exit_with_status_code
 
 
 _close_fd1:
 	mov rax, 3
-	mov rdi, r12
+	mov rdi, [rel fp1_fd]
 	syscall
 	ret
 
 
 _close_fd2:
 	mov rax, 3
-	mov rdi, r13
+	mov rdi, [rel fp2_fd]
 	syscall
 	ret
 
@@ -304,10 +475,9 @@ _usage:
 _exit_with_status_code:
 
 	
-	cmp rax, 0
+	cmp [rel error_status_code], 0
 	je _exit
 
-	mov r12, rax
 	; print new line
 	mov al, 10
 
@@ -325,7 +495,7 @@ _exit_with_status_code:
 	add rsp ,1
 
 	mov rax, 60
-	mov rdi, r12
+	mov rdi, [rel error_status_code]
 	syscall
 
 

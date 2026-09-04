@@ -140,3 +140,41 @@ then
             s_IFMT  = 0170000
                  &  = 0100000 -> file
                  if & was = 0040000 -> direcotry
+
+
+
+                                for sys_getdents64
+
+entry
+│
+├── +0   d_ino       8 bytes
+├── +8   d_off       8 bytes
+├── +16  d_reclen    2 bytes
+├── +18  d_type      1 byte
+└── +19  d_name      variable length
+
+
+buffer
+  ↓
+┌─────────────────────────────┐ -Top1
+│ entry 1                     │ |
+│ d_ino                       │ |  24 bytes
+│ d_off                       │ |
+│ d_reclen = 24               │ -> 16 bytes from it's directory starting point Top1
+│ d_type                      │ | -> at 18 byte offset
+│ d_name = "."                │ | -> at 19 byte offset always, contains actual filename
+├─────────────────────────────┤ -  
+│ entry 2                     │
+│ d_ino                       │
+│ d_off                       │
+│ d_reclen = 24               │
+│ d_type                      │
+│ d_name = ".."               │
+├──────────────────────────────────┐-   Top3
+│ entry 3                          │|
+│ d_ino                            │|
+│ d_off                            │| 32 bytes
+│ d_reclen = 32                    │|----------> 16bytes from Top3
+│ d_type                           │|
+│ d_name = "hello.txt\0"           │|
+└──────────────────────────────────┘-
