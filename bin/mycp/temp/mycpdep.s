@@ -42,7 +42,7 @@ _strlen:
 ; rsi 	 : src address
 ; dl	 : end char after copy of string
 ; r8b 	 : if 0 -> dont append anything, anything else -> append dl
-; returns: address of byte ahead of last byte written in  rax 
+; returns: address of byte ahead of  last byte written in  rax 
 _memcpy_with_end_char:
 
 	xor r9, r9							; this will store how many bytes i have copied
@@ -52,8 +52,8 @@ _memcpy_with_end_char:
 		je .add_end_char
 
 		; move data from src to destination
-		mov cl , [rsi + r9]					; move exactly 1 byte
-		mov [rdi + r9] , cl 				; 1 byte
+		mov bl , [rsi + r9]					; move exactly 1 byte
+		mov [rdi + r9] , bl 				; 1 byte
 
 		; increment bytes copied and loop
 		inc r9
@@ -63,7 +63,8 @@ _memcpy_with_end_char:
 		test r8b, r8b
 		jz .done
 
-		mov [rdi + r9], dl
+		mov al, dl
+		mov [rdi + r9], al
 		inc r9
 
 	.done:
