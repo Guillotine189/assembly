@@ -454,6 +454,10 @@ _check_fp2_sub_dir_fp1:
 
 		cmp byte [rsi + r9], '/'
 		je .is_a_subdir
+
+		cmp byte [rsi + r9], 0
+		je .is_a_subdir
+
 		jne .not_sub_dir
 
 	.is_a_subdir:

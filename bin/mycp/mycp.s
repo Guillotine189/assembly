@@ -9,8 +9,15 @@ section .data
 	error_opening_directory db "Error opening directory: ", 0
 	error_opening_directory_len equ $ - error_opening_directory
 
-	error_output_is_file_input_is_dir db "Error: Cannot copy a directory as a file.",0
-	error_output_is_file_input_is_dir_len equ $ - error_output_is_file_input_is_dir
+	error_output_is_file_input_is_dir0 db "Error: Cannot copy directory ",0
+	error_output_is_file_input_is_dir0_len equ $ - error_output_is_file_input_is_dir0
+	error_output_is_file_input_is_dir1 db " as ", 0
+	error_output_is_file_input_is_dir1_len equ $ - error_output_is_file_input_is_dir1
+	error_output_is_file_input_is_dir2 db ", file with this name already exists.", 0
+	error_output_is_file_input_is_dir2_len equ $ - error_output_is_file_input_is_dir2
+
+	error_creating_initial_directory db "Error creating directory: ", 0
+	error_creating_initial_directory_len equ $ - error_creating_initial_directory
 
 	error_getting_cwd_org_src_file db "Error getting absolute file path for ", 0
 	error_getting_cwd_org_src_file_len equ $ - error_getting_cwd_org_src_file
@@ -200,7 +207,7 @@ _start:
 		and eax, S_IFMT
 
 		cmp eax, S_IFDIR
-		je .check_out_path_is_a_dir
+		je .check_if_out_path_is_a_dir
 
 		cmp eax, S_IFREG
 		jne .print_error_only_fileDir_supported_and_exit
@@ -226,30 +233,42 @@ _start:
 		jmp ._check_second
 
 
-		.check_out_path_is_a_dir:
+		.check_if_out_path_is_a_dir:
 			mov rax, 4 								; stat syscall
 			mov rdi, [rel original_dst_dir_address]
 			lea rsi, [rel statBufFDstDir]
 			syscall
 
 			cmp rax, 0
-			jl .normalize_file_paths_check_sub_dir
+			jl .check_if_dir_can_be_created
 
 			; read the mode
 			mov eax, [rel statBufFDstDir + 24]						;read 4 bytes
 			and eax, S_IFMT
 
 			cmp eax, S_IFDIR
-			je .normalize_file_paths_check_sub_dir
+			je .setup_and_start_copying
 
 			cmp eax, S_IFREG
 			je .call_out_is_file_inp_is_dir_error_and_exit
 
+			jmp .print_error_only_fileDir_supported_and_exit
+
 			.call_out_is_file_inp_is_dir_error_and_exit:
-				call error_output_is_file_input_is_dir
+				call .error_output_is_file_input_is_dir
 				call _exit_with_status_code
 
-			jmp .print_error_only_fileDir_supported_and_exit
+
+			.check_if_dir_can_be_created:
+				call .normalize_file_paths_check_sub_dir
+				jmp .check_if_out_dir_can_be_created_and_start_copying 	 ;Todo
+
+			.setup_and_start_copying:
+				call .normalize_file_paths_check_sub_dir	
+				;jmp .start_copying_files								 ;Todo
+
+			call _exit 					; TODO: placeholder remove this later
+
 
 		.normalize_file_paths_check_sub_dir:
 			; get cwd
@@ -315,6 +334,9 @@ _start:
 			lea rsi, [rel normalized_src_dir_name]
 			call _normalize_file_path
 
+			cmp rax, 0
+			jl .error_opening_file_one_with_exit ; TODO : fix error invalid path
+
 			;normalize abs_dest_adds
 
 			;normalize abs_src_address
@@ -323,21 +345,47 @@ _start:
 			lea rsi, [rel normalized_dst_dir_name]
 			call _normalize_file_path
 
+			; TODO : fix error invalid path, same a sabove
+
 			; check_output_dir_not_a_sub_dir
 
 			lea rdi, [rel normalized_src_dir_name]
 			lea rsi, [rel normalized_dst_dir_name]
 			call _check_fp2_sub_dir_fp1
 
+			cmp rax, 0
 			je .error_fp2_is_sub_dir_fp1
+			ret
 
-			; check if you can create the abs_dst_directory
+		.check_if_out_dir_can_be_created_and_start_copying:
 
+			; if the dst directory exists, simply go to step 2
 
+			; here i know the dst address does not exists, so either i can create it
+			; or exit, if i create it -> create it with ->
 
-			; check if parent directory exists, and is writable
-			; if yes create the folder
-			; syscall 83 to mkdir
+	;step1	; create the original normal_dst_address, if created then ->
+			
+	;step2	; new directory name :  old directory name appended on normalized_dest_addr
+			; check if that folder already exists as a file/folder
+			; if does not exists try to create it as a folder
+			; now new final og_src_address and final og_dst_address are created
+			; eg : /home/sarthak/temp 							-final_src
+			; eg : /home/sarthak/someotherfolder/temp 			-final_dst
+			; start copying file by file
+			; if you encounter a folder
+			; -> local src folder : 	/home/sarthak/temp/f1
+			; -> local dst folder : 	/home/sarthak/someotherfolder/temp/f1
+
+			mov rax, 83          ; sys_mkdir
+		    lea rdi, [rel normalized_dst_dir_name]     ; pathname
+		    mov rsi, 0755o       ; permissions
+		    syscall
+
+		    cmp rax, 0
+		    jl .error_creating_initial_directory
+
+		    ; now i have successfully created the 
 
 			;mov rax, 2
 			;mov rdi, [rel original_dst_dir_address]
@@ -345,13 +393,11 @@ _start:
 			;mov rdx, 0644o						; permission
 			;syscall
 
-
 			.debug:
 			call _exit
 
-
-		; TODO: make this
-		.check_output_dir_not_a_sub_dir:
+			
+			
 
 
 
@@ -924,6 +970,9 @@ _start:
 		mov rsi, [rel original_src_dir_address]						; address
 		call _print_with_new_line
 
+		mov [rel error_status_code], 1
+		jmp _exit_with_status_code
+
 	.error_fp2_is_sub_dir_fp1:
 		mov rax, error_fp2_is_sub_dir_fp10_len			; length (this is a macro)
 		mov rdi, 2 											; fd
@@ -948,7 +997,22 @@ _start:
 
 		mov [rel error_status_code], 1
 		jmp _exit_with_status_code
-		
+	
+	.error_creating_initial_directory:
+		mov rax, error_creating_initial_directory_len		
+		mov rdi, 2 													; fd
+		lea rsi, [rel error_creating_initial_directory]			
+		call _print
+
+		mov rax, [rel original_dst_dir_name_len]
+		mov rdi, 2 										; fd of output
+		mov rsi, [rel original_dst_dir_address]						; address
+		call _print_with_new_line		
+
+		mov [rel error_status_code], 1
+		jmp _exit_with_status_code
+
+
 	.error_opening_directory:
 
 		mov rax, error_opening_directory_len			; length (this is a macro)
@@ -1042,9 +1106,30 @@ _start:
 		jmp .close_both_fd
 	
 	.error_output_is_file_input_is_dir:
-		mov rax, error_output_is_file_input_is_dir_len	; length (this is a macro)
+
+		mov rax, error_output_is_file_input_is_dir0_len	; length (this is a macro)
 		mov rdi, 2 								; fd
-		lea rsi, [rel error_output_is_file_input_is_dir] 		; address
+		lea rsi, [rel error_output_is_file_input_is_dir0] 		; address
+		call _print
+
+		mov rax, [rel original_src_dir_name_len]					
+		mov rdi, 2 								; fd of output
+		mov rsi, [rel original_src_dir_address]						; address
+		call _print
+
+		mov rax, error_output_is_file_input_is_dir1_len	; length (this is a macro)
+		mov rdi, 2 								; fd
+		lea rsi, [rel error_output_is_file_input_is_dir1] 		; address
+		call _print
+
+		mov rax, [rel original_dst_dir_name_len]					
+		mov rdi, 2 								; fd of output
+		mov rsi, [rel original_dst_dir_address]						; address
+		call _print
+
+		mov rax, error_output_is_file_input_is_dir2_len	; length (this is a macro)
+		mov rdi, 2 								; fd
+		lea rsi, [rel error_output_is_file_input_is_dir2] 		; address
 		call _print_with_new_line
 
 		mov [rel error_status_code], 1
