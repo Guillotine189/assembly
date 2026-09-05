@@ -9,6 +9,19 @@ section .data
 	error_opening_directory db "Error opening directory: ", 0
 	error_opening_directory_len equ $ - error_opening_directory
 
+	error_output_is_file_input_is_dir db "Error: Cannot copy a directory as a file.",0
+	error_output_is_file_input_is_dir_len equ $ - error_output_is_file_input_is_dir
+
+	error_getting_cwd_org_src_file db "Error getting absolute file path for ", 0
+	error_getting_cwd_org_src_file_len equ $ - error_getting_cwd_org_src_file
+
+	error_fp2_is_sub_dir_fp10 db "Error: ", 0
+	error_fp2_is_sub_dir_fp10_len equ $ - error_fp2_is_sub_dir_fp10
+
+	error_fp2_is_sub_dir_fp11 db ", is a sub directory of ", 0
+	error_fp2_is_sub_dir_fp11_len equ $ - error_fp2_is_sub_dir_fp11
+
+
 	error_opening_file db "Error opening file: ", 0
 	error_opening_file_len equ $ - error_opening_file
 
@@ -46,7 +59,8 @@ section .data
 section .bss
 	buffer resb 16384
 	buffer_size equ 16384
-	statBufFDir resb 144				; yes it is always 144 bytes
+	statBufFSrcDir resb 144				; yes it is always 144 bytes
+	statBufFDstDir resb 144				; yes it is always 144 bytes
 	statBufFp1 resb 144				; yes it is always 144 bytes
 	statBufFp2 resb 144				; yes it is always 144 bytes
 
@@ -59,6 +73,19 @@ section .bss
 
 	original_dst_dir_address resb 8
 	original_dst_dir_name_len resq 1
+
+	normalized_src_dir_name resb 4096
+	normalized_src_dir_name_len resq 1
+	normalized_dst_dir_name resb 40196
+	normalized_dst_dir_name_len resq 1
+
+	cwd_buf resb 4096
+	cwd_fp_len resq 1
+
+	original_src_combined_cwd_and_input_file_name resb 4096
+	original_src_combined_cwd_and_input_file_name_len resq 8
+	original_dst_combined_cwd_and_output_file_name resb 4096
+	original_dst_combined_cwd_and_output_file_name_len resq 8
 
 	local_src_dir_address resb 8
 	local_src_dir_name_len resq 1
@@ -91,10 +118,13 @@ section .bss
 section .text
 
 extern _print
+extern _print_with_new_line
 extern _strlen
 extern _memcpy_with_end_char
 extern _file_name_address
 extern _cmp_equal_memory
+extern _normalize_file_path
+extern _check_fp2_sub_dir_fp1
 
 global _start
 
@@ -159,18 +189,18 @@ _start:
 
 		mov rax, 4 								; stat syscall
 		mov rdi, [rel original_src_dir_address]
-		lea rsi, [rel statBufFDir]
+		lea rsi, [rel statBufFSrcDir]
 		syscall
 
 		cmp rax, 0
 		jl .error_opening_file_one
 
 		; read the mode
-		mov eax, [rel statBufFDir + 24]						;read 4 bytes
+		mov eax, [rel statBufFSrcDir + 24]						;read 4 bytes
 		and eax, S_IFMT
 
 		cmp eax, S_IFDIR
-		je .prepare_stack_call_input_is_dir
+		je .check_out_path_is_a_dir
 
 		cmp eax, S_IFREG
 		jne .print_error_only_fileDir_supported_and_exit
@@ -187,13 +217,143 @@ _start:
 		mov [rel fp2_name_len], rax
 
 		mov rax, 144						; size of both is 144bytes
-		mov rdi, statBufFDir				; src address
+		mov rdi, statBufFSrcDir				; src address
 		mov rsi, statBufFp1					; dest address
 		xor r8, r8 							; no end char to copy
 		call _memcpy_with_end_char
 
 		; check if 2nd file is same as first
 		jmp ._check_second
+
+
+		.check_out_path_is_a_dir:
+			mov rax, 4 								; stat syscall
+			mov rdi, [rel original_dst_dir_address]
+			lea rsi, [rel statBufFDstDir]
+			syscall
+
+			cmp rax, 0
+			jl .normalize_file_paths_check_sub_dir
+
+			; read the mode
+			mov eax, [rel statBufFDstDir + 24]						;read 4 bytes
+			and eax, S_IFMT
+
+			cmp eax, S_IFDIR
+			je .normalize_file_paths_check_sub_dir
+
+			cmp eax, S_IFREG
+			je .call_out_is_file_inp_is_dir_error_and_exit
+
+			.call_out_is_file_inp_is_dir_error_and_exit:
+				call error_output_is_file_input_is_dir
+				call _exit_with_status_code
+
+			jmp .print_error_only_fileDir_supported_and_exit
+
+		.normalize_file_paths_check_sub_dir:
+			; get cwd
+
+			mov rax, 79 						; cwd syscall number
+			lea rdi, [rel cwd_buf]
+			mov rsi, 4096 						; buffer size
+			syscall 							; rax has the file size
+
+			; make abs_src_address cwd + og_src_address
+
+			cmp rax, 0
+			jl .error_getting_cwd_org_src_file 
+
+			mov [rel cwd_fp_len], rax
+
+			; make abs_src_adds cwd+og_src_address
+			sub rax, 1 							; og len includes \0, i dont want that
+			lea rdi, [rel original_src_combined_cwd_and_input_file_name]
+			lea rsi, [rel cwd_buf]
+			mov dl, '/'
+			mov r8,1
+			call _memcpy_with_end_char  		; rax pointer to next address
+
+			mov rdi, rax
+			mov rax, [rel original_src_dir_name_len]
+			mov rsi, [rel original_src_dir_address]
+			mov dl, 0
+			mov r8,1
+			call _memcpy_with_end_char  		; rax pointer to next address
+
+			lea rcx, [rel original_src_combined_cwd_and_input_file_name]
+			sub rax, rcx
+			sub rax, 1 							; og len includes \0, i dont want that
+			mov [rel original_src_combined_cwd_and_input_file_name_len], rax
+
+
+			; make abs_dest_adds cwd + og_dst_address 
+			mov rax, [rel cwd_fp_len]
+			sub rax, 1
+			lea rdi, [rel original_dst_combined_cwd_and_output_file_name]
+			lea rsi, [rel cwd_buf]
+			mov dl, '/'
+			mov r8,1
+			call _memcpy_with_end_char  		; rax pointer to next address
+
+			mov rdi, rax
+			mov rax, [rel original_dst_dir_name_len]
+			mov rsi, [rel original_dst_dir_address]
+			mov dl, 0
+			mov r8,1
+			call _memcpy_with_end_char  		; rax pointer to next address
+
+			lea rcx, [rel original_dst_combined_cwd_and_output_file_name]
+			sub rax, rcx
+			sub rax, 1 							; og len includes \0, i dont want that
+			mov [rel original_dst_combined_cwd_and_output_file_name_len], rax
+
+
+			;normalize abs_src_address
+			mov rax, [rel original_src_combined_cwd_and_input_file_name_len]
+			lea rdi, [rel original_src_combined_cwd_and_input_file_name]
+			lea rsi, [rel normalized_src_dir_name]
+			call _normalize_file_path
+
+			;normalize abs_dest_adds
+
+			;normalize abs_src_address
+			mov rax, [rel original_dst_combined_cwd_and_output_file_name_len]
+			lea rdi, [rel original_dst_combined_cwd_and_output_file_name]
+			lea rsi, [rel normalized_dst_dir_name]
+			call _normalize_file_path
+
+			; check_output_dir_not_a_sub_dir
+
+			lea rdi, [rel normalized_src_dir_name]
+			lea rsi, [rel normalized_dst_dir_name]
+			call _check_fp2_sub_dir_fp1
+
+			je .error_fp2_is_sub_dir_fp1
+
+			; check if you can create the abs_dst_directory
+
+
+
+			; check if parent directory exists, and is writable
+			; if yes create the folder
+			; syscall 83 to mkdir
+
+			;mov rax, 2
+			;mov rdi, [rel original_dst_dir_address]
+			;mov rsi, 65 						; write(1) + create(64)
+			;mov rdx, 0644o						; permission
+			;syscall
+
+
+			.debug:
+			call _exit
+
+
+		; TODO: make this
+		.check_output_dir_not_a_sub_dir:
+
+
 
 		.prepare_stack_call_input_is_dir:
 
@@ -277,7 +437,6 @@ _start:
 	; 	  0x7   |  			99999		  			| -> Only at 1st call
 
 	.input_is_dir:
-		; TODO : check if output directory a sub directory of input
 		
 		.examin:
 		mov rax, [rsp]							; check the fd
@@ -716,7 +875,7 @@ _start:
 		mov rax, [rel flag_address_len]
 		mov rdi, 2 								; fd of output
 		mov rsi, [rel flag_address]						; address
-		call _print
+		call _print_with_new_line
 
 		mov [rel error_status_code], 1
 		jmp _exit_with_status_code
@@ -738,7 +897,7 @@ _start:
 		mov rax, error_input_dir_no_rec_flag1_len		; length (this is a macro)
 		mov rdi, 2 								; fd
 		lea rsi, [rel error_input_dir_no_rec_flag1]				; address
-		call _print
+		call _print_with_new_line
 
 		mov [rel error_status_code], 1
 		jmp _exit_with_status_code
@@ -747,24 +906,60 @@ _start:
 	.error_same_file_provided:
 
 		mov rax, error_same_file_provided_len			; length (this is a macro)
-		mov rdi, 2 								; fd
+		mov rdi, 2 											; fd
 		lea rsi, [rel error_same_file_provided]				; address of string itself
-		call _print
+		call _print_with_new_line
 
 		mov [rel error_status_code], 1
 		jmp _exit_with_status_code
 
+	.error_getting_cwd_org_src_file:
+		mov rax, error_getting_cwd_org_src_file_len			; length (this is a macro)
+		mov rdi, 2 											; fd
+		lea rsi, [rel error_getting_cwd_org_src_file]		
+		call _print
+
+		mov rax, [rel original_src_dir_name_len]
+		mov rdi, 2 								; fd of output
+		mov rsi, [rel original_src_dir_address]						; address
+		call _print_with_new_line
+
+	.error_fp2_is_sub_dir_fp1:
+		mov rax, error_fp2_is_sub_dir_fp10_len			; length (this is a macro)
+		mov rdi, 2 											; fd
+		lea rsi, [rel error_fp2_is_sub_dir_fp10]		
+		call _print
+
+		mov rax, [rel original_dst_dir_name_len]
+		mov rdi, 2 								; fd of output
+		mov rsi, [rel original_dst_dir_address]						; address
+		call _print
+
+
+		mov rax, error_fp2_is_sub_dir_fp11_len			; length (this is a macro)
+		mov rdi, 2 											; fd
+		lea rsi, [rel error_fp2_is_sub_dir_fp11]		
+		call _print
+
+		mov rax, [rel original_src_dir_name_len]
+		mov rdi, 2 								; fd of output
+		mov rsi, [rel original_src_dir_address]						; address
+		call _print_with_new_line
+
+		mov [rel error_status_code], 1
+		jmp _exit_with_status_code
+		
 	.error_opening_directory:
 
 		mov rax, error_opening_directory_len			; length (this is a macro)
-		mov rdi, 2 								; fd
+		mov rdi, 2 										; fd
 		lea rsi, [rel error_opening_directory]				; address of string itself
 		call _print
 
 		mov rax, [rel local_src_dir_name_len]
-		mov rdi, 2 								; fd of output
+		mov rdi, 2 										; fd of output
 		mov rsi, [rel local_src_dir_address]						; address
-		call _print
+		call _print_with_new_line
 
 		mov [rel error_status_code], 1
 		ret
@@ -779,7 +974,7 @@ _start:
 		mov rax, [rel fp1_name_len]
 		mov rdi, 2 								; fd of output
 		mov rsi, [rel fp1_address]						; address
-		call _print
+		call _print_with_new_line
 
 		mov [rel error_status_code], 1
 		ret
@@ -795,7 +990,7 @@ _start:
 		mov rax, [rel fp1_name_len]
 		mov rdi, 2 								; fd of output
 		mov rsi, [rel fp1_address]						; address
-		call _print
+		call _print_with_new_line
 
 		mov [rel error_status_code], 1
 
@@ -809,7 +1004,7 @@ _start:
 		mov rax, [rel fp2_name_len]						; address of input string
 		mov rdi, 2 								; fd of output
 		mov rsi, [rel fp2_address]						; address
-		call _print
+		call _print_with_new_line
 		
 		call _close_fd1
 		mov [rel error_status_code], 1
@@ -825,7 +1020,7 @@ _start:
 		mov rax, [rel fp1_name_len]
 		mov rdi, 2 								; fd of output
 		mov rsi, [rel fp1_address]						; address
-		call _print
+		call _print_with_new_line
 		
 		mov [rel error_status_code], 1
 		ret
@@ -840,12 +1035,21 @@ _start:
 		mov rax, [rel fp2_name_len]						; address of input string
 		mov rdi, 2 								; fd of output
 		mov rsi, [rel fp2_address]						; address
-		call _print
+		call _print_with_new_line
 
 		mov [rel error_status_code], 1
 		ret
 		jmp .close_both_fd
 	
+	.error_output_is_file_input_is_dir:
+		mov rax, error_output_is_file_input_is_dir_len	; length (this is a macro)
+		mov rdi, 2 								; fd
+		lea rsi, [rel error_output_is_file_input_is_dir] 		; address
+		call _print_with_new_line
+
+		mov [rel error_status_code], 1
+		ret
+
 
 	.error_only_dir_file_copy_supported:
 
@@ -862,7 +1066,7 @@ _start:
 		mov rax, error_only_dir_file_copy_supported1_len		; length (this is a macro)
 		mov rdi, 2 								; fd
 		lea rsi, [rel error_only_dir_file_copy_supported1]				; address
-		call _print
+		call _print_with_new_line
 
 		mov [rel error_status_code], 1
 		ret
@@ -918,22 +1122,6 @@ _exit_with_status_code:
 	
 	cmp [rel error_status_code], 0
 	je _exit
-
-	; print new line
-	mov al, 10
-
-	; add to stack 1 byte
-	sub rsp, 1
-	mov [rsp], al 							; move 1 byte to stack
-
-	mov rax, 1 								; write syscall
-	mov rdi, 2 								; fd
-	mov rsi, rsp							; address of that 1 byte
-	mov rdx, 1 								; total bytes to print
-	syscall
-
-	; remove from stack
-	add rsp ,1
 
 	mov rax, 60
 	mov rdi, [rel error_status_code]
