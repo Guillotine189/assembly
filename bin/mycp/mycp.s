@@ -28,6 +28,8 @@ section .data
 	error_fp2_is_sub_dir_fp11 db ", is a sub directory of ", 0
 	error_fp2_is_sub_dir_fp11_len equ $ - error_fp2_is_sub_dir_fp11
 
+	error_creating_new_dir_and_exit db "Error creating directory: ", 0
+	error_creating_new_dir_and_exit_len equ $ - error_creating_new_dir_and_exit
 
 	error_opening_file db "Error opening file: ", 0
 	error_opening_file_len equ $ - error_opening_file
@@ -62,6 +64,7 @@ section .data
 
 	dot_file db '.', 0
 	double_dot_file db '..', 0
+	backSlash db '/', 0
 
 section .bss
 	buffer resb 16384
@@ -131,7 +134,7 @@ extern _memcpy_with_end_char
 extern _file_name_address
 extern _cmp_equal_memory
 extern _normalize_file_path
-extern _check_fp2_sub_dir_fp1
+extern _check_fp2_is_sub_dir_fp1
 
 global _start
 
@@ -200,7 +203,7 @@ _start:
 		syscall
 
 		cmp rax, 0
-		jl .error_opening_file_one
+		jl .error_opening_file_one_with_exit
 
 		; read the mode
 		mov eax, [rel statBufFSrcDir + 24]						;read 4 bytes
@@ -259,18 +262,25 @@ _start:
 				call _exit_with_status_code
 
 
+			; dst address does NOT exists: 	
+			; [try to create the og_dst,start copying: no adding og_src_folder_name]
 			.check_if_dir_can_be_created:
-				call .normalize_file_paths_check_sub_dir
-				jmp .check_if_out_dir_can_be_created_and_start_copying 	 ;Todo
+				call .normalize_file_paths_and_check_sub_dir
+				call .check_if_og_dst_can_be_created
+				;jmp .start_copying 	 ;Todo
 
+
+			; dst directory exists:
+			; [try to create the (og_dst+og_src_folder_name),start copying]
 			.setup_and_start_copying:
-				call .normalize_file_paths_check_sub_dir	
-				;jmp .start_copying_files								 ;Todo
+				call .normalize_file_paths_and_check_sub_dir	
+				call .check_and_create_src_folder_inside_og_dst
+				;jmp .start_copying								 ;Todo
 
 			call _exit 					; TODO: placeholder remove this later
 
 
-		.normalize_file_paths_check_sub_dir:
+		.normalize_file_paths_and_check_sub_dir:
 			; get cwd
 
 			mov rax, 79 						; cwd syscall number
@@ -337,7 +347,7 @@ _start:
 			cmp rax, 0
 			jl .error_opening_file_one_with_exit ; TODO : fix error invalid path
 
-			;normalize abs_dest_adds
+			mov [rel normalized_src_dir_name_len], rax
 
 			;normalize abs_src_address
 			mov rax, [rel original_dst_combined_cwd_and_output_file_name_len]
@@ -345,37 +355,21 @@ _start:
 			lea rsi, [rel normalized_dst_dir_name]
 			call _normalize_file_path
 
+			mov [rel normalized_dst_dir_name_len], rax
 			; TODO : fix error invalid path, same a sabove
 
 			; check_output_dir_not_a_sub_dir
-
+			
 			lea rdi, [rel normalized_src_dir_name]
 			lea rsi, [rel normalized_dst_dir_name]
-			call _check_fp2_sub_dir_fp1
+			call _check_fp2_is_sub_dir_fp1
+
 
 			cmp rax, 0
 			je .error_fp2_is_sub_dir_fp1
 			ret
 
-		.check_if_out_dir_can_be_created_and_start_copying:
-
-			; if the dst directory exists, simply go to step 2
-
-			; here i know the dst address does not exists, so either i can create it
-			; or exit, if i create it -> create it with ->
-
-	;step1	; create the original normal_dst_address, if created then ->
-			
-	;step2	; new directory name :  old directory name appended on normalized_dest_addr
-			; check if that folder already exists as a file/folder
-			; if does not exists try to create it as a folder
-			; now new final og_src_address and final og_dst_address are created
-			; eg : /home/sarthak/temp 							-final_src
-			; eg : /home/sarthak/someotherfolder/temp 			-final_dst
-			; start copying file by file
-			; if you encounter a folder
-			; -> local src folder : 	/home/sarthak/temp/f1
-			; -> local dst folder : 	/home/sarthak/someotherfolder/temp/f1
+		.check_if_og_dst_can_be_created:
 
 			mov rax, 83          ; sys_mkdir
 		    lea rdi, [rel normalized_dst_dir_name]     ; pathname
@@ -383,27 +377,70 @@ _start:
 		    syscall
 
 		    cmp rax, 0
-		    jl .error_creating_initial_directory
-
-		    ; now i have successfully created the 
-
-			;mov rax, 2
-			;mov rdi, [rel original_dst_dir_address]
-			;mov rsi, 65 						; write(1) + create(64)
-			;mov rdx, 0644o						; permission
-			;syscall
+		    jl .error_creating_initial_directory  ; TODO: fix which directory is shown in error
 
 			.debug:
 			call _exit
 
-			
-			
+		    ret 
+
+		.check_and_create_src_folder_inside_og_dst:
+
+			; find the len of the file_name, eg
+			; /home/sarthak/src_filename
+			; |a		   |b 	       |c
+			; a -> original address
+			; b -> addd returned from _file_name_address - 1 -> '/'
+			; c -> a + len of path - 1
+			; size_src_file_name = c - b + 1, 
+
+			mov rax, [rel normalized_src_dir_name_len]
+			lea rdi, [rel normalized_src_dir_name]
+			call _file_name_address 		; rdi has address where filename starts
+
+			sub rdi, 1
+
+			lea rcx, [rel normalized_src_dir_name]				; a
+			add rcx, [rel normalized_src_dir_name_len]
+			sub rcx, 1 											; c
+			sub rcx, rdi 										
+			inc rcx 								; file_name_size when '/' included
+
+			mov rax, rcx
+			mov rsi, rdi
+			lea rdi, [rel normalized_dst_dir_name]
+			add rdi, [rel normalized_dst_dir_name_len] 	; at '\0'
+			mov dl, 0 									; copy \0 at end
+			mov r8, 1
+			call _memcpy_with_end_char
+
+			; save new len of fnormalized address
+			; /home/sarthak/dst_folder_that_already_exists/src_folder\0
+			; |a 													  |rax
+			lea rcx, [rel normalized_dst_dir_name] 				; a
+			sub rax, rcx
+			mov [rel normalized_dst_dir_name_len], rax
 
 
+			; now check if you can make this new directory
 
-		.prepare_stack_call_input_is_dir:
+			mov rax, 83          ; sys_mkdir
+		    lea rdi, [rel normalized_dst_dir_name]     ; pathname
+		    mov rsi, 0755o       ; permissions
+		    syscall
+
+		    cmp rax, 0
+		    jl .error_creating_new_dir_and_exit
 
 
+			.debug2:
+			call _exit
+
+			ret
+
+		.start_copying:
+
+		; -------------------------OLD -----------------------------
 	; rsp-> | 	 	fd of currnet directory   		| -> +0 bytes
 	;		| 		local_src_dir_name_length		| -> +8 bytes
 	;		|    src_dir_name_ending_with_'\0'	  	| -> +16 bytes
@@ -411,6 +448,25 @@ _start:
 	;		|    dst_dir_name_ending_with_'\0'	  	| -> +x+8 bytes
 
 	;		| 				fake fd1 				| -> x+16
+
+	; --------------------------NEW----------------------------------------
+
+	; STACK -----------------------------------------------------------
+
+	; 	rsp ->  | 			return address 				| -> +0bytes
+	;  			|     	actual_sys_getdents64_data		| -> +8 bytes
+	; 					------------------------
+	;	  0x103	|    src_dir_name_ending_with_'\0'	  	| -> +x bytes
+	; 					------------------------
+	;	  0x105	|    dst_dir_name_ending_with_'\0'	  	| -> +xy bytes
+	; 					------------------------
+	
+
+	; rax: fd of current open directory
+	; rdi: offset_for_getdents64
+	; rsi: total_size_sys_getdents64
+	; rdx: local_src_dir_name_length
+	; rcx: local_dst_dir_name_length
 
 			.prepare_stack:
 			sub rsp, [rel original_src_dir_name_len]
@@ -462,27 +518,53 @@ _start:
 			
 			.before_call:
 
-			call .input_is_dir
+			call .start_copying_dir
 
 
-
-	; this will be added to stack when this function runs
-	;		|      	offset_for_getdents64 			| -> +16 bytes
-	;  		|     	total_size_sys_getdents64		| -> +24 bytes
-	;  		|     	actual_sys_getdents64_data		| -> +30 bytes
-	;		|     			0x7 					| -> 8bytes
-	
 	; in the first iteration it's 
-	; rsp->0x1  | 		   instruction for ret 			| -> +0 bytes
-	;  	  0x2	| 	 	fd of currnet directory   		| -> +8 bytes
-	;	  0x3	| 		local_src_dir_name_length		| -> +16 bytes
-	;	  0x4	|    src_dir_name_ending_with_'\0'	  	| -> +24 bytes
-	;	  0x5	| 		local_dst_dir_name_length		| -> +x  bytes
-	;	  0x6	|    dst_dir_name_ending_with_'\0'	  	| -> +x+8 bytes
-	
-	; 	  0x7   |  			99999		  			| -> Only at 1st call
 
-	.input_is_dir:
+	; old rbp will be added to stack when this function runs
+	; rsp->0x1  | 				old rbp x100 			| -> -8 bytes
+	; 			| 		   address for return 			| -> current rbp
+
+	;			|      	  offset_for_getdents64 		| -> +16 bytes
+	;  			|     	total_size_sys_getdents64		| -> +24 bytes
+	;  			|     	actual_sys_getdents64_data		| -> +32 bytes
+	; 					------------------------
+	;  	  0x2	| 	 	fd of currnet directory   		| -> +x bytes
+	;	  0x3	| 		local_src_dir_name_length		| -> +x+8 bytes
+	;	  0x4	|    src_dir_name_ending_with_'\0'	  	| -> +x+16 bytes
+	; 					------------------------
+	;	  0x5	| 		local_dst_dir_name_length		| -> +y  bytes
+	;	  0x6	|    dst_dir_name_ending_with_'\0'	  	| -> +x+8 bytes
+	; 					------------------------
+	
+
+
+	; STACK -----------------------------------------------------------
+
+	; 	rsp ->  | 			return address 				| -> +0bytes
+	;  			|     	actual_sys_getdents64_data		| -> +8 bytes
+	; 					------------------------
+	;	  0x103	|    src_dir_name_ending_with_'\0'	  	| -> +x bytes
+	; 					------------------------
+	;	  0x105	|    dst_dir_name_ending_with_'\0'	  	| -> +xy bytes
+	; 					------------------------
+	
+
+	; rax: fd of current open directory
+	; rdi: offset_for_getdents64
+	; rsi: total_size_sys_getdents64
+	; rdx: local_src_dir_name_length
+	; rcx: local_dst_dir_name_length
+	; stack: actual_sys_getdents64_data
+	; stack: src_dir_name_ending_with_'\0'
+	; stack: dst_dir_name_ending_with_'\0'
+
+	.start_copying_dir:
+
+		push rbp
+		mov rbp, rsp
 		
 		.examin:
 		mov rax, [rsp]							; check the fd
@@ -687,15 +769,18 @@ _start:
 
 
 		.move_int_directory:
-			
-			push rax
-			push r8
+
 			; TODO getDentDirBuf to stack
 
 			call _exit
 
 
 		.move_out_of_directory:
+
+			;[ VERY IMPORTANT line]
+			mov rsp, rbp
+
+			; add stuff here
 
 			; todo : pop recursion values from stack
 
@@ -1012,6 +1097,21 @@ _start:
 		mov [rel error_status_code], 1
 		jmp _exit_with_status_code
 
+	.error_creating_new_dir_and_exit:
+		mov rax, error_creating_new_dir_and_exit_len		
+		mov rdi, 2 													; fd
+		lea rsi, [rel error_creating_new_dir_and_exit]			
+		call _print
+
+		mov rax, [rel normalized_dst_dir_name_len]
+		mov rdi, 2 										; fd of output
+		mov rsi, [rel normalized_dst_dir_name]						; address
+		call _print_with_new_line		
+
+		mov [rel error_status_code], 1
+		jmp _exit_with_status_code
+
+
 
 	.error_opening_directory:
 
@@ -1057,6 +1157,7 @@ _start:
 		call _print_with_new_line
 
 		mov [rel error_status_code], 1
+		jmp _exit_with_status_code
 
 	.error_creating_file_two:
 

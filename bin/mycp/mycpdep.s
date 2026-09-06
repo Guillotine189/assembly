@@ -11,7 +11,7 @@ global _memcpy_with_end_char
 global _file_name_address
 global _cmp_equal_memory
 global _normalize_file_path
-global _check_fp2_sub_dir_fp1
+global _check_fp2_is_sub_dir_fp1
 
 
 ; rax: number of bytes to print 
@@ -426,7 +426,7 @@ _memcpy_with_end_char:
 ; returns: 0 -> fp2 a sub directory of fp1
 ; 		   1 -> fp2 is NOT a sub dir of fp1
 ; both path received must either terminate without '/'
-_check_fp2_sub_dir_fp1:
+_check_fp2_is_sub_dir_fp1:
 	
 
 	xor r9, r9
