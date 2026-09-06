@@ -398,7 +398,7 @@ _memcpy_with_end_char:
 	xor r9, r9							; this will store how many bytes i have copied
 	.loop:
 		; check if i have to cpoy another byte
-		cmp r9, rax 						; rax will always store the original count of bytes until i 
+		cmp r9, rax 			; rax will always store the original count of bytes
 		je .add_end_char
 
 		; move data from src to destination

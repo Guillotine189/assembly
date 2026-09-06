@@ -77,7 +77,6 @@ section .bss
 	flag_address resb 8
 	flag_address_len resq 1
 
-	dir_fd resq 1
 	original_src_dir_address resb 8
 	original_src_dir_name_len resq 1
 
@@ -113,7 +112,8 @@ section .bss
 
 	getDentDirBuf resb 4096
 
-	rec_file_path_src resb 4096
+	rec_src_file_path_name resb 4096
+	rec_src_dst_path_name resb 4096
 
 	S_IFMT  equ 0o170000			; masks for st_mode
 	S_IFREG equ 0o100000			; value file when : mask AND eax 
@@ -527,65 +527,10 @@ _start:
 			mov rdx, [rel normalized_src_dir_name_len]
 			mov rcx, [rel normalized_dst_dir_name_len]
 
-			.debug3:
-				call _exit
-
-
-
-
-
-
-
-			sub rsp, [rel original_src_dir_name_len]
-			sub rsp, [rel original_dst_dir_name_len]
-			sub rsp, 34
-
-			; (3x8 + 2 + len_src + len_dst)(for 1st iteration) + 8(for termation)
-			
-			; directory fd
-			mov qword [rsp], 0
-
-			; length of src directory_name
-			mov rax, [rel original_src_dir_name_len]
-			mov [rsp + 8], rax
-			
-			.problem_start:
-			; actual src directory name
-			mov rax, [rel original_src_dir_name_len]
-			lea rdi, [rsp + 16]
-			mov rsi, [rel original_src_dir_address]
-			mov r8, 1 								; '\0 as end char'
-			xor rdx, rdx 							; null terminator in end
-			call _memcpy_with_end_char
-			
-			mov rbx,  [rel original_src_dir_name_len]
-			inc rbx 						; bec of "\0"
-
-			; length of dst directory_name
-			mov rax, [rel original_dst_dir_name_len]
-			mov [rsp + 16 + rbx], rax
-			
-			; actual dst directory name
-			mov rax, [rel original_dst_dir_name_len]
-			lea rdi, [rsp + 24 + rbx]
-			mov rsi, [rel original_dst_dir_address]
-			mov r8, 1 								; '\0 as end char'
-			xor rdx, rdx 							; null terminator in end
-			call _memcpy_with_end_char			
-
-			.problem:
-
-			add rbx, [rel original_dst_dir_name_len]
-			inc rbx
-			
-			; this is the condition for my recursive _input_is_file function to end
-			mov rax,  99999
-			mov [rsp + 24 + rbx],	rax				; fake fd for last recursion
-			
-			
 			.before_call:
 
 			call .start_copying_dir
+			call _exit
 
 
 	; in the first iteration it's 
@@ -608,10 +553,15 @@ _start:
 	
 
 
-	; STACK -----------------------------------------------------------
+	; STACK after init adds
+	; rsp->0x1	|		total_size_sys_getdents64 		| -> -24 bytes
+	; 			|		offset_for_getdents64 			| -> -16 bytes
+	; 			|				fd  					| -> -8 bytes
+	; 	rbp->	| 			old rbp x100 				| -> +0 bytes -> current rbp
 
-	; 	rsp ->  | 			return address 				| -> +0bytes
-	;  			|     	actual_sys_getdents64_data		| -> +8 bytes
+	;stack_received
+	; 		    | 			return address 				| -> +8 bytes
+	;  			|     	actual_sys_getdents64_data		| -> +16 bytes
 	; 					------------------------
 	;	  0x103	|    src_dir_name_ending_with_'\0'	  	| -> +x bytes
 	; 					------------------------
@@ -630,77 +580,79 @@ _start:
 
 	.start_copying_dir:
 
+		.init:
 		push rbp
 		mov rbp, rsp
 		
-		.examin:
-		mov rax, [rsp]							; check the fd
-		cmp rax, 99999
-		je _exit
+		mov [rel local_src_dir_name_len], rdx
+		mov [rel local_dst_dir_name_len], rcx
 
-		mov rax, [rsp + 16]                    ; source length
-		lea rcx, [rsp + 24]                    ; source address
-		mov [rel local_src_dir_address], rcx
-		mov [rel local_src_dir_name_len], rax
+		mov r8, rsi
+		lea r9, [rbp + 16 + r8]
+		mov [rel local_src_dir_address], r9
 
-		lea rcx, [rsp + 24 + rax + 1]          ; destination len address
+		add r8, rdx 					
+		inc r8
 
-		mov rdx, [rcx]                         ; actual destination length
-		mov [rel local_dst_dir_name_len], rdx
+		lea r9, [rbp + 16 + r8]
+		mov [rel local_dst_dir_address], r9
 
-		lea rcx, [rcx + 8]                     ; destination string address
-		mov [rel local_dst_dir_address], rcx
+		push rax
+		push rdi
+		push rsi
 
-		add rcx, [rel local_dst_dir_name_len]
-		inc rcx									; bec of '\0'
-		push rcx						; The top of stack has address of next address
-
-		; open directory
-
-		.check_open:
-
-		mov rax, 2
-		mov rdi, [rel local_src_dir_address]
-		mov rsi, 0
-		syscall
-
-		test rax, rax
-		jl .print_error_opening_dir_and_move_out_of_directory
-
-		mov [rsp + 8], rax 							; also save it in stack
-		mov [rel dir_fd], rax 						; fd1 not lives in stack for 8 bytes
+		; now i am free to use alll 5 registers
 
 		.outer_loop:
 
-		; get data for input 
+		mov rax, [rbp - 16]
+		cmp rax, [rbp - 24]
 
-		mov rax, 217 					; sys_getdents64 syscall
-		mov rdi, [rel dir_fd]					; fd
-		lea rsi, [rel getDentDirBuf] 	; buffer
-		mov rdx, 4096					; how much bytes to write
-		syscall
+		je .get_more_data_for_dir
+		jne .prepare_inner_loop
 
-		test rax,rax
-		jl .print_error_opening_dir_and_move_out_of_directory
-		jz .move_out_of_directory
+		.get_more_data_for_dir:
+			mov rax, 217 					; sys_getdents64 syscall
+			mov rdi, [rbp - 8]				; fd
+			lea rsi, [rbp + 16] 			; move data to directly inside stack
+			mov rdx, [rbp - 24]				; how much bytes to write
+			syscall
 
-		; now check all the files inside
+			cmp rax, 0
+			jl .print_error_opening_dir_and_move_out_of_directory
+			jz .move_out_of_directory
 
-		; rax will always contain the total size
-		xor r8, r8 								; offset for reading buffer
 
-		; make sure to push rax, r8 to stack when recursive
+
+		.prepare_inner_loop:
+		; for this directory, innerloop expects
+		; rax = size of getdent
+		; r8 = offset for getdent
+
+		mov r8, [rbp - 16]
+		mov rax, [rbp - 24]
+
 		.inner_loop:
+
 
 			; check if next segment is available
 			cmp r8, rax
-			je .move_out_of_directory
 
-			; read filetype dir/file
-			lea rdx, [rel getDentDirBuf]
+			je .save_register_go_outer_loop
+			jne .read_filetype
+
+			.save_register_go_outer_loop:
+				mov [rbp - 16], r8
+				mov [rbp - 24], rax
+				jmp .outer_loop
+
+
+			.read_filetype:
+			lea rdx, [rbp + 16] 						; address of getdentbuffer
 			mov cl, [rdx + r8 + 18] 					; file type
 			
 			cmp cl, DT_DIR
+			je .loopback
 			;je .move_int_directory
 			
 			cmp cl, DT_REG
@@ -748,12 +700,12 @@ _start:
 			; first: get segment size : from d_reclen located at 16bytes
 			; file size = [segment size - 19bytes - padding by compiler]
 
-			lea rdx, [rel getDentDirBuf + 16]
-			movzx r9, word [r8 + rdx] 					; 2bytes contain the segments size
+			lea rdx, [rbp + 16 + r8] 				; address of current segment
+			movzx r9, word [rdx + 16] 			; 2bytes contain the segments size
 
-			lea rdi, [rel getDentDirBuf]
+			lea rdi, [rbp + 16]						; getdent buffer address
 			add rdi, r8
-			add rdi, 19
+			add rdi, 19 							; address of file_name
 			xor r10, r10
 
 		.count_loop:
@@ -766,29 +718,34 @@ _start:
 		.done:
 			; 	now r10 has the file_name size
 
-			; 1)move into rec_file_path_src the directory name + '/'
-			; 2)add the file name to rec_file_path_src
-			; 3)value in fp1_address equals to address of rec_file_path_src
+			; 1)move into rec_src_file_path_name the directory name + '/'
+			; 2)add the file name to rec_src_file_path_name
+			; 3)value in fp1_address equals to address of rec_src_file_path_name
 
 			; 1) 
-			push rax
-			push r8
+
+
+			mov [rbp - 16], r8
+			mov [rbp - 24], rax
 			push r10
 			mov rax, [rel local_src_dir_name_len]
-			lea rdi, [rel rec_file_path_src]
+			lea rdi, [rel rec_src_file_path_name]
 			mov rsi, [rel local_src_dir_address]
 			mov r8, 1
 			mov rdx, '/'
 			call _memcpy_with_end_char			; rax has address of next location
 			pop r10
-			pop r8
+			mov r8, [rbp - 16]					; pop r8
+
+			;mov rax, [rbp - 24]
 
 			.check:
-			push r8
+			;mov [rbp - 16], r8 						; push r8
+
 			;2)
 			mov rdi, rax
 			mov rax, r10
-			lea rsi, [rel getDentDirBuf]
+			lea rsi, [rbp + 16] 				; addres of getdentbuf
 			add rsi, r8
 			add rsi, 19 						; idk why but at 18 you get file name
 			mov r8, 1
@@ -798,12 +755,13 @@ _start:
 			.check2:
 
 			; fp1_address
-			lea rdx, [rel rec_file_path_src]
+			lea rdx, [rel rec_src_file_path_name]
 			mov [rel fp1_address], rdx
 
+			; fp1 -> address ->  /home/current_folder/file_to_be_copied
 
-			; 3)
-			lea rdi, [rel rec_file_path_src]
+			; 3)  TODO: subtract addres to find length , better way
+			lea rdi, [rel rec_src_file_path_name]
 			call _strlen
 			; rax now has file of path
 
@@ -815,18 +773,22 @@ _start:
 			mov rdx, [rel local_dst_dir_address]
 			mov [rel fp2_address], rdx
 
+			; fp2 -> address -> /home/some_other_directory
+
 			; fp2_name_len
 			mov rdx, [rel local_dst_dir_name_len]
 			mov [rel fp2_name_len], rdx
 
+			.final_check:
+
 			call .copy_file1_to_path
 
-			pop r8
-			pop rax
+			mov r8, [rbp - 16]
+			mov rax, [rbp - 24]
 			
 		.loopback:
 
-			lea rsi, [rel getDentDirBuf]
+			lea rsi, [rbp + 16]					; address getdentbuffer
 			add rsi, r8
 			add rsi, 16
 			movzx ecx, word [rsi]
@@ -846,10 +808,8 @@ _start:
 
 			;[ VERY IMPORTANT line]
 			mov rsp, rbp
-
-			; add stuff here
-
-			; todo : pop recursion values from stack
+			pop rbp
+			ret
 
 			call _exit
 
@@ -975,19 +935,19 @@ _start:
 	mov rax, [rel fp2_name_len]
 	mov rcx, [rel fp2_address]
 	cmp byte [rcx + rax - 1], '/'
-	je .initialize_memcpy			; if the end of filepath2 is /
+	je .dont_add_slash			; if the end of filepath2 is /
 
 	mov dl, '/'									; when memcpy called, it will append 
 	mov r8b, 1 									; set flag to apppend anything 			
 	jmp .copy_dest_address_to_final_path
 
 
-	.initialize_memcpy:
+	.dont_add_slash:
 		mov r8b, 0
 
 	
 	.copy_dest_address_to_final_path:
-		mov rdi, finalFilePath
+		lea rdi, [rel finalFilePath]
 		mov rsi, [rel fp2_address]
 		call _memcpy_with_end_char 				; move filepath2 to final address
 		; rax contains address ahead of the last byte copied
