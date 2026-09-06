@@ -267,7 +267,7 @@ _start:
 			.check_if_dir_can_be_created:
 				call .normalize_file_paths_and_check_sub_dir
 				call .check_if_og_dst_can_be_created
-				;jmp .start_copying 	 ;Todo
+				jmp .prepare_args_call_copy_dir_function
 
 
 			; dst directory exists:
@@ -275,7 +275,8 @@ _start:
 			.setup_and_start_copying:
 				call .normalize_file_paths_and_check_sub_dir	
 				call .check_and_create_src_folder_inside_og_dst
-				;jmp .start_copying								 ;Todo
+				jmp .prepare_args_call_copy_dir_function
+
 
 			call _exit 					; TODO: placeholder remove this later
 
@@ -379,9 +380,6 @@ _start:
 		    cmp rax, 0
 		    jl .error_creating_initial_directory  ; TODO: fix which directory is shown in error
 
-			.debug:
-			call _exit
-
 		    ret 
 
 		.check_and_create_src_folder_inside_og_dst:
@@ -431,44 +429,113 @@ _start:
 
 		    cmp rax, 0
 		    jl .error_creating_new_dir_and_exit
-
-
-			.debug2:
-			call _exit
-
 			ret
 
-		.start_copying:
+		.prepare_args_call_copy_dir_function:
 
-		; -------------------------OLD -----------------------------
-	; rsp-> | 	 	fd of currnet directory   		| -> +0 bytes
-	;		| 		local_src_dir_name_length		| -> +8 bytes
-	;		|    src_dir_name_ending_with_'\0'	  	| -> +16 bytes
-	;		| 		local_dst_dir_name_length		| -> +x  bytes
-	;		|    dst_dir_name_ending_with_'\0'	  	| -> +x+8 bytes
+			; STACK -----------------------------------------------------------
 
-	;		| 				fake fd1 				| -> x+16
-
-	; --------------------------NEW----------------------------------------
-
-	; STACK -----------------------------------------------------------
-
-	; 	rsp ->  | 			return address 				| -> +0bytes
-	;  			|     	actual_sys_getdents64_data		| -> +8 bytes
-	; 					------------------------
-	;	  0x103	|    src_dir_name_ending_with_'\0'	  	| -> +x bytes
-	; 					------------------------
-	;	  0x105	|    dst_dir_name_ending_with_'\0'	  	| -> +xy bytes
-	; 					------------------------
+			;  			|     	actual_sys_getdents64_data		| -> -z bytes
+			; 					------------------------
+			;	  0x103	|    src_dir_name_ending_with_'\0'	  	| -> -x bytes
+			; 					------------------------
+			;	  0x105	|    dst_dir_name_ending_with_'\0'	  	| -> -y bytes
+			; 					------------------------
 	
+			; rax: fd of current open directory
+			; rdi: offset_for_getdents64
+			; rsi: total_size_sys_getdents64
+			; rdx: local_src_dir_name_length
+			; rcx: local_dst_dir_name_length
 
-	; rax: fd of current open directory
-	; rdi: offset_for_getdents64
-	; rsi: total_size_sys_getdents64
-	; rdx: local_src_dir_name_length
-	; rcx: local_dst_dir_name_length
+			.open_init_src_dir:
+
+			mov rax, 2
+			lea rdi, [rel normalized_src_dir_name]
+			mov rsi, 0 							; read only for src
+			syscall
+
+			cmp rax, 0
+			jl .cannot_open_initial_src_dir_exit
+			
+			mov r12, rax 					; r12 fd in callee register safe
+
+			jmp .getdent_init_src_dir
+
+			.cannot_open_initial_src_dir_exit:
+				call .error_opening_directory   ;TODO: fix display proper file	
+				call _exit_with_status_code
+
+			.getdent_init_src_dir:
+
+			mov rax, 217 					; sys_getdents64 syscall
+			mov rdi, r12						; fd
+			lea rsi, [rel getDentDirBuf] 	; buffer
+			mov rdx, 4096					; how much bytes to write
+			syscall
+
+			cmp rax, 0
+			jl .cannot_open_initial_src_dir_exit   ; TODO: maybe give proper error
+
+			mov r13, rax 				; r13: size of getdent in callee register safe
 
 			.prepare_stack:
+			; find how much space to need in stack
+			mov r10, r13 							; size of get_dent_data			
+			add r10, [rel normalized_src_dir_name_len]	; add len of src_file_name
+			inc r10									; add space for '\0'
+			add r10, [rel normalized_dst_dir_name_len] ; add len of dst_file_name
+			inc r10									; add space for '\0'
+
+			; reserver stack space
+			sub rsp, r10
+
+			.check_stack:
+
+			; add info to stack
+
+			; move actual sysgetdentData
+			mov rax, r13								; len of data recv from getdent
+			mov rdi, rsp 								; destination stack
+			lea rsi, [rel getDentDirBuf] 				; src address 
+			xor r8, r8 									; no ending with anything
+			call _memcpy_with_end_char 		; rax has next address of last byte writen
+			;mov rsp, rax 								; move rsp forward
+
+			;add the src_file_name
+			mov rdi, rax
+			mov rax, [rel normalized_src_dir_name_len]
+			lea rsi, [rel normalized_src_dir_name]
+			mov dl, 0
+			mov r8, 1
+			call _memcpy_with_end_char
+			;mov rsp, rax 								; move rsp forward
+
+			; add the dst file name
+			mov rdi, rax
+			mov rax, [rel normalized_dst_dir_name_len]
+			lea rsi, [rel normalized_dst_dir_name]
+			mov dl, 0
+			mov r8, 1
+			call _memcpy_with_end_char
+
+			.prepare_registers:
+
+			mov rsi, r13 								; rsi size of getdent_returned
+			mov rax, r12 								; rax has fd
+			mov rdi, 0 									; offset for getdent, init: 0
+			mov rdx, [rel normalized_src_dir_name_len]
+			mov rcx, [rel normalized_dst_dir_name_len]
+
+			.debug3:
+				call _exit
+
+
+
+
+
+
+
 			sub rsp, [rel original_src_dir_name_len]
 			sub rsp, [rel original_dst_dir_name_len]
 			sub rsp, 34
