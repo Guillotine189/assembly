@@ -411,12 +411,13 @@ _start:
 			mov dl, 0 									; copy \0 at end
 			mov r8, 1
 			call _memcpy_with_end_char
-
+			
 			; save new len of fnormalized address
-			; /home/sarthak/dst_folder_that_already_exists/src_folder\0
-			; |a 													  |rax
+			; /home/sarthak/dst_folder_that_already_exists/src_folder\0_
+			; |a 													   |rax
 			lea rcx, [rel normalized_dst_dir_name] 				; a
 			sub rax, rcx
+			sub rax, 1
 			mov [rel normalized_dst_dir_name_len], rax
 
 
