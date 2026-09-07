@@ -52,6 +52,7 @@ _print_with_new_line:
 
 ; address of string in rdi
 ; return stored in rax
+; searches until \0 encountered
 _strlen:
 
 	.intialize:
