@@ -314,10 +314,10 @@ _start:
 			je .absolute_dst_path_passed
 
 			.relative_dst_path_passed:
-				cmp [rel add_cwd_og_dst_path_flag], 1
+				mov [rel add_cwd_og_dst_path_flag], 1
 				ret
 			.absolute_dst_path_passed:
-				cmp [rel add_cwd_og_dst_path_flag], 0
+				mov [rel add_cwd_og_dst_path_flag], 0
 				ret
 
 
