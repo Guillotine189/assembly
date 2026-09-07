@@ -66,6 +66,9 @@ section .data
 	double_dot_file db '..', 0
 	backSlash db '/', 0
 
+	add_cwd_og_src_path_flag db 0
+	add_cwd_og_dst_path_flag db 0
+
 section .bss
 	buffer resb 16384
 	buffer_size equ 16384
@@ -146,8 +149,6 @@ global _start
 
 _start:
 
-	; TODO: fix absolute file path is passed
-
 	; handle args passed
 
 	mov rax, [rsp]							; argc in rax
@@ -217,10 +218,11 @@ _start:
 		and eax, S_IFMT
 
 		cmp eax, S_IFDIR
-		je .check_if_out_path_is_a_dir
+		je .handle_original_src_is_dir
+		
 
 		cmp eax, S_IFREG
-		jne .print_error_only_fileDir_supported_and_exit
+		jne .print_error_only_fileDir_supported_and_exit  ; if 1st is file, still copy it
 
 		; first path was a file not a directory
 		mov rax, [rel original_src_dir_address]
@@ -241,6 +243,24 @@ _start:
 
 		; check if 2nd file is same as first
 		jmp ._check_second
+
+
+
+		.handle_original_src_is_dir:
+			call .check_and_mark_if_og_src_is_absolute_path
+			jmp .check_if_out_path_is_a_dir
+
+		.check_and_mark_if_og_src_is_absolute_path:
+			mov rdi, [rel original_src_dir_address]
+			cmp byte [rdi], '/'
+			je .absolute_src_path_passed
+
+			.relative_src_path_passed:
+				mov [rel add_cwd_og_src_path_flag], 1
+				ret
+			.absolute_src_path_passed:
+				mov [rel add_cwd_og_src_path_flag], 0
+				ret
 
 
 		.check_if_out_path_is_a_dir:
@@ -272,6 +292,8 @@ _start:
 			; dst address does NOT exists: 	
 			; [try to create the og_dst,start copying: no adding og_src_folder_name]
 			.check_if_dir_can_be_created:
+
+				call .check_and_mark_if_og_dst_is_absolute_path
 				call .normalize_file_paths_and_check_sub_dir
 				call .check_if_og_dst_can_be_created
 				jmp .prepare_args_call_copy_dir_function
@@ -280,9 +302,24 @@ _start:
 			; dst directory exists:
 			; [try to create the (og_dst+og_src_folder_name),start copying]
 			.setup_and_start_copying:
+				call .check_and_mark_if_og_dst_is_absolute_path
 				call .normalize_file_paths_and_check_sub_dir	
 				call .check_and_create_src_folder_inside_og_dst
 				jmp .prepare_args_call_copy_dir_function
+
+
+			.check_and_mark_if_og_dst_is_absolute_path:
+			mov rdi, [rel original_dst_dir_address]
+			cmp byte [rdi], '/'
+			je .absolute_dst_path_passed
+
+			.relative_dst_path_passed:
+				cmp [rel add_cwd_og_dst_path_flag], 1
+				ret
+			.absolute_dst_path_passed:
+				cmp [rel add_cwd_og_dst_path_flag], 0
+				ret
+
 
 
 			call _exit 					; TODO: placeholder remove this later
@@ -303,6 +340,11 @@ _start:
 
 			mov [rel cwd_fp_len], rax
 
+			.add_cwd_og_src_file_path:
+			; add csw  to src directory only if add_cwd_og_src_path_flag is 1
+			cmp [rel add_cwd_og_src_path_flag], 1
+			jne .add_cwd_og_dst_file_path
+
 			; make abs_src_adds cwd+og_src_address
 			sub rax, 1 							; og len includes \0, i dont want that
 			lea rdi, [rel original_src_combined_cwd_and_input_file_name]
@@ -322,9 +364,15 @@ _start:
 			sub rax, rcx
 			sub rax, 1 							; og len includes \0, i dont want that
 			mov [rel original_src_combined_cwd_and_input_file_name_len], rax
+			jmp .add_cwd_og_dst_file_path
 
 
-			; make abs_dest_adds cwd + og_dst_address 
+			.add_cwd_og_dst_file_path:
+			
+			; add csw  to dst directory only if add_cwd_og_src_path_flag is 1
+			cmp [rel add_cwd_og_dst_path_flag], 1
+			jne .normalize_src_dir
+
 			mov rax, [rel cwd_fp_len]
 			sub rax, 1
 			lea rdi, [rel original_dst_combined_cwd_and_output_file_name]
@@ -346,9 +394,16 @@ _start:
 			mov [rel original_dst_combined_cwd_and_output_file_name_len], rax
 
 
-			;normalize abs_src_address
-			mov rax, [rel original_src_combined_cwd_and_input_file_name_len]
-			lea rdi, [rel original_src_combined_cwd_and_input_file_name]
+
+			.normalize_src_dir:
+
+			; check if i need to use origianal src to make normalized or cwd added
+			cmp [rel add_cwd_og_src_path_flag], 1
+			je .use_cwd_added_to_og_src
+
+			; else use og path to normalize
+			mov rax, [rel original_src_dir_name_len]
+			mov rdi, [rel original_src_dir_address]
 			lea rsi, [rel normalized_src_dir_name]
 			call _normalize_file_path
 
@@ -356,8 +411,35 @@ _start:
 			jl .error_opening_file_one ; TODO : fix error invalid path
 
 			mov [rel normalized_src_dir_name_len], rax
+			jmp .normalize_dest_dir
 
-			;normalize abs_src_address
+			.use_cwd_added_to_og_src:
+			mov rax, [rel original_src_combined_cwd_and_input_file_name_len]
+			lea rdi, [rel original_src_combined_cwd_and_input_file_name]
+			lea rsi, [rel normalized_src_dir_name]
+			call _normalize_file_path
+			cmp rax, 0
+			jl .error_opening_file_one ; TODO : fix error invalid path
+			mov [rel normalized_src_dir_name_len], rax
+
+
+			.normalize_dest_dir:
+
+			; check if i have to og filepath or cwd+og
+			cmp [rel add_cwd_og_dst_path_flag], 1
+			je .use_cwd_added_to_og_dst
+
+			; else use og path to normalize
+			mov rax, [rel original_dst_dir_name_len]
+			mov rdi, [rel original_dst_dir_address]
+			lea rsi, [rel normalized_dst_dir_name]
+			call _normalize_file_path
+			cmp rax, 0
+			jl .error_opening_file_one ; TODO : fix error invalid path
+			mov [rel normalized_dst_dir_name_len], rax
+			jmp .check_subdir
+
+			.use_cwd_added_to_og_dst:
 			mov rax, [rel original_dst_combined_cwd_and_output_file_name_len]
 			lea rdi, [rel original_dst_combined_cwd_and_output_file_name]
 			lea rsi, [rel normalized_dst_dir_name]
@@ -366,15 +448,15 @@ _start:
 			mov [rel normalized_dst_dir_name_len], rax
 			; TODO : fix error invalid path, same a sabove
 
+			.check_subdir:
 			; check_output_dir_not_a_sub_dir
-			
 			lea rdi, [rel normalized_src_dir_name]
 			lea rsi, [rel normalized_dst_dir_name]
 			call _check_fp2_is_sub_dir_fp1
 
 
 			cmp rax, 0
-			je .error_fp2_is_sub_dir_fp1
+			je .error_fp2_is_sub_dir_fp1_and_exit
 			ret
 
 		.check_if_og_dst_can_be_created:
@@ -539,26 +621,6 @@ _start:
 
 			call .start_copying_dir
 			call _exit
-
-
-	; in the first iteration it's 
-
-	; old rbp will be added to stack when this function runs
-	; rsp->0x1  | 				old rbp x100 			| -> -8 bytes
-	; 			| 		   address for return 			| -> current rbp
-
-	;			|      	  offset_for_getdents64 		| -> +16 bytes
-	;  			|     	total_size_sys_getdents64		| -> +24 bytes
-	;  			|     	actual_sys_getdents64_data		| -> +32 bytes
-	; 					------------------------
-	;  	  0x2	| 	 	fd of currnet directory   		| -> +x bytes
-	;	  0x3	| 		local_src_dir_name_length		| -> +x+8 bytes
-	;	  0x4	|    src_dir_name_ending_with_'\0'	  	| -> +x+16 bytes
-	; 					------------------------
-	;	  0x5	| 		local_dst_dir_name_length		| -> +y  bytes
-	;	  0x6	|    dst_dir_name_ending_with_'\0'	  	| -> +x+8 bytes
-	; 					------------------------
-	
 
 
 	; STACK after init adds
@@ -1321,7 +1383,7 @@ _start:
 		mov [rel error_status_code], 1
 		jmp _exit_with_status_code
 
-	.error_fp2_is_sub_dir_fp1:
+	.error_fp2_is_sub_dir_fp1_and_exit:
 		mov rax, error_fp2_is_sub_dir_fp10_len			; length (this is a macro)
 		mov rdi, 2 											; fd
 		lea rsi, [rel error_fp2_is_sub_dir_fp10]		
