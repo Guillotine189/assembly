@@ -1,7 +1,7 @@
 section .data
 	usage_line0 db "Usage: ",0
 	usage_line0_len equ $ - usage_line0
-	usage_line1 db " [-flag: r] <filePath1> <filePath2>",10,0
+	usage_line1 db " [-flag: r] <file|dir> <file|dir>",10,0
 	usage_line1_len equ $ - usage_line1
 
 	recursive_flag db "-r",0

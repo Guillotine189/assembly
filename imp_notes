@@ -61,6 +61,7 @@ You cannot push/pop a sub register to stack:
 
                                 The stack layout on process start
 
+                IMPORTANT: rbp is UNDEFINED at process startup, do not assume it
 ;               RSP
 ;                   │
 ;                   ▼
@@ -106,7 +107,7 @@ You cannot push/pop a sub register to stack:
 ;               └──────────────────────────────┘
 ;                   │
 ;               HIGH ADDRESSES
-
+                
 
 
 
