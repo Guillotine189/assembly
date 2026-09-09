@@ -52,6 +52,7 @@ section .text
 extern _print
 extern _print_with_new_line
 extern _strlen
+extern _print_error_with_new_line
 
 global _start
 
@@ -82,6 +83,7 @@ _start:
 	jmp .og_file_exists_check_og_file_is_a_reg_file
 
 	.set_error_getting_og_file_info_and_exit:
+		mov [rel exit_code_status], rax
 		mov rdi, [rel search_file_address]
 		mov [rel error_opening_file_name_address], rdi
 
@@ -123,7 +125,7 @@ _start:
 	jmp .start_finding_pattern
 
 	.set_error_opening_og_file_and_exit:
-
+		mov [rel exit_code_status], rax
 		mov rdi, [rel search_file_address]			 ; address of search file
 		mov [rel error_opening_file_name_address], rdi
 
@@ -144,11 +146,30 @@ _start:
 
 
 
+	; prepare stack
+
+	;  	    | 					pattern1_len 				| +16 bytes
+	;  	    | 				pattern1_ending_with_\0 		| +24 bytes
+	;  	    | 					pattern2_len 				| +x bytes
+	;  	    | 				pattern2_ending_with_\0 		| +x+8 bytes
+	;  	    | 					pattern3_len 				| +y bytes
+	;  	    | 				pattern3_ending_with_\0 		| +y+8 bytes
+	; --------------------------and so on
+
+
+
+
+	; prepare registers
+
+	; rax: fd of file
+	; rdi: number of patterns to match
+	; rsi : address of file name
+
+
+
+	.before_call:
+
 	call .find_patterns_on_file
-
-
-
-
 
 	call _close_search_file
 	call _exit
@@ -217,7 +238,7 @@ _start:
 
 	cmp rax, 0
 	jl .print_error_reading_from_file_and_return
-	je .process_last_line 								; TODO
+	je .process_last_line
 
 	mov [rbp - 32], rax 						; store how much local data is there
 
@@ -246,7 +267,9 @@ _start:
 		cmp rax, [rbp - 32] 			; if ending offset >= size
 		jge .loop_reading_file
 
-		cmp [rel resusable_read_data_buffer + rax], '\n'
+		lea rcx, [rel resusable_read_data_buffer]
+		add rcx, rax
+		cmp byte [rcx], 0x0a 						; cmpare with \n
 		je .loop_for_multiple_patterns
 
 		inc rax
@@ -259,21 +282,124 @@ _start:
 
 	; start offset has position of beginninig of new byte
 	; now my end pointer offset is pointing to \n
-	xor r12, r12 						; stores how many patterns have been checked
+	xor r12, r12 						; which pattern am i checking
+	mov rax, 0 			 				; 
+	push rax 				;rbp - 64 stores the len of all patterns processed
+						; update rbp - 64, once the pattern has been processed
 
+	.init_for_next_pattern:
+	inc r12
+
+	cmp r12, [rbp - 16] 				; once all pattern matched
+	jg .init_new_line 					; get new line when all patterns are checked
+	jmp .cont_patterns
+
+	.init_new_line:
+		pop rax
+		jmp .get_new_line
+	
+
+	.cont_patterns:
+	; add the len of next pattern to total len of pattern processed
+	; currently i am processing 1st pattern (1 indexing)
+
+
+	mov r13, [rbp - 40] 		; inner_loop_start_offset=local_offset_starting_new_line
+	mov r14, [rbp - 40] 		; inner_loop_end_offset=local_offset_starting_new_line
+	xor r15, r15 						; inner_loop_bytes_same_as_pettern
+	
 	.loop_for_single_pattern:
 
 
-	; 	->check for pattern within the offsets provided
+	cmp r14, [rbp - 48] 		; if local end pointer is > line end 
+	jg .check_next_pattern 	; check for next pattern
+
+	; [rbp + 8 + r12*8 + [rbp - 64]] 			; address of current pattern
+	; [rbp + 8 + (r12-1)*8 + [rbp - 64]] 		; len of current pattern
+
+	; cmp byte of loop_end_offset with pattern's nth byte
+	lea rax, [rel resusable_read_data_buffer]
+	add rax, r14 							; at the address of the byte am comparing
+
+	mov rcx, [rbp - 64] 					; total len of all prev pattern processed
+	mov rcx, r12
+	shl rcx, 3  		; the bytes of total pattern including current ones address, r12*8
+	lea rcx , [rbp + 8 + rcx] 		; the address of current pattern
+	add rcx, r15 					; address which byte of pattern am i comparing
+
+	mov al, byte [rax]
+	cmp byte al, [rcx]
+	je .equal_byte
+	jne .not_equal_byte
+
+	.equal_byte:
+		inc r15 						; now check the next byte of pattern
+		inc r14 						; inc end offset
+
+		.check_if_pattern_is_matched:
+			; comapre len of pattern with (offset_end - offset_start + 1)
+			mov rax, [rbp - 64] 		
+			mov rcx, r12
+			shl rcx, 3
+			add rax, rcx
+			sub rax, 8 			
+			mov rax, [rbp + 8 + rax] 	; now rax has len of current pattern
+			mov rcx, r14
+			sub rcx, r15
+			inc rcx
+			cmp rax, rcx
+			je .pattern_matched
+
+		jmp .loop_for_single_pattern
+
+	.not_equal_byte:
+		xor r15, r15 					
+		inc r14
+		mov r13, r14 					; move start offet to end offset
+		jmp .check_next_pattern
+
+
+	.pattern_matched:
+		; todo: print the current line
+		mov rax, [rbp - 48] 			; local line ending offset
+		sub rax, [rbp - 40]				; sub local line ending 
+		inc rax 						; rax has len
+		mov rdi, 1
+		lea rsi, [rel resusable_read_data_buffer]
+		add rsi, [rbp - 24] 			; address of buffer where the line starts
+		call _print_with_new_line
+
+		xor r15, r15 					
+		inc r14
+		mov r13, r14 					; move start offet to end offset
+		jmp .check_next_pattern
+
+
+	.check_next_pattern:
+		; add the len of currnet pattern to len of total pattern processed
+		; [rbp + 8 + (r12-1)*8 + [rbp - 64]] 			; len of current pattern
+		mov rax, [rbp - 64] 					; total len of all prev pattern processed
+		mov rcx, r12
+		shl rcx, 3
+		add rax, rcx 	; the bytes of total pattern including current ones address
+		sub rax, 8 			
+		; now i am at the offset from rbp after ret addr, where cur len is located
+
+		mov rax, [rbp + 8 + rax] 	; now rax has len of current pattern
+		add [rbp - 64], rax 		; update the total len of pattern processed
+		jmp .init_for_next_pattern
 
 
 
-	; 	-> if found the pattern, record the starting offset and end offset for the pattern
-	; print line if pattern exist, print in red colour the pattern
-	; loop for other pattern
+	; TODO: 
+	; "line1\nline2\nLine3"  This is final buffer, 
+	;				 |L	 -> my starting pointer is at "L", now find pattern in last line
+	.process_last_line:
+		jmp .return
 
 
 	.print_error_reading_from_file_and_return:
+		mov [rel exit_code_status], rax
 		mov rdi, [rbp - 56]						 ; address of file
 		mov [rel error_reading_file_address], rdi
 
@@ -301,7 +427,10 @@ _start:
 	mov rax, [rel error_opening_file_name_len]
 	mov rdi, 1
 	mov rsi, [rel error_opening_file_name_address]
-	call _print_with_new_line
+	call _print
+
+	mov rax, [rel exit_code_status]
+	call _print_error_with_new_line
 
 	mov [rel exit_code_status], 1
 	jmp _exit_with_status_code
@@ -315,7 +444,10 @@ _start:
 	mov rax, [rel error_reading_file_len]
 	mov rdi, 1
 	mov rsi, [rel error_reading_file_address]
-	call _print_with_new_line
+	call _print
+
+	mov rax, [rel exit_code_status]
+	call _print_error_with_new_line
 	ret
 
 .error_reading_file_and_exit:
@@ -327,15 +459,14 @@ _start:
 	mov rax, [rel error_reading_file_len]
 	mov rdi, 1
 	mov rsi, [rel error_reading_file_address]
-	call _print_with_new_line
+	call _print
+
+	mov rax, [rel exit_code_status]
+	call _print_error_with_new_line
 
 	mov [rel exit_code_status], 1
 	jmp _exit_with_status_code
 	
-
-
-
-
 .error_search_path_arg_is_not_a_file_and_exit:
 	mov rax, error_search_path_arg_is_not_a_file_and_exit0_len
 	mov rdi, 1 									;fd
