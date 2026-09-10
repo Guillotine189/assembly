@@ -202,7 +202,7 @@ _start:
 ; expects file line to be < 4096bytes
 ; expects file name to be 
 .find_patterns_on_file:
-	ret
+	
 
 	.init:
 		push rbp
@@ -270,13 +270,16 @@ _start:
 		lea rcx, [rel resusable_read_data_buffer]
 		add rcx, rax
 		cmp byte [rcx], 0x0a 						; cmpare with \n
-		je .loop_for_multiple_patterns
+		je .save_and_loop_for_multiple_patterns
 
 		inc rax
 		mov [rbp - 48], rax
 		jmp .loop
 
 
+	.save_and_loop_for_multiple_patterns:
+		mov [rbp - 48], rax 			; only local loop end offset needs to be updated
+		jmp .loop_for_multiple_patterns
 
 	.loop_for_multiple_patterns:
 
@@ -314,16 +317,17 @@ _start:
 	cmp r14, [rbp - 48] 		; if local end pointer is > line end 
 	jg .check_next_pattern 	; check for next pattern
 
-	; [rbp + 8 + r12*8 + [rbp - 64]] 			; address of current pattern
-	; [rbp + 8 + (r12-1)*8 + [rbp - 64]] 		; len of current pattern
+	;lea [rbp + 8 + r12*8 + [rbp - 64]] 			; address of current pattern
+	;mov [rbp + 8 + (r12-1)*8 + [rbp - 64]] 		; len of current pattern
 
 	; cmp byte of loop_end_offset with pattern's nth byte
 	lea rax, [rel resusable_read_data_buffer]
 	add rax, r14 							; at the address of the byte am comparing
 
-	mov rcx, [rbp - 64] 					; total len of all prev pattern processed
+	mov r8, [rbp - 64] 					; total len of all prev pattern processed
 	mov rcx, r12
 	shl rcx, 3  		; the bytes of total pattern including current ones address, r12*8
+	add rcx, r8
 	lea rcx , [rbp + 8 + rcx] 		; the address of current pattern
 	add rcx, r15 					; address which byte of pattern am i comparing
 
@@ -356,7 +360,7 @@ _start:
 		xor r15, r15 					
 		inc r14
 		mov r13, r14 					; move start offet to end offset
-		jmp .check_next_pattern
+		jmp .loop_for_single_pattern
 
 
 	.pattern_matched:

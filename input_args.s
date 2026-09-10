@@ -20,7 +20,7 @@
 
 section .data
 	line DB "Argument passed: ", 0
-	idx dq 1
+	idx dq 0
 	total_bytes dq 0
 
 

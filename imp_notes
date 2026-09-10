@@ -24,7 +24,7 @@
 
 1) writing to eax WILL CHNAGE the top 32bits
 2) writing to AX, AH, or AL WILL NOT change the top bits
-
+---------------------------------------------------------------------------------------
 
 
 say rbx holds an address
@@ -35,7 +35,7 @@ say rbx holds an address
 
 
 
-
+---------------------------------------------------------------------------------------
 mul instruction:
         mul rbx
         -> multiplies rbx and rax
@@ -58,7 +58,7 @@ You cannot push/pop a sub register to stack:
 
 
 
-
+---------------------------------------------------------------------------------------
                                 The stack layout on process start
 
                 IMPORTANT: rbp is UNDEFINED at process startup, do not assume it
@@ -110,7 +110,7 @@ You cannot push/pop a sub register to stack:
                 
 
 
-
+---------------------------------------------------------------------------------------
                                         sys _ stat 
 
 
@@ -143,7 +143,7 @@ then
                  if & was = 0040000 -> direcotry
 
 
-
+---------------------------------------------------------------------------------------
                                 for sys_getdents64
 
 entry
@@ -179,3 +179,200 @@ buffer
 │ d_type                           │|
 │ d_name = "hello.txt\0"           │|
 └──────────────────────────────────┘-
+
+
+
+------------------------------------------------------------------------------
+bash
+ │
+ │ parses command line
+ │
+ │ constructs argv/envp
+ │
+ ▼
+fork()
+ │
+ ├───────────────┐
+ │               │
+parent           child
+ │               │
+ │               └── execve("./input_args", argv, envp)
+ │                              │
+ │                              ▼
+ │                         kernel
+ │                              │
+ │                     loads ELF / maps it
+ │                              │
+ │                     constructs initial
+ │                     process stack
+ │                              │
+ │                              ▼
+ │                           _start
+ │
+ └── waits for child (normally)
+
+
+ 
+Terminal emulator:
+        -> it runs a program called bash
+
+case 1: when i type something
+        -> terminal emulator recv the input, it passes it to bash, 
+        -> bash processes the input and tells terminal emulator what to print
+        -> eg: "file<tab>", bash auto completes when i press tab,
+                then bash tells terminal emulator to write the full fileName
+        -> this is why fd 0,1,2 are pointing to terminal bec bash is originally using it
+           and when my process inherit the fd, it points to the same fd
+
+case 2: when i press enter
+        -> bash recv Enter through temrminal emulator,
+        -> it prepares argv, envp etc  [execve does not take argc]
+        -> executes fork
+        -> then child process uses execve
+
+
+---------------------------------------------------------------------------------------
+problem with gdb showing wrong argument:
+case 1: bash runs my program directly
+        -> bash runs execve("./myfile", argv, envv)
+        -> bash passes exactly what i passed
+case 2: gdb ./myprogram
+        -> bash runs gdb, gdb runs my program and passes some variables differently
+        -> like argv[0]: the ./myprogram changes to /home/sarthak/folder/myprogram
+
+
+-----------------------------------------------------------------------------------------
+Address Space Layout Randomization (ASLR):
+
+1) The linker writes virtual address according to the rules specified in 'ld --verbose'
+2) The os receives the elf file, it randomizes the virtuual addresses and makes it random
+3) this is ASLR -> makes it harder for attackers to predict memory address.
+
+
+
+---------------------------------------------------------------------------------------
+mmap:
+void *mmap(
+    void *addr,
+    size_t length,
+    int prot,
+    int flags,
+    int fd,
+    off_t offset
+);
+
+
+addr: send virtual address you want, with flags like:
+        MAP_FIXED(16): kernal will allocate that range for your map, overwrite if ave to
+        MAP_FIXED_NOREPLACE: if address not available, dont overwrite, fail
+        MAP_ANONYMOUS: give any virtual address
+        : pass in NULL/0 to ask for any mapping with MAP_ANONYMOUS flag
+
+lenght: len of virtual page mapping you want
+        : make sure it's in page size 4096(linux)
+        : else it returns error
+        IMPORTANT : practically ran fine, no error on non page_size_multiple length
+
+prot: what can cpu do with this mapping?
+        PROT_NONE(0) : cannot do naything
+        PROT_READ(1) : can only read from this mapping
+        PROT_WRITE(2) : can only writ efrom this mapping
+        PROT_EXEC(4) : can execute from this mapping
+
+flags: what kind of mapping is this?   
+        MAP_PRIVATE(2) : mapping to this process are private, no other process can see the mapping this process is using
+
+        MAP_SHARED(1) : mapping from this process can be seen and modified by other process
+
+        MAP_ANONYMOUS(32) : mapping is not backed by a regular file(doesn't matter what fd you give, it will map random virtual address in mmap regiion)
+        : this flag is not used alone
+
+        MAP_FIXED
+        MAP_POPULATE
+        MAP_STACK
+
+fd: fd of the object
+        -1 fd : use this with the MAP_ANONYMOUS flag, tells kernal this is not a regular fd, give random memory mappings
+        : if you close fd after mapping it, it does not remove the mapping. Therefore, you can still access that object
+
+offset: offset from beginning from where the mapping should begin,
+        offset 100: mapping[0] file[500]
+
+mmap returns the starting virtual address of the mapping.
+
+---------------------------------------------------------------------------------------
+munmap:
+(        
+    void *addr,
+    size_t length,
+)
+
+addr : the address where the maaping startes
+length : the length of address you want unmapped
+
+---------------------------------------------------------------------------------------
+
+HIGHER ADDRESSES
+0x7ffffffff000  ┌─────────────────────────────┐
+                │           STACK             │
+                │                             │
+                │        local variables      │
+                │        function frames      │
+                │        saved registers      │
+                │                             │
+                │             ↓               │
+0x7ffffffde000  └─────────────────────────────┘
+                ↑
+                │ stack grows downward :  ~0–1 TB-ish gap depending on layout/ASLR
+                │
+
+0x7ffff7dd0000  ┌─────────────────────────────┐
+                │      shared libraries       │
+                │                             │
+                │      libc.so                │
+                │      ld-linux.so             │
+                │      other libraries         │
+                └─────────────────────────────┘
+                ~ 2GB of virtual address space , change depends on ASLR
+0x7ffff0000000  ┌─────────────────────────────┐
+                │                             │
+                │       mmap() mappings       │
+                │                             │
+                │    anonymous mmap            │
+                │    file mappings             │
+                │    malloc large allocations │
+                │                             │
+                └─────────────────────────────┘
+
+                │
+                │   unused / unmapped virtual
+                │   address space                      ~tens of TB of virtual address space
+                │
+
+0x0000555555778000 ──────────────── program break -> moves upward ↑
+                ↑
+                │
+                │          HEAP
+                │
+0x0000555555559000 ──────────────── heap starts and grows upward ↑
+                │
+                │
+0x0000555555558000  .bss
+                │
+0x0000555555557000  .data
+                │
+0x0000555555556000  .rodata
+                │
+0x0000555555555000  .text
+                │
+                │
+0x0000000000400000  executable starts
+                │
+                │
+LOWER ADDRESSES
+
+
+program break -> last address which heap section is using
+brk(0) -> find current program break
+brk(0x0000555555779000) -> new address for program break effectively increasing the heap size
+
