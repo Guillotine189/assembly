@@ -39,6 +39,9 @@ min_free_space_size equ 16
 ; returns : address of memory where the asked bytes are free to use in rax
 ; 		  : -ve number on error
 _malloc:
+	push rbx
+	push r12
+	push r13
 
 	mov rbx, rdi 						;store requested size in callee-saved reg rbx
 
@@ -75,7 +78,7 @@ _malloc:
 
 		.set_address_of_prev_seg_and_get_more_heap_space:
 			mov r13, r9 			; address of prev segment stored in r13
-			jmp .get_more_heap_space
+			jmp .check_if_last_segment_is_free
 
 
 		.check_if_segment_is_free:
@@ -145,12 +148,44 @@ _malloc:
 		mov qword [r8 + 8], 1 					; mark this as occupied
 		mov rax, r8
 		add rax, metadata_size 				; return to user address of free space
-		ret
+		jmp .return
 
 
-	; TODO: if last segment is free, but doesn't have enugh space as requested,
-	; 	  : dont get the entire asked size + metadata
-	; 	  : instead get: asked size - free size of last segment
+	.check_if_last_segment_is_free:
+		mov rax, [rel address_last_segment]
+		cmp qword [rax + 8], 0
+		jne .get_more_heap_space 	; if last segment not empty, just get more space
+
+		; find how much more space you need when last segment free space is used
+		mov rax, [rax]
+		mov rcx, rbx 
+		sub rcx, rax   ; rcx: extra byte to ask for if i include last segment
+		jmp .get_more_heap_space_when_last_seg_included
+
+		; i know the asked space is bigger than empty space of this last segment
+		; in this case, when asking for new address i
+
+	; r13 has older segment starting address before this is called
+	.get_more_heap_space_when_last_seg_included:
+
+		mov r12, [rel address_last_segment]
+
+		mov rax, 12
+		mov rdi, r12						; address of last segment
+		add rdi, metadata_size 				; add metadat size
+		add rdi, rbx 						; total size needed
+		syscall 							; rax has new brk position
+
+		test rax, rax
+		jl .error_moving_brk_up_and_ret
+		; Existing last segment is now the requested size.
+	    mov [r12], rbx
+	    mov qword [r12 + 8], 1
+	    mov [r12 + 24], rax
+
+	    mov rax, r12
+	    add rax, metadata_size
+	    jmp .return
 
 
 	; r13 has older segment starting address before this is called
@@ -166,7 +201,7 @@ _malloc:
 	jl .error_moving_brk_up_and_ret
 
 
-	; fill metadata
+	.fill_metadata:
 
 	mov qword [r12], rbx 			; 1st 8 bytes: size of free space in this segment
 	mov qword [r12 + 8], 1 			; 0 -> free, 1 -> occupied
@@ -180,16 +215,21 @@ _malloc:
 	.return_old_brk_address:
 		mov rax, r12 						; r12 address of old brk
 		add rax, metadata_size 				; + metadata to get address of usable space
-		ret
+		jmp .return
 
 	.error_moving_brk_up_and_ret:
-		ret 						; error no still in rax 
+		jmp .return 						; error no still in rax 
 
 	.error_getting_old_brk_address_and_ret:
 		mov [rel error_no], rax
 		call _error_getting_brk 		; TODO: remove this later when using as library
-		ret 							; error no still in rax 
+		jmp .return 							; error no still in rax 
 
+	.return:
+		pop r13
+		pop r12
+		pop rbx
+		ret
 
 
 
@@ -322,7 +362,7 @@ _start:
 	call _malloc
 
 
-	
+
 	jmp _exit
 
 
