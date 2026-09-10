@@ -1,23 +1,13 @@
 section .data
 
-	error_getting_brk db "Error getting brk value : ", 0
-	error_getting_brk_len equ $ - error_getting_brk
-
-	address_first_segment dq 0
-	address_last_segment dq 0
-
-	error_no dq 0
-
-section .bss
-	buffer resb 1024
+	malloc_address_first_segment dq 0
+	malloc_address_last_segment dq 0
 
 section .text
 
-extern _print
-extern _print_with_new_line
-extern _print_error_with_new_line
 
-global _start
+global _malloc
+gloabl _free
 
 
 ; [free_size_of_this_segments] -> 8bytes
@@ -55,20 +45,20 @@ _malloc:
 
 	mov r12, rax 						; save old brk address r12
 
-	cmp qword [rel address_first_segment], 0
+	cmp qword [rel malloc_address_first_segment], 0
 	je .assign_heap_start_address
 	jmp .check_if_old_free_segment_available
 
 
 	.assign_heap_start_address:
-		mov [rel address_first_segment], r12
-		mov [rel address_last_segment], r12
+		mov [rel malloc_address_first_segment], r12
+		mov [rel malloc_address_last_segment], r12
 		mov r13, 0 				; prev segment address is 0 for first segment
 		jmp .get_more_heap_space
 
 	.check_if_old_free_segment_available:
 
-	mov r8, [rel address_first_segment] 
+	mov r8, [rel malloc_address_first_segment] 
 	xor r9, r9 						; add of prev segment for 1st segment is 0
 
 	.loop:
@@ -141,7 +131,7 @@ _malloc:
 		jmp .return_this_segment
 
 		.mark_this_as_last_segment_and_ret:
-			mov [rel address_last_segment], rcx   ; this segment is the last segment now
+			mov [rel malloc_address_last_segment], rcx   ; this segment is the last segment now
 			jmp .return_this_segment
 
 	.return_this_segment:
@@ -152,7 +142,7 @@ _malloc:
 
 
 	.check_if_last_segment_is_free:
-		mov rax, [rel address_last_segment]
+		mov rax, [rel malloc_address_last_segment]
 		cmp qword [rax + USED_OFF], 0
 		jne .get_more_heap_space 	; if last segment not empty, just get more space
 
@@ -164,7 +154,7 @@ _malloc:
 	; r13 has older segment starting address before this is called
 	.get_more_heap_space_when_last_seg_included:
 
-		mov r12, [rel address_last_segment]
+		mov r12, [rel malloc_address_last_segment]
 
 		mov rax, 12
 		mov rdi, r12						; address of last segment
@@ -205,7 +195,7 @@ _malloc:
 	mov qword [r12 + PREV_OFF], r13 		; add_prev_segment
 	mov qword [r12 + NEXT_OFF], rax 		; add_next_segment = new brk address
 
-	mov [rel address_last_segment], r12   ; this segment is the last segment now
+	mov [rel malloc_address_last_segment], r12   ; this segment is the last segment now
 
 	jmp .return_old_brk_address
 
@@ -248,7 +238,7 @@ _free:
 	ret
 
 	.check_and_update_if_next_segment_is_free:
-		cmp rbx, [rel address_last_segment]  	; if og segment was last segment
+		cmp rbx, [rel malloc_address_last_segment]  	; if og segment was last segment
 		je .occupied
 
 
@@ -267,7 +257,7 @@ _free:
 		mov [rbx+ NEXT_OFF], rdi 				; og->next = curr->next
 
 		; check if segment consumed was the last segment 
-		cmp rax, [rel address_last_segment]
+		cmp rax, [rel malloc_address_last_segment]
 		je .update_last_segment_address_and_return
 
 		; if this segment was not last
@@ -278,7 +268,7 @@ _free:
 		ret
 
 		.update_last_segment_address_and_return:
-			mov [rel address_last_segment], rbx 	; the og segment is the last segment
+			mov [rel malloc_address_last_segment], rbx 	; the og segment is the last segment
 			ret
 
 		.occupied:
@@ -303,7 +293,7 @@ _free:
 		mov [rax+ NEXT_OFF], rdi 				; prev->next = og->next
 
 		; check if og was last segment
-		cmp rbx, [rel address_last_segment]
+		cmp rbx, [rel malloc_address_last_segment]
 		je .update_prev_segment_address_and_return
 
 		; if og segment was not last segment
@@ -314,70 +304,9 @@ _free:
 		ret
 
 		.update_prev_segment_address_and_return:
-			mov [rel address_last_segment], rax 	; the og segment is the last segment
+			mov [rel malloc_address_last_segment], rax 	; the og segment is the last segment
 			ret
 
 		.occupied2:
 			ret
 
-
-
-
-
-_start:
-	mov rbp, rsp
-
-
-
-	.allocate1:
-	mov rdi, 4096
-	call _malloc
-
-
-	.free1:
-
-	mov rdi, rax
-	call _free
-
-	.allocate2:
-
-	mov rdi, 2048
-	call _malloc
-
-	
-	.allocate3:
-
-	mov rdi, 1024
-	call _malloc
-
-	.free2:
-	mov rdi, rax
-	call _free
-
-	mov rdi, 2016
-	call _malloc
-
-
-
-	jmp _exit
-
-
-_error_getting_brk:
-	mov rax, error_getting_brk_len
-	mov rdi, 1
-	lea rsi, [rel error_getting_brk]
-	call _print
-
-	mov rax, [rel error_no]
-	call _print_error_with_new_line
-
-
-_exit_with_status_code_1:
-	mov rax, 60
-	mov rdi, 1
-	syscall
-	
-_exit:
-	mov rax, 60
-	mov rdi, 0
-	syscall
