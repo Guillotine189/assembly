@@ -1,9 +1,12 @@
+
+
+
 section .data
 
 	error_getting_brk db "Error getting brk value : ", 0
 	error_getting_brk_len equ $ - error_getting_brk
 
-	error_mmap db 0
+	error_no dq 0
 
 section .bss
 	buffer resb 1024
@@ -17,12 +20,20 @@ extern _print_error_with_new_line
 global _start
 
 
+; [free_size_of_this_segments] -> 8bytes
+; [occupied|free]			   -> 8bytes
+; [actual_data_for_segment]
+; TOTAL size of segemnt: Requested size + 24bytes 
+
+
+metadata_size equ 16
+
 ; rdi : size of memory is bytes
 ; returns : address of memory where the asked bytes are free to use in rax
 ; 		  : -ve number on error
 _malloc:
 
-	mov rbx, rdi 					;store how much data to get in callee-saved reg
+	mov rbx, rdi 					;store requested size in callee-saved reg
 
 	; get the current break address
 	mov rax, 12 								;syscall sys_brk
@@ -30,31 +41,36 @@ _malloc:
 	syscall 									; rax has curr brk address
 
 	test rax, rax
-	jl .error_getting_current_brk_address
-
+	jl .error_getting_old_brk_address_and_ret
 
 	mov r12, rax 						; save old brk address
 
-	; move brk up
+	; move brk up, try to get more heap space
 	mov rax, 12
 	mov rdi, r12 						; address of old brk
-	add rdi, rbx 						; add new length for new address
+	add rdi, rbx 						; add size requested
+	add rdi, metadata_size 				; add metadat size
 	syscall 							; rax has new brk position
 
 	test rax, rax
-	jl .error_moving_brk_up
+	jl .error_moving_brk_up_and_ret
 
-	jmp .send_old_address_back
+	; fill metadata
 
+	mov qword [r12], rbx 			; 1st 8 bytes: size of free space in this segment
+	mov qword [r12 + 8], 1 			; 0 -> free, 1 -> occupied
+	jmp .return_old_brk_address
 
-	.send_old_address_back:
+	.return_old_brk_address:
 		mov rax, r12 						; r12 address of old brk
+		add rax, metadata_size 				; + metadata to get address of usable space
 		ret
 
-	.error_moving_brk_up:
+	.error_moving_brk_up_and_ret:
 		ret 						; error no still in rax 
 
-	.error_getting_current_brk_address:
+	.error_getting_old_brk_address_and_ret:
+		mov [rel error_no], rax
 		call _error_getting_brk 		; TODO: remove this later when using as library
 		ret 							; error no still in rax 
 
@@ -86,7 +102,7 @@ _error_getting_brk:
 	lea rsi, [rel error_getting_brk]
 	call _print
 
-	mov rax, [rel error_mmap]
+	mov rax, [rel error_no]
 	call _print_error_with_new_line
 
 
