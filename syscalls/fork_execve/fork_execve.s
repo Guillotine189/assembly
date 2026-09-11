@@ -35,11 +35,19 @@ section .data
 	parent_line db "Hello from parent process", 0
 	parent_line_len equ $ - parent_line
 
+	press_enter_line db "Press enter to execute your program", 0
+	press_enter_line_len equ $ - press_enter_line
+
 	executing_child_process_line db "Executing child process now..",10,"------------------------------------------------------------",10,0
 	executing_child_process_line_len equ $ - executing_child_process_line
 
-	child_process_done_line db 10,"------------------------------------------------------------",10,"Child process exited", 0
+	child_process_done_line db 10,"------------------------------------------------------------",10,"Child process exited with status code: ", 0
 	child_process_done_line_len equ $ - child_process_done_line
+
+	child_process_killed_line db 10,"------------------------------------------------------------",10,"Child process Terminated with status code ", 0
+	child_process_killed_line_len equ $ - child_process_killed_line
+
+	child_process_exit_code dq 0
 
 	error_getting_info_about_executable_line db "Error getting info about: ", 0
 	error_getting_info_about_executable_line_len equ $ - error_getting_info_about_executable_line
@@ -60,6 +68,8 @@ extern _print
 extern _print_with_new_line
 extern _strlen
 extern _print_error_with_new_line
+extern _itoa
+
 
 global _start
 
@@ -107,6 +117,11 @@ _start:
 	call _print_with_new_line
 
 
+	mov rax, press_enter_line_len
+	mov rdi, 1
+	lea rsi, [rel press_enter_line]
+	call _print_with_new_line
+
 	mov rax, sys_read
 	mov rdi, 0 					; fd
 	lea rsi, [rel reusable_buffer] 		; address of reusable_buffer where data is copied to
@@ -140,10 +155,10 @@ _start:
 	call _print_with_new_line
 
 	mov rax, sys_wait4
-	mov rdi, [rbp - 8] 			; the pid of child
-	xor rsi, rsi         		; address for child's exit status, i dont need it rn
-	xor rdx, rdx         		; 0 equ normal blocking wait option
-	xor r10, r10         		; don't need resource usage
+	mov rdi, [rbp - 8]					 			; the pid of child
+	lea rsi, [rel child_process_exit_code]		; address for child's exit status
+	xor rdx, rdx         					; 0 -> normal blocking wait option
+	xor r10, r10         					; don't need resource usage
 	syscall
 
 	jmp .child_process_done_and_exit
@@ -197,13 +212,87 @@ _start:
 
 
 .child_process_done_and_exit:
+
+	; check if child process exited normalyy or killed
+	mov eax, [rel child_process_exit_code]
+	test al, 0x7f
+	jnz .killed_by_signal
+
+	.normal_exit:
+	shr eax, 8
+	and eax, 0xff 					; this has the actual status code now
+
+	cmp eax, 0
+	je .zero_status_code
+	
+	sub rsp, 8
+	mov rdi, rsp 				; convert status code into ascii, and put it into stack
+	call _itoa
+
+	mov rdi, rsp
+	call _strlen
+	push rax
+
+	.zero_status_code:
+		mov rax, 48
+		push rax
+		mov rax, 8
+		push rax
+
+
 	mov rax, child_process_done_line_len
 	mov rdi, 1
 	lea rsi, [rel child_process_done_line]
+	call _print
+
+	pop rax
+	mov rdi, 1
+	mov rsi, rsp
 	call _print_with_new_line
 
+	add rsp, 8
 	jmp _exit
 
+	.killed_by_signal:
+	and eax, 0x7f		 ; this has the actual status code now
+	
+
+	cmp eax, 0
+	je .zero_status_code_
+
+	sub rsp, 8
+	mov rdi, rsp 				; convert status code into ascii, and put it into stack
+	call _itoa
+
+	mov rdi, rsp
+	call _strlen
+	push rax
+
+
+	.zero_status_code_:
+		mov rax, 48
+		push rax
+		mov rax, 8
+		push rax
+
+
+	mov rax, child_process_killed_line_len
+	mov rdi, 1
+	lea rsi, [rel child_process_killed_line]
+	call _print
+
+
+	pop rax
+	mov rdi, 1
+	mov rsi, rsp
+	call _print_with_new_line
+	
+	add rsp, 8
+	jmp _exit
+
+
+
+	
 _exit_with_status_code_1:
 	
 	mov rax, 60
