@@ -1,4 +1,4 @@
-; this files takes in input of 1024bytes from fd0, write the input and the arguments provided to fd1.
+; this file write the arguments provided to fd1.
 
 
 ; Linux automaically adds the arguments you pass when you run the binary with args in stack
@@ -102,18 +102,6 @@ _print_arguments:
 
 
 _start:
-
-	mov rax, 0 						; read syscall
-	mov rdi, 0 						; fd=0 terminal:in
-	mov rsi, buffer
-	mov rdx, 1024
-	syscall
-
-	mov rdx, rax
-	mov rax, 1 						; read syscall
-	mov rdi, 1 						; fd=1 terminal:out
-	mov rsi, buffer
-	syscall
 
 	jmp _print_arguments
 

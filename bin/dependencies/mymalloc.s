@@ -7,7 +7,7 @@ section .text
 
 
 global _malloc
-gloabl _free
+global _free
 
 
 ; [free_size_of_this_segments] -> 8bytes
@@ -24,6 +24,10 @@ SIZE_OFF equ 0
 USED_OFF equ 8
 PREV_OFF equ 16
 NEXT_OFF equ 24
+
+; brk in ASSEMBLY, can return the old brk after asking for new brk on failure
+; thats why rax might not contain a -ve number but the old brk
+; to check this: if new value of brk asked != value returned => error
 
 ; rdi : size of memory is bytes
 ; returns : address of memory where the asked bytes are free to use in rax

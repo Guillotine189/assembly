@@ -72,13 +72,13 @@ You cannot push/pop a sub register to stack:
 ;               │ argv[1 address]              │
 ;               │ ...                          │
 ;               │ argv[argc-1 address]         │
-;               │ NULL                         │  ← terminates argv[]
+;               │ NULL                         │  ← terminates argv[] 8 bytes
 ;               ├──────────────────────────────┤
 ;               │ envp[0 address]              │  ← char *
 ;               │ envp[1 address]              │
 ;               │ ...                          │
 ;               │ envp[n-1 address]            │
-;               │ NULL                         │  ← terminates envp[]
+;               │ NULL                         │  ← terminates envp[] 8bytes of 0
 ;               ├──────────────────────────────┤
 ;               │ auxv[0].type                 │  ← 8 bytes
 ;               │ auxv[0].value                │  ← 8 bytes
@@ -134,6 +134,29 @@ offset   size     field
 ....
 
 
+
+S_IFMT equ 0170000
+S_IFREG equ 0100000    ; regular file
+S_IFDIR equ 0040000    ; directory
+S_IFLNK equ 0120000    ; symbolic link
+S_IFIFO equ 0010000    ; FIFO
+S_IFSOCK equ 0140000   ; socket
+S_IFCHR equ 0020000    ; character device
+S_IFBLK equ 0060000    ; block device
+
+S_IRUSR equ 0400    ; owner read
+S_IWUSR equ 0200    ; owner write
+S_IXUSR equ 0100    ; owner execute
+
+S_IRGRP equ 0040    ; group read
+S_IWGRP equ 0020    ; group write
+S_IXGRP equ 0010    ; group execute
+
+S_IROTH equ 0004    ; others read
+S_IWOTH equ 0002    ; others write
+S_IXOTH equ 0001    ; others execute
+
+: to find the filetype
 -> for st_mode just read 4bytes from [statbuf + 24]
 then 
         use a mask value, then AND it with st_mode to find required result
@@ -142,7 +165,11 @@ then
                  &  = 0100000 -> file
                  if & was = 0040000 -> direcotry
 
-
+: to find the permission of file
+-> move into eax st_mode -> just read 4bytes from [statbuf + 24]
+then    
+        -> and eax, S_IXUSR
+           cmp eax, 0 -> if 0 -> ownder does not have wirte permission
 ---------------------------------------------------------------------------------------
                                 for sys_getdents64
 
@@ -376,3 +403,28 @@ program break -> last address which heap section is using
 brk(0) -> find current program break
 brk(0x0000555555779000) -> new address for program break effectively increasing the heap size
 
+
+
+---------------------------------------------------------------------------------------
+
+
+                                        sys_fork:
+
+; for child: 0 is retured
+; for parent: pid of child is returned 
+
+                                        sys_wait4
+
+rax = 61          syscall number
+rdi = pid         which child to wait for
+rsi = wstatus     where to store exit status(For simply waiting, NULL/0 is fine)
+rdx = options     how to wait
+r10 = rusage      where to store resource usage
+
+
+options:
+0 => Block until the child terminates.
+There are other options such as WNOHANG, which would make wait4 return immediately instead of blocking if the child hasn't finished.
+
+reusage:
+wait4 can optionally give resource-usage information about the child, like CPU time used.
