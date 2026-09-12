@@ -1,7 +1,7 @@
 section .data
 	usage_line0 db "Usage: ", 0
 	usage_line0_len equ $ - usage_line0
-	usage_line1 db " <pattern> <filename>", 0
+	usage_line1 db " <patterns>... <filename>", 0
 	usage_line1_len equ $ - usage_line1
 
 	error_opening_file_line db "Error opening file: ", 0
@@ -420,6 +420,8 @@ _start:
 		inc r14 						; line_loop_off inc
 
 		.check_this_byte_again:
+		sub r14, r15
+		inc r14
 		xor r15, r15 					; total len of matched bytes
 		jmp .loop_for_single_pattern
 
