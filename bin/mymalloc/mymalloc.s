@@ -327,37 +327,28 @@ _free:
 _start:
 	mov rbp, rsp
 
-
+	mov rdi, 1024
+	call _malloc
 
 	.allocate1:
-	mov rdi, 4096
-	call _malloc
 
-
-	.free1:
-
-	mov rdi, rax
-	call _free
-
-	.allocate2:
-
-	mov rdi, 2048
-	call _malloc
-
-	
-	.allocate3:
+	push rax
 
 	mov rdi, 1024
 	call _malloc
 
-	.free2:
+	.allocate2:
+
 	mov rdi, rax
 	call _free
 
-	mov rdi, 2016
+	pop rdi
+	call _free
+
+
+	mov rdi, 4096
 	call _malloc
-
-
+	.allocate3:
 
 	jmp _exit
 

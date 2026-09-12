@@ -440,7 +440,6 @@ r10 = rusage      where to store resource usage
 
 rdi/pid_of_child = -1: wait for any one of my child to exit
 
-
 options:
 0 => Block until the child terminates.
 There are other options such as WNOHANG, which would make wait4 return immediately instead of blocking if the child hasn't finished.
@@ -544,7 +543,7 @@ sa:
       ├──────────────────────────────┤
 +8    │ flags = 0                    │  8 bytes
       ├──────────────────────────────┤
-+16   │ restorer = 0                 │  8 bytes
++16   │ address of restorer = 0      │  8 bytes
       ├──────────────────────────────┤
 +24   │                              │
       │                              │

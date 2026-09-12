@@ -41,7 +41,7 @@ _print_with_new_line:
 	ret
 
 
-; address of string in rdi
+; rdi: address of string
 ; return stored in rax
 ; searches until \0 encountered, return len excluding \0
 _strlen:
