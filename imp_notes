@@ -438,6 +438,8 @@ rsi = wstatus     where to store exit status(For simply waiting, NULL/0 is fine)
 rdx = options     how to wait
 r10 = rusage      where to store resource usage
 
+rdi/pid_of_child = -1: wait for any one of my child to exit
+
 
 options:
 0 => Block until the child terminates.
