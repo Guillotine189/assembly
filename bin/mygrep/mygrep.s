@@ -1,7 +1,7 @@
 section .data
 	usage_line0 db "Usage: ", 0
 	usage_line0_len equ $ - usage_line0
-	usage_line1 db " <patterns>... <filename>", 0
+	usage_line1 db " <pattern> <filename>", 0
 	usage_line1_len equ $ - usage_line1
 
 	error_opening_file_line db "Error opening file: ", 0
@@ -72,7 +72,7 @@ _start:
 
 	; first how many args passsed, rn i only support 3, "./mygrep" "pattern" "file"
 	cmp QWORD [rsp], 3 									; compare args passed to 3
-	jne _usage 										; if 3 args not passed show usage
+	jl _usage 										; if 3 args not passed show usage
 
 
 	; get address of search file which is last argument
@@ -315,6 +315,19 @@ _start:
 	mov [rbp - 40], rax 						; position of start line = 2nd + 1 = "N"
 	mov [rbp - 48], rax 						; position of end line = "N"
 
+
+	cmp rax, 1
+	je .first_time_getting_line
+	jmp .check_local_buffer
+
+	.first_time_getting_line:
+
+	mov qword [rbp - 40], 0
+	mov qword [rbp - 48], 0
+
+
+
+	.check_local_buffer:
 	; check if local buffer is over or not
 	; eg "older_line\nLine_just_processed\n"
 	
@@ -416,12 +429,13 @@ _start:
 
 		test r15, r15 	; if i was inside a partia match, and last byte not a match
 		jnz .check_this_byte_again
-
-		inc r14 						; line_loop_off inc
+		jmp .loop_again
 
 		.check_this_byte_again:
-		sub r14, r15
-		inc r14
+			sub r14, r15
+
+		.loop_again:
+		inc r14 						; line_loop_off inc
 		xor r15, r15 					; total len of matched bytes
 		jmp .loop_for_single_pattern
 
@@ -444,6 +458,7 @@ _start:
 
 		xor r15, r15
 		; inc r14  -> not done here, because last byte may start pattern again
+		dec r14 ; bec inc on equal_byte section
 		jmp .loop_for_single_pattern
 
 
