@@ -151,397 +151,397 @@
 
 section .data
 
-    errno_1_msg db " Operation not permitted", 0
+    errno_1_msg db ": Operation not permitted", 0
     errno_1_msg_len equ $ - errno_1_msg
 
-    errno_2_msg db " No such file or directory", 0
+    errno_2_msg db ": No such file or directory", 0
     errno_2_msg_len equ $ - errno_2_msg
 
-    errno_3_msg db " No such process", 0
+    errno_3_msg db ": No such process", 0
     errno_3_msg_len equ $ - errno_3_msg
 
-    errno_4_msg db " Interrupted system call", 0
+    errno_4_msg db ": Interrupted system call", 0
     errno_4_msg_len equ $ - errno_4_msg
 
-    errno_5_msg db " Input/output error", 0
+    errno_5_msg db ": Input/output error", 0
     errno_5_msg_len equ $ - errno_5_msg
 
-    errno_6_msg db " No such device or address", 0
+    errno_6_msg db ": No such device or address", 0
     errno_6_msg_len equ $ - errno_6_msg
 
-    errno_7_msg db " Argument list too long", 0
+    errno_7_msg db ": Argument list too long", 0
     errno_7_msg_len equ $ - errno_7_msg
 
-    errno_8_msg db " Exec format error", 0
+    errno_8_msg db ": Exec format error", 0
     errno_8_msg_len equ $ - errno_8_msg
 
-    errno_9_msg db " Bad file descriptor", 0
+    errno_9_msg db ": Bad file descriptor", 0
     errno_9_msg_len equ $ - errno_9_msg
 
-    errno_10_msg db " No child processes", 0
+    errno_10_msg db ": No child processes", 0
     errno_10_msg_len equ $ - errno_10_msg
 
-    errno_11_msg db " Resource temporarily unavailable", 0
+    errno_11_msg db ": Resource temporarily unavailable", 0
     errno_11_msg_len equ $ - errno_11_msg
 
-    errno_12_msg db " Cannot allocate memory", 0
+    errno_12_msg db ": Cannot allocate memory", 0
     errno_12_msg_len equ $ - errno_12_msg
 
-    errno_13_msg db " Permission denied", 0
+    errno_13_msg db ": Permission denied", 0
     errno_13_msg_len equ $ - errno_13_msg
 
-    errno_14_msg db " Bad address", 0
+    errno_14_msg db ": Bad address", 0
     errno_14_msg_len equ $ - errno_14_msg
 
-    errno_15_msg db " Block device required", 0
+    errno_15_msg db ": Block device required", 0
     errno_15_msg_len equ $ - errno_15_msg
 
-    errno_16_msg db " Device or resource busy", 0
+    errno_16_msg db ": Device or resource busy", 0
     errno_16_msg_len equ $ - errno_16_msg
 
-    errno_17_msg db " File exists", 0
+    errno_17_msg db ": File exists", 0
     errno_17_msg_len equ $ - errno_17_msg
 
-    errno_18_msg db " Invalid cross-device link", 0
+    errno_18_msg db ": Invalid cross-device link", 0
     errno_18_msg_len equ $ - errno_18_msg
 
-    errno_19_msg db " No such device", 0
+    errno_19_msg db ": No such device", 0
     errno_19_msg_len equ $ - errno_19_msg
 
-    errno_20_msg db " Not a directory", 0
+    errno_20_msg db ": Not a directory", 0
     errno_20_msg_len equ $ - errno_20_msg
 
-    errno_21_msg db " Is a directory", 0
+    errno_21_msg db ": Is a directory", 0
     errno_21_msg_len equ $ - errno_21_msg
 
-    errno_22_msg db " Invalid argument", 0
+    errno_22_msg db ": Invalid argument", 0
     errno_22_msg_len equ $ - errno_22_msg
 
-    errno_23_msg db " Too many open files in system", 0
+    errno_23_msg db ": Too many open files in system", 0
     errno_23_msg_len equ $ - errno_23_msg
 
-    errno_24_msg db " Too many open files", 0
+    errno_24_msg db ": Too many open files", 0
     errno_24_msg_len equ $ - errno_24_msg
 
-    errno_25_msg db " Inappropriate ioctl for device", 0
+    errno_25_msg db ": Inappropriate ioctl for device", 0
     errno_25_msg_len equ $ - errno_25_msg
 
-    errno_26_msg db " Text file busy", 0
+    errno_26_msg db ": Text file busy", 0
     errno_26_msg_len equ $ - errno_26_msg
 
-    errno_27_msg db " File too large", 0
+    errno_27_msg db ": File too large", 0
     errno_27_msg_len equ $ - errno_27_msg
 
-    errno_28_msg db " No space left on device", 0
+    errno_28_msg db ": No space left on device", 0
     errno_28_msg_len equ $ - errno_28_msg
 
-    errno_29_msg db " Illegal seek", 0
+    errno_29_msg db ": Illegal seek", 0
     errno_29_msg_len equ $ - errno_29_msg
 
-    errno_30_msg db " Read-only file system", 0
+    errno_30_msg db ": Read-only file system", 0
     errno_30_msg_len equ $ - errno_30_msg
 
-    errno_31_msg db " Too many links", 0
+    errno_31_msg db ": Too many links", 0
     errno_31_msg_len equ $ - errno_31_msg
 
-    errno_32_msg db " Broken pipe", 0
+    errno_32_msg db ": Broken pipe", 0
     errno_32_msg_len equ $ - errno_32_msg
 
-    errno_33_msg db " Numerical argument out of domain", 0
+    errno_33_msg db ": Numerical argument out of domain", 0
     errno_33_msg_len equ $ - errno_33_msg
 
-    errno_34_msg db " Numerical result out of range", 0
+    errno_34_msg db ": Numerical result out of range", 0
     errno_34_msg_len equ $ - errno_34_msg
 
-    errno_35_msg db " Resource deadlock avoided", 0
+    errno_35_msg db ": Resource deadlock avoided", 0
     errno_35_msg_len equ $ - errno_35_msg
 
-    errno_36_msg db " File name too long", 0
+    errno_36_msg db ": File name too long", 0
     errno_36_msg_len equ $ - errno_36_msg
 
-    errno_37_msg db " No locks available", 0
+    errno_37_msg db ": No locks available", 0
     errno_37_msg_len equ $ - errno_37_msg
 
-    errno_38_msg db " Function not implemented", 0
+    errno_38_msg db ": Function not implemented", 0
     errno_38_msg_len equ $ - errno_38_msg
 
-    errno_39_msg db " Directory not empty", 0
+    errno_39_msg db ": Directory not empty", 0
     errno_39_msg_len equ $ - errno_39_msg
 
-    errno_40_msg db " Too many levels of symbolic links", 0
+    errno_40_msg db ": Too many levels of symbolic links", 0
     errno_40_msg_len equ $ - errno_40_msg
 
-    errno_42_msg db " No message of desired type", 0
+    errno_42_msg db ": No message of desired type", 0
     errno_42_msg_len equ $ - errno_42_msg
 
-    errno_43_msg db " Identifier removed", 0
+    errno_43_msg db ": Identifier removed", 0
     errno_43_msg_len equ $ - errno_43_msg
 
-    errno_44_msg db " Channel number out of range", 0
+    errno_44_msg db ": Channel number out of range", 0
     errno_44_msg_len equ $ - errno_44_msg
 
-    errno_45_msg db " Level 2 not synchronized", 0
+    errno_45_msg db ": Level 2 not synchronized", 0
     errno_45_msg_len equ $ - errno_45_msg
 
-    errno_46_msg db " Level 3 halted", 0
+    errno_46_msg db ": Level 3 halted", 0
     errno_46_msg_len equ $ - errno_46_msg
 
-    errno_47_msg db " Level 3 reset", 0
+    errno_47_msg db ": Level 3 reset", 0
     errno_47_msg_len equ $ - errno_47_msg
 
-    errno_48_msg db " Link number out of range", 0
+    errno_48_msg db ": Link number out of range", 0
     errno_48_msg_len equ $ - errno_48_msg
 
-    errno_49_msg db " Protocol driver not attached", 0
+    errno_49_msg db ": Protocol driver not attached", 0
     errno_49_msg_len equ $ - errno_49_msg
 
-    errno_50_msg db " No CSI structure available", 0
+    errno_50_msg db ": No CSI structure available", 0
     errno_50_msg_len equ $ - errno_50_msg
 
-    errno_51_msg db " Level 2 halted", 0
+    errno_51_msg db ": Level 2 halted", 0
     errno_51_msg_len equ $ - errno_51_msg
 
-    errno_52_msg db " Invalid exchange", 0
+    errno_52_msg db ": Invalid exchange", 0
     errno_52_msg_len equ $ - errno_52_msg
 
-    errno_53_msg db " Invalid request descriptor", 0
+    errno_53_msg db ": Invalid request descriptor", 0
     errno_53_msg_len equ $ - errno_53_msg
 
-    errno_54_msg db " Exchange full", 0
+    errno_54_msg db ": Exchange full", 0
     errno_54_msg_len equ $ - errno_54_msg
 
-    errno_55_msg db " No anode", 0
+    errno_55_msg db ": No anode", 0
     errno_55_msg_len equ $ - errno_55_msg
 
-    errno_56_msg db " Invalid request code", 0
+    errno_56_msg db ": Invalid request code", 0
     errno_56_msg_len equ $ - errno_56_msg
 
-    errno_57_msg db " Invalid slot", 0
+    errno_57_msg db ": Invalid slot", 0
     errno_57_msg_len equ $ - errno_57_msg
 
-    errno_59_msg db " Bad font file format", 0
+    errno_59_msg db ": Bad font file format", 0
     errno_59_msg_len equ $ - errno_59_msg
 
-    errno_60_msg db " Device not a stream", 0
+    errno_60_msg db ": Device not a stream", 0
     errno_60_msg_len equ $ - errno_60_msg
 
-    errno_61_msg db " No data available", 0
+    errno_61_msg db ": No data available", 0
     errno_61_msg_len equ $ - errno_61_msg
 
-    errno_62_msg db " Timer expired", 0
+    errno_62_msg db ": Timer expired", 0
     errno_62_msg_len equ $ - errno_62_msg
 
-    errno_63_msg db " No streams resources", 0
+    errno_63_msg db ": No streams resources", 0
     errno_63_msg_len equ $ - errno_63_msg
 
-    errno_64_msg db " Machine is not on the network", 0
+    errno_64_msg db ": Machine is not on the network", 0
     errno_64_msg_len equ $ - errno_64_msg
 
-    errno_65_msg db " Package not installed", 0
+    errno_65_msg db ": Package not installed", 0
     errno_65_msg_len equ $ - errno_65_msg
 
-    errno_66_msg db " Object is remote", 0
+    errno_66_msg db ": Object is remote", 0
     errno_66_msg_len equ $ - errno_66_msg
 
-    errno_67_msg db " Link has been severed", 0
+    errno_67_msg db ": Link has been severed", 0
     errno_67_msg_len equ $ - errno_67_msg
 
-    errno_68_msg db " Advertise error", 0
+    errno_68_msg db ": Advertise error", 0
     errno_68_msg_len equ $ - errno_68_msg
 
-    errno_69_msg db " Srmount error", 0
+    errno_69_msg db ": Srmount error", 0
     errno_69_msg_len equ $ - errno_69_msg
 
-    errno_70_msg db " Communication error on send", 0
+    errno_70_msg db ": Communication error on send", 0
     errno_70_msg_len equ $ - errno_70_msg
 
-    errno_71_msg db " Protocol error", 0
+    errno_71_msg db ": Protocol error", 0
     errno_71_msg_len equ $ - errno_71_msg
 
-    errno_72_msg db " Multihop attempted", 0
+    errno_72_msg db ": Multihop attempted", 0
     errno_72_msg_len equ $ - errno_72_msg
 
-    errno_73_msg db " RFS specific error", 0
+    errno_73_msg db ": RFS specific error", 0
     errno_73_msg_len equ $ - errno_73_msg
 
-    errno_74_msg db " Bad message", 0
+    errno_74_msg db ": Bad message", 0
     errno_74_msg_len equ $ - errno_74_msg
 
-    errno_75_msg db " Value too large for defined data type", 0
+    errno_75_msg db ": Value too large for defined data type", 0
     errno_75_msg_len equ $ - errno_75_msg
 
-    errno_76_msg db " Name not unique on network", 0
+    errno_76_msg db ": Name not unique on network", 0
     errno_76_msg_len equ $ - errno_76_msg
 
-    errno_77_msg db " File descriptor in bad state", 0
+    errno_77_msg db ": File descriptor in bad state", 0
     errno_77_msg_len equ $ - errno_77_msg
 
-    errno_78_msg db " Remote address changed", 0
+    errno_78_msg db ": Remote address changed", 0
     errno_78_msg_len equ $ - errno_78_msg
 
-    errno_79_msg db " Cannot access a needed shared library", 0
+    errno_79_msg db ": Cannot access a needed shared library", 0
     errno_79_msg_len equ $ - errno_79_msg
 
-    errno_80_msg db " Accessing a corrupted shared library", 0
+    errno_80_msg db ": Accessing a corrupted shared library", 0
     errno_80_msg_len equ $ - errno_80_msg
 
-    errno_81_msg db " .lib section in a.out corrupted", 0
+    errno_81_msg db ": .lib section in a.out corrupted", 0
     errno_81_msg_len equ $ - errno_81_msg
 
-    errno_82_msg db " Attempting to link in too many shared libraries", 0
+    errno_82_msg db ": Attempting to link in too many shared libraries", 0
     errno_82_msg_len equ $ - errno_82_msg
 
-    errno_83_msg db " Cannot exec a shared library directly", 0
+    errno_83_msg db ": Cannot exec a shared library directly", 0
     errno_83_msg_len equ $ - errno_83_msg
 
-    errno_84_msg db " Invalid or incomplete multibyte or wide character", 0
+    errno_84_msg db ": Invalid or incomplete multibyte or wide character", 0
     errno_84_msg_len equ $ - errno_84_msg
 
-    errno_85_msg db " Interrupted system call should be restarted", 0
+    errno_85_msg db ": Interrupted system call should be restarted", 0
     errno_85_msg_len equ $ - errno_85_msg
 
-    errno_86_msg db " Streams pipe error", 0
+    errno_86_msg db ": Streams pipe error", 0
     errno_86_msg_len equ $ - errno_86_msg
 
-    errno_87_msg db " Too many users", 0
+    errno_87_msg db ": Too many users", 0
     errno_87_msg_len equ $ - errno_87_msg
 
-    errno_88_msg db " Socket operation on non-socket", 0
+    errno_88_msg db ": Socket operation on non-socket", 0
     errno_88_msg_len equ $ - errno_88_msg
 
-    errno_89_msg db " Destination address required", 0
+    errno_89_msg db ": Destination address required", 0
     errno_89_msg_len equ $ - errno_89_msg
 
-    errno_90_msg db " Message too long", 0
+    errno_90_msg db ": Message too long", 0
     errno_90_msg_len equ $ - errno_90_msg
 
-    errno_91_msg db " Protocol wrong type for socket", 0
+    errno_91_msg db ": Protocol wrong type for socket", 0
     errno_91_msg_len equ $ - errno_91_msg
 
-    errno_92_msg db " Protocol not available", 0
+    errno_92_msg db ": Protocol not available", 0
     errno_92_msg_len equ $ - errno_92_msg
 
-    errno_93_msg db " Protocol not supported", 0
+    errno_93_msg db ": Protocol not supported", 0
     errno_93_msg_len equ $ - errno_93_msg
 
-    errno_94_msg db " Socket type not supported", 0
+    errno_94_msg db ": Socket type not supported", 0
     errno_94_msg_len equ $ - errno_94_msg
 
-    errno_95_msg db " Operation not supported", 0
+    errno_95_msg db ": Operation not supported", 0
     errno_95_msg_len equ $ - errno_95_msg
 
-    errno_96_msg db " Protocol family not supported", 0
+    errno_96_msg db ": Protocol family not supported", 0
     errno_96_msg_len equ $ - errno_96_msg
 
-    errno_97_msg db " Address family not supported by protocol", 0
+    errno_97_msg db ": Address family not supported by protocol", 0
     errno_97_msg_len equ $ - errno_97_msg
 
-    errno_98_msg db " Address already in use", 0
+    errno_98_msg db ": Address already in use", 0
     errno_98_msg_len equ $ - errno_98_msg
 
-    errno_99_msg db " Cannot assign requested address", 0
+    errno_99_msg db ": Cannot assign requested address", 0
     errno_99_msg_len equ $ - errno_99_msg
 
-    errno_100_msg db " Network is down", 0
+    errno_100_msg db ": Network is down", 0
     errno_100_msg_len equ $ - errno_100_msg
 
-    errno_101_msg db " Network is unreachable", 0
+    errno_101_msg db ": Network is unreachable", 0
     errno_101_msg_len equ $ - errno_101_msg
 
-    errno_102_msg db " Network dropped connection on reset", 0
+    errno_102_msg db ": Network dropped connection on reset", 0
     errno_102_msg_len equ $ - errno_102_msg
 
-    errno_103_msg db " Software caused connection abort", 0
+    errno_103_msg db ": Software caused connection abort", 0
     errno_103_msg_len equ $ - errno_103_msg
 
-    errno_104_msg db " Connection reset by peer", 0
+    errno_104_msg db ": Connection reset by peer", 0
     errno_104_msg_len equ $ - errno_104_msg
 
-    errno_105_msg db " No buffer space available", 0
+    errno_105_msg db ": No buffer space available", 0
     errno_105_msg_len equ $ - errno_105_msg
 
-    errno_106_msg db " Transport endpoint is already connected", 0
+    errno_106_msg db ": Transport endpoint is already connected", 0
     errno_106_msg_len equ $ - errno_106_msg
 
-    errno_107_msg db " Transport endpoint is not connected", 0
+    errno_107_msg db ": Transport endpoint is not connected", 0
     errno_107_msg_len equ $ - errno_107_msg
 
-    errno_108_msg db " Cannot send after transport endpoint shutdown", 0
+    errno_108_msg db ": Cannot send after transport endpoint shutdown", 0
     errno_108_msg_len equ $ - errno_108_msg
 
-    errno_109_msg db " Too many references: cannot splice", 0
+    errno_109_msg db ": Too many references: cannot splice", 0
     errno_109_msg_len equ $ - errno_109_msg
 
-    errno_110_msg db " Connection timed out", 0
+    errno_110_msg db ": Connection timed out", 0
     errno_110_msg_len equ $ - errno_110_msg
 
-    errno_111_msg db " Connection refused", 0
+    errno_111_msg db ": Connection refused", 0
     errno_111_msg_len equ $ - errno_111_msg
 
-    errno_112_msg db " Host is down", 0
+    errno_112_msg db ": Host is down", 0
     errno_112_msg_len equ $ - errno_112_msg
 
-    errno_113_msg db " No route to host", 0
+    errno_113_msg db ": No route to host", 0
     errno_113_msg_len equ $ - errno_113_msg
 
-    errno_114_msg db " Operation already in progress", 0
+    errno_114_msg db ": Operation already in progress", 0
     errno_114_msg_len equ $ - errno_114_msg
 
-    errno_115_msg db " Operation now in progress", 0
+    errno_115_msg db ": Operation now in progress", 0
     errno_115_msg_len equ $ - errno_115_msg
 
-    errno_116_msg db " Stale file handle", 0
+    errno_116_msg db ": Stale file handle", 0
     errno_116_msg_len equ $ - errno_116_msg
 
-    errno_117_msg db " Structure needs cleaning", 0
+    errno_117_msg db ": Structure needs cleaning", 0
     errno_117_msg_len equ $ - errno_117_msg
 
-    errno_118_msg db " Not a XENIX named type file", 0
+    errno_118_msg db ": Not a XENIX named type file", 0
     errno_118_msg_len equ $ - errno_118_msg
 
-    errno_119_msg db " No XENIX semaphores available", 0
+    errno_119_msg db ": No XENIX semaphores available", 0
     errno_119_msg_len equ $ - errno_119_msg
 
-    errno_120_msg db " Is a named type file", 0
+    errno_120_msg db ": Is a named type file", 0
     errno_120_msg_len equ $ - errno_120_msg
 
-    errno_121_msg db " Remote I/O error", 0
+    errno_121_msg db ": Remote I/O error", 0
     errno_121_msg_len equ $ - errno_121_msg
 
-    errno_122_msg db " Disk quota exceeded", 0
+    errno_122_msg db ": Disk quota exceeded", 0
     errno_122_msg_len equ $ - errno_122_msg
 
-    errno_123_msg db " No medium found", 0
+    errno_123_msg db ": No medium found", 0
     errno_123_msg_len equ $ - errno_123_msg
 
-    errno_124_msg db " Wrong medium type", 0
+    errno_124_msg db ": Wrong medium type", 0
     errno_124_msg_len equ $ - errno_124_msg
 
-    errno_125_msg db " Operation canceled", 0
+    errno_125_msg db ": Operation canceled", 0
     errno_125_msg_len equ $ - errno_125_msg
 
-    errno_126_msg db " Required key not available", 0
+    errno_126_msg db ": Required key not available", 0
     errno_126_msg_len equ $ - errno_126_msg
 
-    errno_127_msg db " Key has expired", 0
+    errno_127_msg db ": Key has expired", 0
     errno_127_msg_len equ $ - errno_127_msg
 
-    errno_128_msg db " Key has been revoked", 0
+    errno_128_msg db ": Key has been revoked", 0
     errno_128_msg_len equ $ - errno_128_msg
 
-    errno_129_msg db " Key was rejected by service", 0
+    errno_129_msg db ": Key was rejected by service", 0
     errno_129_msg_len equ $ - errno_129_msg
 
-    errno_130_msg db " Owner died", 0
+    errno_130_msg db ": Owner died", 0
     errno_130_msg_len equ $ - errno_130_msg
 
-    errno_131_msg db " State not recoverable", 0
+    errno_131_msg db ": State not recoverable", 0
     errno_131_msg_len equ $ - errno_131_msg
 
-    errno_132_msg db " Operation not possible due to RF-kill", 0
+    errno_132_msg db ": Operation not possible due to RF-kill", 0
     errno_132_msg_len equ $ - errno_132_msg
 
-    errno_133_msg db " Memory page has hardware error", 0
+    errno_133_msg db ": Memory page has hardware error", 0
     errno_133_msg_len equ $ - errno_133_msg
 
 

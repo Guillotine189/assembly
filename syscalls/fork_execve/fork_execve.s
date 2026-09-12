@@ -232,6 +232,7 @@ _start:
 	mov rdi, rsp
 	call _strlen
 	push rax
+	jmp .print_errors
 
 	.zero_status_code:
 		mov rax, 48
@@ -239,7 +240,7 @@ _start:
 		mov rax, 8
 		push rax
 
-
+	.print_errors:
 	mov rax, child_process_done_line_len
 	mov rdi, 1
 	lea rsi, [rel child_process_done_line]
@@ -267,7 +268,7 @@ _start:
 	mov rdi, rsp
 	call _strlen
 	push rax
-
+	jmp .print_errors2
 
 	.zero_status_code_:
 		mov rax, 48
@@ -275,7 +276,7 @@ _start:
 		mov rax, 8
 		push rax
 
-
+	.print_errors2:
 	mov rax, child_process_killed_line_len
 	mov rdi, 1
 	lea rsi, [rel child_process_killed_line]

@@ -1,3 +1,20 @@
+How to get the flags, signal number for assembly
+
+echo " #include <signal.h>" | gcc -dM -E -| grep -E " SIG[^_]{3,4}"
+
+find the library for that funtion pass it into gcc,
+-dM -> output only the macros defined in that file
+-E -> stop after preprocessing
+-  -> forward the data here
+
+I have forwarded the data to grep in that specific example
+-E -> "understand regex"
+" SEG" -> pattern matching this
+"[^_]" -> follwed by anything that is not "_"
+"{3,4}" -> has 3 or 4 more char after "SEG[not _]"
+
+---------------------------------------------------------------------------------------
+
                          RAX — 64 bits
         ┌───────────────────────────────────────────────┐
         │                                               │
@@ -428,3 +445,141 @@ There are other options such as WNOHANG, which would make wait4 return immediate
 
 reusage:
 wait4 can optionally give resource-usage information about the child, like CPU time used.
+
+
+---------------------------------------------------------------------------------------
+
+
+                 USER MODE
+┌─────────────────────────────────────────┐
+│                                         │
+│  your program                           │
+│                                         │
+│       RIP = 0x401200                    │
+│          │                              │
+│          │                              │
+└──────────┼──────────────────────────────┘
+           │
+           │ signal becomes pending
+           │
+           ▼
+┌─────────────────────────────────────────┐
+│                 KERNEL                  │
+│                                         │
+│  1. See SIGINT pending                  │
+│                                         │
+│  2. Look up disposition:                │
+│       SIGINT → 0x401050                 │
+│                                         │
+│  3. Save CPU state in stack             │
+│       RIP = 0x401200                    │
+│       RSP = ...                         │
+│       RAX = ...                         │
+│       etc.                              │
+│                                         │
+│  4. Build signal frame                  │
+│                                         │
+│  5. Set up execution context            │
+│       RIP = 0x401050                    │
+│       RDI = SIGINT                      │
+│                                         │
+└──────────────────┬──────────────────────┘
+                   │
+                   │ return to user mode
+                   ▼
+
+┌─────────────────────────────────────────┐
+│                 USER MODE              │
+│                                         │
+│  RIP = 0x401050                         │
+│       │                                 │
+│       ▼                                 │
+│  handler:                               │
+│       ...                               │
+│       ...                               │
+│       ret/trampoline                    │
+│       │                                 │
+└───────┼─────────────────────────────────┘
+        │
+        │ rt_sigreturn
+        ▼
+┌─────────────────────────────────────────┐
+│                 KERNEL                  │
+│                                         │
+│  Restore saved context:                 │
+│       RIP = 0x401200                    │
+│       RSP = original RSP                │
+│       RAX = original RAX                │
+│       RBX = original RBX                │
+│       ...                               │
+│                                         │
+└──────────────────┬──────────────────────┘
+                   │
+                   ▼
+              USER MODE
+
+             RIP = 0x401200
+                   │
+                   ▼
+            program continues
+
+
+
+structure: That the kernal reads from to know what to do on a specific sigaction
+
+align 8                 ; not necessary but tells assembler to move the sa to a address 
+                        ; thats divisible by 8
+sa: 
+   dq handler           ; for the address of handler (which is a funtion defined already)
+   dq 0                 ; for the flags
+   dq 0                 ; for the restorer
+   times 16 dq 0        ; 16 times dq = 16x8 = 128bytes for mask
+
+                     sa
+                      ↓
+      ┌──────────────────────────────┐
++0    │ address of handler           │  8 bytes
+      ├──────────────────────────────┤
++8    │ flags = 0                    │  8 bytes
+      ├──────────────────────────────┤
++16   │ restorer = 0                 │  8 bytes
+      ├──────────────────────────────┤
++24   │                              │
+      │                              │
+      │       signal mask            │  128 bytes
+      │       all zero               │
+      │                              │
+      └──────────────────────────────┘
+
+
+      restorer: The sys_rt_sigreturn syscall needs to be performed after handler
+                Normal ret wont do. So historucally you can give kernal the address 
+                where restorer function lives. All the function does is executes a piece of code after handler does a normal ret. 
+        case1:  if i make handler and restorer as seperate function,
+                        handler executes normal ret, kernal executes the restorer function which ultimately does the sys_rt_sigreturn syscall.
+        case2:  i can write the sys_rt_sigreturn syscall inside the handler, no need to 
+                        have a seperate restorer function.
+                i will also have to give flag : SA_RESTORER equ 0x04000000
+                in the flag section to tell kernal i have specified a restorer
+
+        [IMPORTANT]: X86-64 only support CASE 1.
+
+
+
+The actual syscall:
+
+    mov rax, 13         ; sys_rt_sigreturn
+    mov rdi, 2          ; SIGINT
+    mov rsi, sa         ; pointer to the struct
+    xor rdx, rdx        ; oldact = NULL, address to a space where you want old config
+    mov r10, 8          ; sizeof(sigset_t) in x84_64 is 8byts,This is what kernal expects.
+    syscall
+
+    oldact : If you want kernel, give me the previous signal configuration here.
+             But i don't care about the old signal config
+        Q . how do i know the size to reserve at the address that i am giving kernal?
+        Ans 
+                section .bss
+                old_sa:
+                    resb SIGACTION_SIZE
+        Yes SIGACTION_SIZE is the size defined in ABI.
