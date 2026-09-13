@@ -1,4 +1,14 @@
 section .data
+
+	red         db 27, "[31m"
+    green       db 27, "[32m"
+    yellow      db 27, "[33m"
+    blue        db 27, "[34m"				; len is 5 for every colour
+    magenta     db 27, "[35m"
+    cyan        db 27, "[36m"
+    white       db 27, "[37m"
+    colour_reset db 27, "[0m" 				; len is 4 for reset
+
 	usage_line0 db "Usage: ", 0
 	usage_line0_len equ $ - usage_line0
 	usage_line1 db " <patterns>... <filename>", 0
@@ -450,7 +460,12 @@ _start:
 
 
 	.pattern_matched:
-		; rax has lenght already
+		; rax has lenght already. r15 also
+
+		mov rax, 5 					; first green color, len 5 for all colours
+		mov rdi, 1
+		lea rsi, [rel green]
+		call _print
 
 		; print line number
 		mov rax, r13
@@ -466,17 +481,54 @@ _start:
 		lea rsi, [rel semicolon_space]
 		call _print
 
+		mov rax, 4 					; len of reset
+		mov rdi, 1
+		lea rsi, [rel colour_reset]
+		call _print
+
+
 		
 		; print the actial line
-		mov rcx, [rbp - 40] 					; line offset start 
-		mov rdi, [rbp - 48] 					; line offset end
-		sub rdi, rcx
 
-		mov rax, rdi 							; rax has len of line now
+
+		mov rcx, [rbp - 40] 					; line offset start 
+		mov rax, r14
+		sub rax, rcx 							; r14 -> "n" in  "\noldPTRNnew\n"
+		
+		sub rax, r15 							; LEN OF line bfore pattern
 		mov rdi, 1
 		lea rsi, [rel resusable_read_data_buffer]
 		add rsi, [rbp - 40] 					; the line start index of buffer
+		call _print
+
+
+		mov rax, 5 					; first green color, len 5 for all colours
+		mov rdi, 1
+		lea rsi, [rel red]
+		call _print
+
+
+		mov rax, r15
+		mov rdi, 1
+		lea rsi, [rel resusable_read_data_buffer]
+		add rsi, r14 
+		sub rsi, r15 		
+		call _print
+
+
+		mov rax, 4 					; len of reset
+		mov rdi, 1
+		lea rsi, [rel colour_reset]
+		call _print
+
+
+		mov rax, [rbp - 48] 					; line offset end
+		sub rax, r14
+		mov rdi, 1
+		lea rsi, [rel resusable_read_data_buffer]
+		add rsi, r14
 		call _print_with_new_line
+
 
 		; string -> "patterpatterp", pattern "patterp"
 		; after first "oro", dont move forward, start checking check last byte 
@@ -488,7 +540,7 @@ _start:
 		je .dont_decrease_end_index
 
 		dec r14 ; bec inc on equal_byte section
-		
+
 		.dont_decrease_end_index:
 		xor r15, r15
 		jmp .loop_for_single_pattern
