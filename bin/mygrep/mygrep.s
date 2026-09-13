@@ -1,6 +1,6 @@
 section .data
 
-	red         db 27, "[31m"
+	red         db 27, "[31m" 				; 27 is ESC char in ascii
     green       db 27, "[32m"
     yellow      db 27, "[33m"
     blue        db 27, "[34m"				; len is 5 for every colour

@@ -145,7 +145,7 @@
     mov rax, errno_%1_msg_len
     mov rdi, 1
     lea rsi, [rel errno_%1_msg]
-    call _print_with_new_line
+    call errorHandling_print_with_new_line
     ret
 %endmacro
 
@@ -547,7 +547,30 @@ section .data
 
 section .text
 
-extern _print_with_new_line
+; rax: number of bytes to print 
+; rdi: fd to write to
+; rsi: address of string 
+; returns bytes printed rax
+errorHandling_print_with_new_line:
+
+    mov rdx, rax                    ; rdx total bytes
+    mov rax, 1                      ; write syscall
+    syscall
+
+    ; print new line
+    mov rax, 10
+    push rax
+
+    mov rax, 1
+    mov rdi, 1                      ; fd
+    mov rsi, rsp                    ; buffer address
+    mov rdx, 1                      ; bytes to print
+    syscall
+
+    .cleanup:
+    pop rax
+    ret
+
 
 
 global _print_error_with_new_line
