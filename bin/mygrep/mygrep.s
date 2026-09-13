@@ -21,15 +21,19 @@ section .data
 
 	eof_reached dq 0
 
+	semicolon_space db ": "
+
+
 section .bss
 
 	search_file_address resq 1
 	search_file_fd resq 1
 
-	buffer_size equ 16384
+	buffer_size equ 65536
 	resusable_stat_buffer resb 144
 	resusable_read_data_buffer resb buffer_size
 
+	line_number_buffer resb 20 			; 2^64-1 is 20digits
 
 	error_opening_file_name_address resq 1
 	error_opening_file_name_len resq 1
@@ -61,6 +65,8 @@ extern _strlen
 extern _print_error_with_new_line
 extern _malloc
 extern _free
+extern _itoa
+
 
 global _start
 
@@ -262,6 +268,8 @@ _start:
 
 		push rsi
 
+		xor r13, r13
+
 	.loop_reading_file:
 	; copy data into buffer
 
@@ -305,7 +313,7 @@ _start:
 	mov [rbp - 32], rax 						; store how much local data is there
 
 	.get_new_line:
-
+	
 	; move the start pointer to end pointer + 1 (old_line\nNew_line\nNew_line)
 	; 											 |o 	 |\n
 	; 1st pointer will then point to 1st char of new line
@@ -366,6 +374,7 @@ _start:
 		jmp .loop_for_multiple_patterns
 
 	.loop_for_multiple_patterns:
+	inc r13 										; line number
 
 	; start offset has position of beginninig of new byte
 	; now my end pointer offset is pointing to \n
@@ -443,6 +452,22 @@ _start:
 	.pattern_matched:
 		; rax has lenght already
 
+		; print line number
+		mov rax, r13
+		lea rdi, [rel line_number_buffer]
+		call _itoa 				; rax has len of the number
+
+		mov rdi, 1
+		lea rsi, [rel line_number_buffer]
+		call _print
+
+		mov rax, 2
+		mov rdi, 1
+		lea rsi, [rel semicolon_space]
+		call _print
+
+		
+		; print the actial line
 		mov rcx, [rbp - 40] 					; line offset start 
 		mov rdi, [rbp - 48] 					; line offset end
 		sub rdi, rcx
@@ -456,9 +481,16 @@ _start:
 		; string -> "patterpatterp", pattern "patterp"
 		; after first "oro", dont move forward, start checking check last byte 
 
-		xor r15, r15
 		; inc r14  -> not done here, because last byte may start pattern again
+		; but if len of pattern is 1, then dont dec r14
+
+		cmp r15, 1
+		je .dont_decrease_end_index
+
 		dec r14 ; bec inc on equal_byte section
+		
+		.dont_decrease_end_index:
+		xor r15, r15
 		jmp .loop_for_single_pattern
 
 
