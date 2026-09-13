@@ -1,11 +1,12 @@
 section .text
 
-
 global _print
 global _print_with_new_line
 global _strlen
 global _itoa
 global _mem_copy
+global _string_copy_including_null
+
 
 ; rax: number of bytes to print 
 ; rdi: fd to write to
@@ -115,6 +116,8 @@ _itoa:
 		mov rax, rsi
 		ret
 
+
+
 ; rdi : dest address
 ; rsi : src address
 ; rdx : how many bytes to copy
@@ -166,4 +169,25 @@ _mem_copy:
 		pop rax
 		mov rsp, rbp
 		pop rbp
+		ret
+
+; rdi : address of destination string
+; rsi : address of source string
+; return: rax : the len of string
+; 		: rdi : the address of null byte(\0)
+_string_copy_including_null:
+	xor rax, rax
+
+	.loop_copy:
+		mov cl, [rsi + rax]
+		mov [rdi + rax], cl
+
+		cmp cl, 0
+		je .done
+
+		inc rax
+		jmp .loop_copy
+
+	.done:
+		add rdi, rax
 		ret
