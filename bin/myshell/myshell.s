@@ -18,31 +18,32 @@ section .data
 
     og_envp_stack_array_address dq 1
 
+    cursor_position dq 0
 
     input_interrupted dq 0
 
-    error_input_init_memory db "Error allocating memory for input buffer",0
+    error_input_init_memory db "myShell: Error allocating memory for input buffer",0
     error_input_init_memory_len equ $ - error_input_init_memory
 
-    error_getting_parse_memory db "Error getting memory for parse line", 0
+    error_getting_parse_memory db "myShell: Error getting memory for parse line", 0
     error_getting_parse_memory_len equ $ - error_getting_parse_memory
 
-    error_reading_input db "Error reading input", 0
+    error_reading_input db "myShell: Error reading input", 0
     error_reading_input_len equ $ - error_reading_input
 
-    error_increasing_input_buffer_mem db "Error increasing input buffer storage", 0
+    error_increasing_input_buffer_mem db "myShell: Error increasing input buffer storage", 0
     error_increasing_input_buffer_mem_len equ $ - error_increasing_input_buffer_mem
 
-    error_getting_cwd db "Error getting cwd",0
+    error_getting_cwd db "myShell: Error getting cwd",0
     error_getting_cwd_len equ $ - error_getting_cwd
 
-    error_overriding_custom_handler db "Error overriding custom handler: ", 0
+    error_overriding_custom_handler db "myShell: Error overriding custom handler: ", 0
     error_overriding_custom_handler_len equ $ - error_overriding_custom_handler
 
-    error_forking db "Error forking",0
+    error_forking db "myShell: Error forking",0
     error_forking_len equ $ - error_forking
 
-    error_executing_process db "Error executing: ", 0
+    error_executing_process db "myShell: Error executing: ", 0
     error_executing_process_len equ $ - error_executing_process
 
 

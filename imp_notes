@@ -608,3 +608,79 @@ for each command i:
         close fds it no longer needs
 
 wait for all children
+
+
+----------------------------------------------------------------------
+                                ioctl
+
+%define TCGETS      0x5401
+%define TCSETS      0x5402
+
+; struct termios offsets on x86-64 Linux
+%define C_LFLAG     12
+
+
+section .bss
+    termios     resb 60
+    old_termios resb 60
+    input       resb 1
+
+
+
+    ; ----------------------------------------
+    ; Save current terminal settings
+    ; ioctl(STDIN, TCGETS, &termios)
+    ; ----------------------------------------
+
+    mov     rax, SYS_IOCTL
+    mov     rdi, STDIN
+    mov     rsi, TCGETS
+    lea     rdx, [rel termios]
+    syscall
+
+    ; Copy current settings to old_termios
+    lea     rsi, [rel termios]
+    lea     rdi, [rel old_termios]
+    mov     rcx, 60
+    rep     movsb
+
+
+    ; ----------------------------------------
+    ; Disable canonical mode and echo
+    ;
+    ; termios.c_lflag &= ~(ICANON | ECHO)
+    ; ----------------------------------------
+
+    mov     eax, [rel termios + C_LFLAG]
+
+    ; ICANON = 0x0002
+    ; ECHO   = 0x0008
+    and     eax, ~(0x0002 | 0x0008)
+
+    mov     [rel termios + C_LFLAG], eax
+
+
+    ; ----------------------------------------
+    ; Apply modified settings
+    ;
+    ; ioctl(STDIN, TCSETS, &termios)
+    ; ----------------------------------------
+
+    mov     rax, SYS_IOCTL
+    mov     rdi, STDIN
+    mov     rsi, TCSETS
+    lea     rdx, [rel termios]
+    syscall
+
+
+     ; ----------------------------------------
+    ; Restore original terminal settings
+    ;
+    ; ioctl(STDIN, TCSETS, &old_termios)
+    ; ----------------------------------------
+
+    mov     rax, SYS_IOCTL
+    mov     rdi, STDIN
+    mov     rsi, TCSETS
+    lea     rdx, [rel old_termios]
+    syscall
