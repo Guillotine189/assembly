@@ -6,7 +6,7 @@ global _strlen
 global _itoa
 global _mem_copy
 global _string_copy_including_null
-
+global _strcmp
 
 ; rax: number of bytes to print 
 ; rdi: fd to write to
@@ -171,6 +171,7 @@ _mem_copy:
 		pop rbp
 		ret
 
+
 ; rdi : address of destination string
 ; rsi : address of source string
 ; return: rax : the len of string
@@ -190,4 +191,51 @@ _string_copy_including_null:
 
 	.done:
 		add rdi, rax
+		ret
+
+; rax : address string 1
+; rdi : address string 2
+; returns in rax
+; 		 : 0 if string 1 and 2 are equal
+;		 : 1 if string 1 > string 2
+;		 : -1 if string 1 < string 2
+
+; compare the 2 strings terminated by \0, char by char, until \0 or one of them has low ascii value
+_strcmp:
+	
+	xor r9, r9										; this will act as a address index
+
+	.loop:
+		mov bl, [rax + r9]								; store value [1 byte]
+		mov cl, [rdi + r9]		
+
+		cmp bl, cl
+		
+		; case 1 : string 1 < srring 2
+		jb .handle_string_one_smaller					; carry flasg = 1, jump below will work
+
+		; case 2 : both are equal
+		je .handle_equal
+
+		; case 3 : string 1 > string 2
+		ja .handle_string_one_bigger					; sign flag = 0, jump below will work
+
+	.handle_string_one_smaller:
+		mov rax, -1
+		ret
+
+	.handle_equal:
+		; check if they ended, both has 0
+		test rbx, rbx
+		je .return_equal						; if both had \0 -> ZF = 1
+
+		inc r9
+		jmp .loop								; else just jump to loop
+
+	.handle_string_one_bigger:
+		mov rax, 1
+		ret
+
+	.return_equal:
+		mov rax, 0
 		ret

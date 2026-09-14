@@ -490,7 +490,7 @@ wait4 can optionally give resource-usage information about the child, like CPU t
                    ▼
 
 ┌─────────────────────────────────────────┐
-│                 USER MODE              │
+│                 USER MODE               │
 │                                         │
 │  RIP = 0x401050                         │
 │       │                                 │
@@ -584,3 +584,27 @@ The actual syscall:
                 old_sa:
                     resb SIGACTION_SIZE
         Yes SIGACTION_SIZE is the size defined in ABI.
+
+----------------------------------------------------------------------
+                                LOGIC FOR PIPES
+
+for each command i:
+    if there is a command after me:
+        create a pipe
+
+    fork()
+
+    child:
+        if I have a previous pipe:
+            dup2(previous_pipe_read, STDIN)
+
+        if I have a next command:
+            dup2(current_pipe_write, STDOUT)
+
+        close unused fds
+        execve()
+
+    parent:
+        close fds it no longer needs
+
+wait for all children

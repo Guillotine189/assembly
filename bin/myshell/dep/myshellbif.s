@@ -62,3 +62,4 @@ _builtin_pwd:
 	mov rdi, 1
 	lea rdi, [rel curr_cwd]
 	call _print_with_new_line
+	ret
