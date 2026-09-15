@@ -164,6 +164,7 @@ extern print_error_getting_pgid
 extern _read_input
 
 extern _check_and_execute_if_built_in
+extern _check_if_cmd_is_in_path
 
 section .text
 
@@ -758,6 +759,15 @@ _execute_process:
     test rax, rax
     jz .return
 
+    call _check_if_cmd_is_in_path
+    test rax, rax
+    jl .execute_with_og_command
+
+    ; now if path was found i need to change address of command
+    mov [rel address_command], rax
+
+
+    .execute_with_og_command:
     mov rax, sys_fork
     syscall  
 

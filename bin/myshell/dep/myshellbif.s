@@ -1,7 +1,7 @@
 %include "./dep/constants.inc"
 
 section .data
-	error_changing_dir db "Error changing directory", 0
+	error_changing_dir db "Error changing directory: ", 0
 	error_changing_dir_len equ $ - error_changing_dir
 
 	error_cd_too_many_args db "Error changing directory: too many arguments provided.",0
@@ -12,10 +12,21 @@ section .data
 
 
 section .rodata
+	
+	cursor_clear_screen db 27, "[2J", 27, "[H", 0
+	cursor_clear_screen_len equ $ - cursor_clear_screen
+	; ESC [ 2 J    -> clear entire screen
+	; ESC [ H      -> move cursor [1,1]
 
+
+	dot db ".",0
+	back_slash db "/"
+	dot_back_slash db "./", 0
 	dash db '-',0
+
     cd db "cd",0
     pwd db "pwd",0
+    clear db "clear", 0
     exit db "exit",0
     home_env_var db "HOME", 0
 
@@ -59,7 +70,7 @@ global _check_and_execute_if_built_in
 
 
 
-; rax : address of home env variable
+; returns rax : address of home env variable
 _find_home_env_variable:
 	xor r8 ,r8 							; this will store which env var i am checking
 
@@ -120,6 +131,20 @@ _find_home_env_variable:
 		ret
 
 _check_and_execute_if_built_in:
+
+	mov rax, [rel address_command]
+
+	cmp byte [rax], '/'  	; if 1st byte is /, its not a builtin
+	je .not_built_in
+
+	mov rax, 2
+	mov rdi, [rel address_command]
+	lea rsi, [rel dot_back_slash]
+	call _cmp_equal_memory
+
+	test rax, rax
+	je .not_built_in
+
     mov rax, [rel address_command]
     lea rdi, [rel cd]
     call _strcmp
@@ -136,6 +161,14 @@ _check_and_execute_if_built_in:
 
 
     mov rax, [rel address_command]
+    lea rdi, [rel clear]
+    call _strcmp
+
+    test rax, rax
+    je .clear_screen
+
+
+    mov rax, [rel address_command]
     lea rdi, [rel exit]
     call _strcmp
 
@@ -143,8 +176,8 @@ _check_and_execute_if_built_in:
     je _exit
 
     .not_built_in:
-    mov rax, 1
-    ret
+	    mov rax, 1
+	    ret
 
 
     .check_and_execute_cd:
@@ -211,7 +244,14 @@ _check_and_execute_if_built_in:
         call _builtin_pwd
         jmp .return_built_in
 
+    .clear_screen:
+	    mov rax, sys_write              ; sys
+		mov rdi, 1              ; fd 1
+		lea rsi, [rel cursor_clear_screen]
+		mov rdx, cursor_clear_screen_len
+		syscall
 
+		jmp .return_built_in
 
     .return_built_in:
         mov rax, 0
@@ -248,6 +288,8 @@ _builtin_cd:
     lea rdi, [rel curr_cwd]
     call _strlen
 
+    mov [rel old_cwd_len], rax
+
     lea rdi, [rel old_cwd] 				; destination
     lea rsi, [rel curr_cwd] 				; source
     mov rdx, 0
@@ -258,6 +300,8 @@ _builtin_cd:
 
     lea rdi, [rel reusable_buffer_bif]
     call _strlen
+
+    mov [rel curr_cwd_len], rax
 
     lea rdi, [rel curr_cwd]
 	lea rsi, [rel reusable_buffer_bif] 				; source
@@ -275,6 +319,18 @@ _builtin_cd:
 		mov rax, error_changing_dir_len
 		mov rdi, 1
 		lea rsi, [rel error_changing_dir]
+		call _print
+
+		mov rdi, [rel address_argc_address_array]
+		add rdi, 8
+		mov rdi, [rdi]
+		call _strlen
+
+		mov rdi, 1
+		mov rsi, [rel address_argc_address_array]
+		add rsi, 8
+		mov rsi, [rsi]
+		call _print
 
 		mov rax, [rel error_code]
 		call _print_error_with_new_line

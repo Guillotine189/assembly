@@ -1,0 +1,236 @@
+%include "./dep/constants.inc"
+
+section .data
+	
+	error_path_env_not_found db "Error: 'PATH; env variable not present.", 0
+	error_path_env_not_found_len equ $ - error_path_env_not_found
+
+	path_env_var db "PATH", 0
+	path_address dq 0
+	last_path_flag dq 0
+
+	dot db ".",0
+	back_slash db "/"
+	dot_back_slash db "./", 0
+	dash db '-',0
+
+
+
+section .bss
+	resuable_buffer_path resb 4096
+	struct_for_stat resb 144
+
+extern _print
+extern _print_with_new_line
+extern _string_copy_including_null
+extern _print_error_with_new_line
+extern _strcmp
+extern _cmp_equal_memory
+extern _strlen
+extern _mem_copy
+extern _memcpy_with_end_char
+
+
+
+extern error_code
+extern curr_cwd
+extern curr_cwd_len
+extern old_cwd
+extern old_cwd_len
+
+extern address_argc_address_array
+extern address_envp_address_array
+extern address_command
+extern total_command_aruments
+
+
+global _check_if_cmd_is_in_path
+
+
+section .text
+
+; returns rax : address of path env variable
+_find_path_env_variable:
+	xor r8 ,r8 							; this will store which env var i am checking
+
+	.check_next_env_var:
+		mov rax, [rel address_envp_address_array]
+		mov rdx, r8
+		shl rdx, 3
+		add rax, rdx
+		; rax = [address_envp_address_array + r8*8]
+		
+		mov rcx, [rax]			; rcx now stores the address of env variable
+
+		cmp rcx, 0 		  	; if the value is NULL, i have reached the end of envp variba
+		je .path_not_found
+
+		xor r9, r9 				; idx for going over the env var
+	.check_this_address:
+
+		cmp byte [rcx + r9], '='
+		je .check_len_and_path
+		inc r9
+
+		cmp r9, 4 						; HOME is 4 in len
+		jg .check_next_var
+		jmp .check_this_address
+
+
+	.check_len_and_path:
+		cmp r9, 4
+		jne .check_next_var
+
+		push rcx
+		push r8
+
+		mov rax, 4
+		lea rdi, [rel path_env_var]
+		mov rsi, rcx
+		call _cmp_equal_memory
+
+		pop r8
+		pop rcx
+
+		test rax, rax
+		je .path_found
+		jmp .check_next_var
+
+
+	.check_next_var:
+		inc r8
+		jmp .check_next_env_var
+
+	.path_found:
+		mov rax, rcx
+		ret
+
+	.path_not_found:
+		mov rax, -1
+		ret
+
+; returns address in rax, if exists or -1 if not
+_check_if_cmd_is_in_path:
+
+	mov rax, [rel address_command]
+	cmp byte [rax], '/'  	; if 1st byte is /, its not a builtin
+	je .not_inside_path
+
+	mov rax, 2
+	mov rdi, [rel address_command]
+	lea rsi, [rel dot_back_slash]
+	call _cmp_equal_memory
+
+
+	call _find_path_env_variable
+
+	test rax, rax
+	jl .error_path_env_not_found
+
+	mov [rel path_address], rax
+	call _parse_path_and_check_if_command_in_path
+
+	test rax, rax
+	jl .not_inside_path
+
+	; rax already has address
+	jmp .inside_path
+
+	.error_path_env_not_found:
+		mov rax, error_path_env_not_found_len
+		mov rdi, 1
+		lea rsi, [rel error_path_env_not_found]
+		call _print_with_new_line
+
+		jmp .not_inside_path
+
+
+	.not_inside_path:
+		mov rax, -1
+		ret
+
+	.inside_path:
+		ret
+
+
+; returns: rax : -1 -> if not exists, address of constructed path if exists
+_parse_path_and_check_if_command_in_path:
+
+	mov rax, [rel path_address]
+	add rax, 5 							; 'PATH=' skipped
+
+	mov r12, 5 					; idx for starting of new path 
+	mov r13, 5 					; idx for total looping inside path var
+
+	mov qword [rel last_path_flag], 0
+
+	.loop_init:
+		mov rax, [rel path_address]
+
+	.loop_find_semi_colon_or_end:
+
+		cmp byte [rax + r13], ':'
+		je .end_of_path_found
+
+		cmp byte [rax + r13], 0
+		je .last_path
+
+		inc r13
+		jmp .loop_find_semi_colon_or_end
+
+	.last_path:
+		mov qword [rel last_path_flag], 1
+
+	; r12 is start of path
+	; r13 is at end of path + 1
+	.end_of_path_found: 
+		dec r13 					; r13 at end of path
+
+		mov rax, r13
+		sub rax, r12  			
+		inc rax  					; bec r12 r13 are 0 indexed, inc 1 for lenght
+		lea rdi, [rel resuable_buffer_path]
+		mov rsi, [rel path_address]
+		add rsi, r12
+		mov rdx, '/'
+		mov r8, 1
+		call _memcpy_with_end_char 				; rax has address of next byte
+		push rax
+
+		mov rdi, [rel address_command]
+		call _strlen
+		pop rdi
+		mov rsi, [rel address_command]
+		mov rdx, 0
+		mov r8, 1
+		call _memcpy_with_end_char 
+		; now i have constructed '/path/commandNULL'
+
+		; find if this file exists
+
+		mov rax, sys_stat
+		lea rdi, [rel resuable_buffer_path]
+		lea rsi, [rel struct_for_stat]
+		syscall
+
+		test rax, rax 						; if file doesn't exists, check next path
+		jl .check_next_path
+
+		jmp .in_path
+
+	.check_next_path:
+		cmp qword [rel last_path_flag], 1
+		je .not_in_path
+
+		add r13, 2
+		mov r12, r13
+		jmp .loop_init
+
+
+	.not_in_path:
+		mov rax, -1
+		ret
+
+	.in_path:
+		lea rax, [rel resuable_buffer_path]
+		ret
