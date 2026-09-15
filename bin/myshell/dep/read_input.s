@@ -18,7 +18,7 @@ section .rodata
     move_cur_down db 27, "[B", 0
     move_cur_right db 27, "[C", 0
     move_cur_left db 27, "[D", 0
-    move_cur_next_line db 27, "[B", 27, "[G"  ; B -> down , G-> column 1
+    move_cur_next_line db 27, "[E"
     erase_everything_after_cursor_including_cursor db 27, "[0K", 0
 
 
@@ -636,11 +636,14 @@ _read_input:
         jmp .move_cursor_end
 
         .move_cursor_down_colum1:
+        
         mov rax, 1
         mov rdi, 1
-        lea rsi, [rel move_cur_next_line]
-        mov rdx, 6
+        lea rsi, [rel new_line]
+        mov rdx, 1
+
         syscall
+
         ;add_char_to_input_buffer
 
         ; i have atleast 8 bytes of free memory

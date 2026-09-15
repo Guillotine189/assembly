@@ -7,7 +7,7 @@ global _itoa
 global _mem_copy
 global _string_copy_including_null
 global _strcmp
-
+global _cmp_equal_memory
 
 ; rax: number of bytes to print 
 ; rdi: fd to write to
@@ -242,5 +242,35 @@ _strcmp:
 		ret
 
 	.return_equal:
+		mov rax, 0
+		ret
+
+; rax: lenth of memory to compare
+; rdi: address 1
+; rsi: address 2
+; returns : 0 if same, 1 if different
+_cmp_equal_memory:
+
+	xor r8, r8 				; stores how many bytes compared
+
+	.loop:
+
+		cmp r8, rax
+		je .equal
+
+		mov cl, [rdi + r8]						; 1 byte comparision
+		mov dl, [rsi + r8]						; TODO: change it later for efficiency
+		cmp cl, dl
+		jne .not_equal
+
+		inc r8
+		jmp .loop
+
+
+	.not_equal:
+		mov rax, 1
+		ret
+
+	.equal:
 		mov rax, 0
 		ret

@@ -10,7 +10,10 @@ global exit_flag
 global error_custom_handler_number
 global address_command
 
-
+global address_argc_address_array
+global address_envp_address_array
+global og_envp_stack_array_address
+global total_command_aruments
 section .data
 
     myshell_line db "myShell", 0
@@ -28,6 +31,7 @@ section .data
     address_command dq 1
     address_argc_address_array dq 1
     address_envp_address_array dq 1
+    total_command_aruments dq 1
 
     og_envp_stack_array_address dq 1
 
@@ -36,7 +40,6 @@ section .data
     input_interrupted dq 0
 
     shell_pgid dq 0
-
     child_pid dq 0
     child_pgid dq 0
 
@@ -64,11 +67,6 @@ section .data
         dq 0                    ; sa_flags
         dq 0                    ; sa_restorer
         times 16 dq 0            ; sa_mask
-
-    ;-------------------------built in commands-----------------------
-
-    cd db "cd",0
-    pwd db "pwd",0
 
 
 
@@ -148,11 +146,6 @@ extern _print_error_with_new_line
 extern _string_copy_including_null
 extern _strcmp
 
-extern _builtin_cd
-extern _builtin_pwd
-
-
-
 extern print_error_input_init_memory
 extern print_error_getting_parse_memory
 extern print_error_getting_cwd
@@ -164,13 +157,15 @@ extern print_error_getting_pgid
 
 extern _read_input
 
+extern _check_and_execute_if_built_in
+
 section .text
 
 
 global _start
 global _exit_with_status_code
 global _exit
-
+global _set_prefix_line
 
 _init:
     call _signal_handling
@@ -721,34 +716,6 @@ _process_tokens:
         inc r8
         jmp .loop_till_new_line
 
-
-
-
-        cmp r10, 2                                  ; len of command is 2?
-        call .check_if_command_is_built_in
-
-
-    .check_if_command_is_built_in:
-        ; address at r8 - len of token + 1 = starting address of token
-
-        ;check for cd
-        lea rax, [rel cd]
-        mov rdi, [rel capacity_parse_buffer_address]
-        add rdi, r8
-        sub rdi, r10
-        inc rdi
-        call _strcmp                            ; returns 0 if equal in rax
-
-        test rax, rax
-        jz .cd_function_called
-        jmp .check_pwd
-
-        .cd_function_called:
-            ret
-
-        .check_pwd:
-            ret
-
     .all_tokens_processed:
         ; add a NULL in the argc address arary, [reusable_buffer user here]
         lea rax, [rel reusable_buffer]
@@ -759,6 +726,8 @@ _process_tokens:
 
         lea rcx, [rel reusable_buffer]
         mov [rel address_argc_address_array], rcx
+
+        mov [rel total_command_aruments], rdx
 
     .build_envp_array:
 
@@ -771,6 +740,10 @@ _process_tokens:
 
 
 _execute_process:
+
+    call _check_and_execute_if_built_in
+    test rax, rax
+    jz .return
 
     mov rax, sys_fork
     syscall  
@@ -794,6 +767,8 @@ _execute_process:
     call _reset_child_signals         ; childs signals have been restored to default
 
 
+    ; TODO: wait for shell signal to execute.
+    ; I want this to execute in foreground directly, not sometime after i execve
     mov rax, sys_execve
     mov rdi, [rel address_command]
     mov rsi, [rel address_argc_address_array]
@@ -854,6 +829,7 @@ _execute_process:
         ; TODO: dont reset non-canonical, save the old state and apply it
         call _set_noncanonical_mode
 
+        .return:
         ret
 
     .set_error_forking:
