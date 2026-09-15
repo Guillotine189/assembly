@@ -73,12 +73,9 @@ _read_input:
         test rax, rax
         jl .handle_error_reading_input
             
-
         cmp byte [rel key_buffer], 0x04                ; non-conp mode ctrl+d = 0x04
         je .handle_eof
 
-
-        .handle_key:
 
         cmp byte [rel key_buffer], 0x04         ; in non-cononical mode, this is ctrl+d
         je .handle_eof
@@ -92,9 +89,22 @@ _read_input:
         cmp byte [rel key_buffer], 0x0a         ; TODO: move cursor to end of line before exit
         je .return
 
-        cmp byte [rel key_buffer], 0x09         ; tab, ignore
-        je .read_key
 
+        ; this si for ctrl + keys, right now i just ignore them except 
+        ; also , TABS is 0x09 so it is also ignored
+        cmp byte [rel key_buffer], 31                ; last char before usable chars
+        jle .check_if_new_line
+
+        jmp .handle_key
+
+        .check_if_new_line:
+            cmp byte [rel key_buffer], 0x0a
+            je .return
+            jmp .read_key
+
+
+
+        .handle_key:
         .add_char_to_input_buffer:
 
         cmp qword [rel filled_size_input_buffer_len], 0
@@ -203,8 +213,13 @@ _read_input:
         mov rdx, 1
         syscall
 
+        cmp byte [rel key_buffer], 'A'          ; arrow key up : ignore
+        je .read_key
 
-        cmp byte [rel key_buffer], 'D'
+        cmp byte [rel key_buffer], 'B'          ; arrow key down : ignore
+        je .read_key
+
+        cmp byte [rel key_buffer], 'D' 
         je .cursor_left
 
         cmp byte [rel key_buffer], 'C'
@@ -544,9 +559,6 @@ _read_input:
         .set_cursor_right_space:
         mov [rel cursor_idx], rax
         jmp .read_key
-
-
-
 
 
     .interrupted:

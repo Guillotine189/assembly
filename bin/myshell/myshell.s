@@ -753,7 +753,7 @@ _start:
         call _read_input
 
         cmp qword [rel exit_flag], 1
-        je _cleanup_and_exit
+        je _exit
 
         cmp [rel input_interrupted], 1
         je .loop_main 
@@ -764,7 +764,7 @@ _start:
     ; TODO: _free_all_memory
 
 
-_cleanup_and_exit:
+_cleanup:
     
     ; restore old struct, get out of nin canonical mode
     mov     rax, sys_ioctl
@@ -773,16 +773,22 @@ _cleanup_and_exit:
     lea     rdx, [rel old_termios]
     syscall
 
-    jmp _exit
+    ret
 
 
 _exit_with_status_code:
+    
+    call _cleanup
+
     mov rax, 60
     mov rdi, [rel exit_status_code]
     syscall
 
 
 _exit:
+
+    call _cleanup
+
     mov rax, 60
     mov rdi, 0
     syscall
