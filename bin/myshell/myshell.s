@@ -115,6 +115,9 @@ section .rodata
 
 global curr_cwd_len
 global curr_cwd
+global old_cwd
+global old_cwd_len
+
 global reusable_buffer
 section .bss
     reusable_buffer resb 4096
@@ -122,6 +125,9 @@ section .bss
     curr_cwd resb 4096
     curr_cwd_address resb 8                 ;TODO: maybe remove it later
     curr_cwd_len resq 1
+
+    old_cwd resb 4096
+    old_cwd_len resq 1
 
     prefix_line resb 4096
     prefix_line_len resq 1
@@ -380,6 +386,11 @@ _get_and_set_memory_for_input_buffer:
 
 
 _get_and_set_cwd:
+    ; set old pwd to null
+    mov qword [rel old_cwd], 0
+    mov qword [rel old_cwd_len], 0
+
+    ; get new cwd
     mov rax, sys_getcwd
     lea rdi, [rel curr_cwd]
     mov rsi, 4096
@@ -389,6 +400,8 @@ _get_and_set_cwd:
     jl .set_error_getting_pwd_and_exit          ; sys_getcwd return error with NULL
     dec rax                                     ; og len included NULL, so i removed it
     mov [rel curr_cwd_len], rax                 ; update curr_cwd_len
+
+
     ret
 
     .set_error_getting_pwd_and_exit:

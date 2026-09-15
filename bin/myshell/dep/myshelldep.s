@@ -8,6 +8,8 @@ global _mem_copy
 global _string_copy_including_null
 global _strcmp
 global _cmp_equal_memory
+global _memcpy_with_end_char
+
 
 ; rax: number of bytes to print 
 ; rdi: fd to write to
@@ -207,7 +209,7 @@ _string_copy_including_null:
 
 ; compare the 2 strings terminated by \0, char by char, until \0 or one of them has low ascii value
 _strcmp:
-	
+	push rbx
 	xor r9, r9										; this will act as a address index
 
 	.loop:
@@ -226,22 +228,25 @@ _strcmp:
 		ja .handle_string_one_bigger					; sign flag = 0, jump below will work
 
 	.handle_string_one_smaller:
+		pop rbx
 		mov rax, -1
 		ret
 
 	.handle_equal:
 		; check if they ended, both has 0
-		test rbx, rbx
+		test bl, bl
 		je .return_equal						; if both had \0 -> ZF = 1
 
 		inc r9
 		jmp .loop								; else just jump to loop
 
 	.handle_string_one_bigger:
+		pop rbx
 		mov rax, 1
 		ret
 
 	.return_equal:
+		pop rbx
 		mov rax, 0
 		ret
 
@@ -274,3 +279,38 @@ _cmp_equal_memory:
 	.equal:
 		mov rax, 0
 		ret
+
+
+; rax 	 : size n
+; rdi 	 : dest address
+; rsi 	 : src address
+; dl	 : end char after copy of string
+; r8b 	 : if 0 -> dont append anything, anything else -> append dl
+; returns: address of byte ahead of last byte written in  rax 
+_memcpy_with_end_char:
+
+	xor r9, r9							; this will store how many bytes i have copied
+	.loop:
+		; check if i have to cpoy another byte
+		cmp r9, rax 			; rax will always store the original count of bytes
+		je .add_end_char
+
+		; move data from src to destination
+		mov cl , [rsi + r9]					; move exactly 1 byte
+		mov [rdi + r9] , cl 				; 1 byte
+
+		; increment bytes copied and loop
+		inc r9
+		jmp .loop
+
+	.add_end_char:
+		test r8b, r8b
+		jz .done
+
+		mov [rdi + r9], dl
+		inc r9
+
+	.done:
+		mov rax, rdi
+		add rax, r9
+		ret 

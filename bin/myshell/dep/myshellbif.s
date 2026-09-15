@@ -4,17 +4,23 @@ section .data
 	error_changing_dir db "Error changing directory", 0
 	error_changing_dir_len equ $ - error_changing_dir
 
-	error_cd_too_many_args db "Error changing direcotry: too many arguments.",0
+	error_cd_too_many_args db "Error changing directory: too many arguments provided.",0
 	error_cd_too_many_args_len equ $ - error_cd_too_many_args
 
 	error_home_env_not_set db "Error 'HOME' env variable is not present.", 0
 	error_home_env_not_set_len equ $ - error_home_env_not_set
 
+
+section .rodata
+
+	dash db '-',0
     cd db "cd",0
     pwd db "pwd",0
     exit db "exit",0
     home_env_var db "HOME", 0
 
+section .bss
+	reusable_buffer_bif resb 4096
 
 section .text
 
@@ -26,6 +32,8 @@ extern _print_error_with_new_line
 extern _strcmp
 extern _cmp_equal_memory
 extern _strlen
+extern _mem_copy
+extern _memcpy_with_end_char
 
 extern _set_prefix_line
 
@@ -33,6 +41,8 @@ extern _set_prefix_line
 extern error_code
 extern curr_cwd
 extern curr_cwd_len
+extern old_cwd
+extern old_cwd_len
 
 extern address_argc_address_array
 extern address_envp_address_array
@@ -147,9 +157,27 @@ _check_and_execute_if_built_in:
         mov rdi, [rel address_argc_address_array]   ; 2nd argument is the path name
         add rdi, 8
         mov rdi, [rdi]
+        push rdi
+
+        ; check if the argument is '-'
+        lea rax, [rel dash] 				; cehck if '-'0 same as argument
+        call _strcmp
+        test rax, rax
+        je .go_to_old_pwd
+
+        pop rdi
         call _builtin_cd
         jmp .return_built_in
 
+
+        .go_to_old_pwd:
+        	pop rdi
+        	cmp qword [rel old_cwd], 0
+        	je .return_built_in 		; if old does not exists, return
+
+        	lea rdi, [rel old_cwd] 
+        	call _builtin_cd
+        	jmp .return_built_in
             
         .move_to_home_dir:
 
@@ -160,10 +188,11 @@ _check_and_execute_if_built_in:
         	mov rdi, rax
         	add rdi, 5
         	call _builtin_cd
-			jmp .return_built_in        	
+			jmp .return_built_in
 
 
         .error_cd_too_many_args:
+
         	mov rax, error_cd_too_many_args_len
 		    mov rdi, 1
 		    lea rsi, [rel error_cd_too_many_args]
@@ -208,16 +237,34 @@ _builtin_cd:
 
 	; TODO: this is a hack, [get cwd and update it], instead normalize path yourself.
 	mov rax, sys_getcwd
-    lea rdi, [rel curr_cwd]
+    lea rdi, [rel reusable_buffer_bif]
     mov rsi, 4096
     syscall                  ; ret: len cwd including NULL in rax,and cwd in buffer
 
+    
 
+
+    ; move current cwd into old cwd
     lea rdi, [rel curr_cwd]
     call _strlen
 
-	; change the len of cur_cwd	
-	mov [rel curr_cwd_len], rax
+    lea rdi, [rel old_cwd] 				; destination
+    lea rsi, [rel curr_cwd] 				; source
+    mov rdx, 0
+    mov r8, 1  						; copies 0 at end
+    call _memcpy_with_end_char  					; now my cur is old
+
+    ; update current
+
+    lea rdi, [rel reusable_buffer_bif]
+    call _strlen
+
+    lea rdi, [rel curr_cwd]
+	lea rsi, [rel reusable_buffer_bif] 				; source
+    mov rdx, 0
+    mov r8, 1  						; copies 0 at end
+    call _memcpy_with_end_char  					; now my cur is old
+
 
 	call _set_prefix_line
 
