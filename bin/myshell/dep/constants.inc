@@ -1,0 +1,59 @@
+sys_read            equ 0   
+sys_write           equ 1   
+sys_open            equ 2   
+sys_close           equ 3   
+sys_stat            equ 4   
+sys_rt_sigaction    equ 13  
+sys_rt_sigreturn    equ 15  
+sys_ioctl		    equ 16
+sys_fork            equ 57
+sys_execve          equ 59
+sys_wait4           equ 61
+sys_getdents        equ 78  
+sys_getcwd          equ 79
+
+EINTR equ -4         
+
+SIGABRT     equ  6
+SIGALRM     equ  14
+SIGBUS      equ 7
+SIGCHLD     equ  17
+SIGCONT     equ  18
+SIGFPE      equ 8
+SIGHUP      equ 1
+SIGILL      equ 4
+SIGINT      equ 2
+SIGPOLL     equ  29
+SIGIO       equ  SIGPOLL
+SIGIOT      equ  SIGABRT
+SIGPIPE     equ  13
+SIGPROF     equ  27
+SIGPWR      equ  30
+SIGQUIT     equ  3
+SIGSEGV     equ  11
+SIGSTKFLT   equ  16
+SIGSTKSZ    equ  8192
+SIGSYS      equ  31
+SIGTERM     equ  15
+SIGTRAP     equ  5
+SIGTSTP     equ  20
+SIGTTIN     equ  21
+SIGTTOU     equ  22
+SIGURG      equ  23
+SIGUSR1     equ  10
+SIGUSR2     equ  12
+SIGVTALRM   equ  26
+SIGWINCH    equ  28
+SIGXCPU     equ  24
+SIGXFSZ     equ  25
+
+; for signal handling
+SA_RESTORER equ 0x04000000  ;flag value to tell kernal that restorer function is seperate
+SA_RESTART equ 0x10000000   ; if a syscall was in progress, restart that syscall
+SA_RESETHAND equ 0x80000000 ; after rec the interrupt once, reset the handler to default.
+
+
+; for noncanonical
+C_LFLAG   equ 12
+TCGETS    equ 0x5401
+TCSETS    equ 0x5402

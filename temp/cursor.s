@@ -6,9 +6,11 @@ section .data
 
 section .rodata
 	
+	;move_cur_home_pos db 27, "[H", 0
+	;move_cur_end_pos db 27, "[F", 0
+	;move_cur_left_space db 27, "[1;5D", 0 
+	; ';' ->modifier 5D; = '5'->ctrl was pressed, 'D' -> left arrow key
 
-	move_cur_home_pos db 27, "[H", 0
-	move_cur_end_pos db 27, "[F", 0
 	move_cur_up db 27, "[A", 0
 	move_cur_down db 27, "[B", 0
 	move_cur_right db 27, "[C", 0
@@ -21,7 +23,7 @@ section .bss
 	termios     resb 60
     old_termios resb 60
 
-SYS_IOCTL equ 16
+sys_ioctl equ 16
 C_LFLAG   equ 12
 TCGETS    equ 0x5401
 TCSETS    equ 0x5402
@@ -43,7 +45,7 @@ _print:
 _start:
 	
 	; get old struct
-	 mov     rax, SYS_IOCTL
+	 mov     rax, sys_ioctl
     mov     rdi, 0
     mov     rsi, TCGETS
     lea     rdx, [rel termios]
@@ -61,7 +63,7 @@ _start:
     mov     [rel termios + C_LFLAG], eax
 
     ; apply new settings
-    mov     rax, SYS_IOCTL
+    mov     rax, sys_ioctl
     mov     rdi, 0
     mov     rsi, TCSETS
     lea     rdx, [rel termios]
@@ -81,6 +83,8 @@ _start:
 		mov rdx, 1 						; len to put into buffer
 		syscall
 
+		cmp byte [rel buffer], 0x04 		; in non-cononical mode, this is ctrl+d
+		je _exit
 
 		cmp byte [rel buffer], 27 
 		je .escape_seq	
@@ -205,6 +209,10 @@ _start:
 	    cmp byte [rel buffer], 'F'
 	    je .cursor_end
 
+	    cmp byte [rel buffer], '1'
+	    je .modifier
+
+
 		jmp .read_key
 
 
@@ -300,6 +308,8 @@ _start:
 
 		jmp .read_key
 
+
+
 	; IMP: whichever index my cursor is at, i have to remove the prev element
 	.handle_backspace:
 		mov rax, [rel cursor_idx]
@@ -382,10 +392,162 @@ _start:
 		
 	    jmp .read_key
 
+   .modifier:
+   		; Read ';'
+	    mov rax, 0
+		xor rdi, rdi
+		lea rsi, [rel buffer]
+		mov rdx, 1
+		syscall
+
+
+	    ; Read modifier number
+	    mov rax, 0
+		xor rdi, rdi
+		lea rsi, [rel buffer]
+		mov rdx, 1
+		syscall
+
+	    cmp byte [rel buffer], '5'
+	    je .handle_ctrl_key
+
+	    jmp .read_key
+
+	.handle_ctrl_key:
+		; read which key presses with ctrl
+		mov rax, 0
+		xor rdi, rdi
+		lea rsi, [rel buffer]
+		mov rdx, 1
+		syscall
+
+
+		cmp byte [rel buffer], 'D'
+		je .cursor_left_space
+
+		cmp byte [rel buffer], 'C'
+		je .cursor_right_space
+
+		jmp .read_key
+
+	
+	.cursor_left_space:
+	    mov rax, [rel cursor_idx]
+
+	    ; Already at beginning
+	    test rax, rax
+	    jz .read_key
+
+	    lea r9, [rel input_buffer]
+
+		.skip_spaces_left:
+		    test rax, rax
+		    jz .set_cursor_left_space
+
+		    cmp byte [r9 + rax - 1], ' '   ; check if byte before this a white space
+		    jne .skip_word_left
+
+		    dec rax
+		    push rax
+		    ; Move visual cursor left
+		    mov eax, 1
+		    mov edi, 1
+		    lea rsi, [rel move_cur_left]
+		    mov edx, 3
+		    syscall
+		    pop rax
+		    jmp .skip_spaces_left
+
+
+		.skip_word_left:
+		    test rax, rax
+		    jz .set_cursor_left_space
+
+		    cmp byte [r9 + rax - 1], ' '
+		    je .set_cursor_left_space
+
+		    dec rax
+		    push rax
+
+		    ; Move visual cursor left
+		    mov eax, 1
+		    mov edi, 1
+		    lea rsi, [rel move_cur_left]
+		    mov edx, 3
+		    syscall
+		    pop rax
+		    jmp .skip_word_left
+
+
+		.set_cursor_left_space:
+		    mov [rel cursor_idx], rax
+		    jmp .read_key
+
+
+	.cursor_right_space:
+	    mov rax, [rel cursor_idx]
+	    lea r9, [rel input_buffer]
+
+	    ; Already at end
+	    cmp rax, [rel length]
+	    jge .read_key
+
+
+	.skip_word_right:
+	    cmp rax, [rel length]
+	    jge .set_cursor_right_space
+
+	    cmp byte [r9 + rax], ' '
+	    je .skip_spaces_right
+
+	    inc rax
+
+	    ; Move visual cursor right
+	    push rax
+
+	    mov eax, 1
+	    mov edi, 1
+	    lea rsi, [rel move_cur_right]
+	    mov edx, 3
+	    syscall
+
+	    pop rax
+	    jmp .skip_word_right
+
+
+	.skip_spaces_right:
+	    cmp rax, [rel length]
+	    jge .set_cursor_right_space
+
+	    cmp byte [r9 + rax], ' '
+	    jne .set_cursor_right_space
+
+	    inc rax
+
+	    ; Move visual cursor right
+	    push rax
+
+	    mov eax, 1
+	    mov edi, 1
+	    lea rsi, [rel move_cur_right]
+	    mov edx, 3
+	    syscall
+
+	    pop rax
+	    jmp .skip_spaces_right
+
+
+	.set_cursor_right_space:
+	    mov [rel cursor_idx], rax
+	    jmp .read_key
+
+
+
+
 _exit:
 
 	; restore old struct
-    mov     rax, SYS_IOCTL
+    mov     rax, sys_ioctl
     mov     rdi, 0
     mov     rsi, TCSETS
     lea     rdx, [rel old_termios]

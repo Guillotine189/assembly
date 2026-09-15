@@ -1,4 +1,16 @@
-global error_code
+%include "./dep/constants.inc"
+
+global filled_size_input_buffer_len
+global input_interrupted
+global input_buffer_address
+global capacity_input_buffer_len
+
+global exit_status_code
+global exit_flag
+global error_custom_handler_number
+global address_command
+
+
 section .data
 
     myshell_line db "myShell", 0
@@ -6,6 +18,7 @@ section .data
 
     capacity_input_buffer_len dq 4096
     filled_size_input_buffer_len dq 0               ; includes \n
+    input_buffer_address dq 0         ; address from malloc
 
     capacity_parse_buffer_address dq 0              ; DO NOT CHANGE dq 0, i use it in code
     capacity_parse_buffer_len dq 0
@@ -22,34 +35,9 @@ section .data
 
     input_interrupted dq 0
 
-    error_input_init_memory db "myShell: Error allocating memory for input buffer",0
-    error_input_init_memory_len equ $ - error_input_init_memory
-
-    error_getting_parse_memory db "myShell: Error getting memory for parse line", 0
-    error_getting_parse_memory_len equ $ - error_getting_parse_memory
-
-    error_reading_input db "myShell: Error reading input", 0
-    error_reading_input_len equ $ - error_reading_input
-
-    error_increasing_input_buffer_mem db "myShell: Error increasing input buffer storage", 0
-    error_increasing_input_buffer_mem_len equ $ - error_increasing_input_buffer_mem
-
-    error_getting_cwd db "myShell: Error getting cwd",0
-    error_getting_cwd_len equ $ - error_getting_cwd
-
-    error_overriding_custom_handler db "myShell: Error overriding custom handler: ", 0
-    error_overriding_custom_handler_len equ $ - error_overriding_custom_handler
-
-    error_forking db "myShell: Error forking",0
-    error_forking_len equ $ - error_forking
-
-    error_executing_process db "myShell: Error executing: ", 0
-    error_executing_process_len equ $ - error_executing_process
-
-
     exit_status_code dq 0
-    error_code dq 0
     exit_flag dq 0
+    error_custom_handler_number dq 1
 
 
     align 8
@@ -75,14 +63,12 @@ section .data
 
 
 
-
+global new_line
 section .rodata
 
     ; modern ANSI/VT-compatible terminal
     ; like GNOME Terminal, Konsole, Kitty, Alacritty
 
-    cursor_home db 0x1b, '[H'          ; move cursor to the left most part of terminal
-    cursor_home_len equ $ - cursor_home
     clear_screen db 0x1b, '[2J'      ; clear the screen
     clear_screen_len equ $ - clear_screen
     clear_scrollback db 0x1b, '[3J'   ; clear the scrollable part of the screen as well
@@ -122,8 +108,8 @@ section .rodata
 
 global curr_cwd_len
 global curr_cwd
+global reusable_buffer
 section .bss
-    input_buffer_address resq 1         ; address from malloc
     reusable_buffer resb 4096
 
     curr_cwd resb 4096
@@ -133,68 +119,15 @@ section .bss
     prefix_line resb 4096
     prefix_line_len resq 1
 
-    error_custom_handler_number resq 1
+    ; for noncanonical_mode
+    termios     resb 60
+    old_termios resb 60
 
 
+; variables
+extern error_code
 
-
-sys_read            equ 0   
-sys_write           equ 1   
-sys_open            equ 2   
-sys_close           equ 3   
-sys_stat            equ 4   
-sys_rt_sigaction    equ 13  
-sys_rt_sigreturn    equ 15  
-sys_fork            equ 57
-sys_execve          equ 59
-sys_wait4           equ 61
-sys_getdents        equ 78  
-sys_getcwd          equ 79
-
-EINTR equ -4         
-
-
-SIGABRT     equ  6
-SIGALRM     equ  14
-SIGBUS      equ 7
-SIGCHLD     equ  17
-SIGCONT     equ  18
-SIGFPE      equ 8
-SIGHUP      equ 1
-SIGILL      equ 4
-SIGINT      equ 2
-SIGPOLL     equ  29
-SIGIO       equ  SIGPOLL
-SIGIOT      equ  SIGABRT
-SIGPIPE     equ  13
-SIGPROF     equ  27
-SIGPWR      equ  30
-SIGQUIT     equ  3
-SIGSEGV     equ  11
-SIGSTKFLT   equ  16
-SIGSTKSZ    equ  8192
-SIGSYS      equ  31
-SIGTERM     equ  15
-SIGTRAP     equ  5
-SIGTSTP     equ  20
-SIGTTIN     equ  21
-SIGTTOU     equ  22
-SIGURG      equ  23
-SIGUSR1     equ  10
-SIGUSR2     equ  12
-SIGVTALRM   equ  26
-SIGWINCH    equ  28
-SIGXCPU     equ  24
-SIGXFSZ     equ  25
-
-SA_RESTORER equ 0x04000000  ;flag value to tell kernal that restorer function is seperate
-SA_RESTART equ 0x10000000   ; if a syscall was in progress, restart that syscall
-SA_RESETHAND equ 0x80000000 ; after rec the interrupt once, reset the handler to default.
-
-
-
-section .text
-
+; functons
 extern _print
 extern _print_with_new_line
 extern _strlen
@@ -210,12 +143,29 @@ extern _builtin_cd
 extern _builtin_pwd
 
 
-global _start
 
+extern print_error_input_init_memory
+extern print_error_getting_parse_memory
+extern print_error_getting_cwd
+extern print_error_overriding_custom_handler
+extern print_error_forking
+extern print_error_executing_process
+extern print_error_setting_non_con_mode
+
+
+extern _read_input
+
+section .text
+
+
+global _start
+global _exit_with_status_code
+global _exit
 
 
 _init:
     call _signal_handling
+    call _set_noncanonical_mode
     call _get_and_set_cwd
     call _set_prefix_line
     call _get_and_set_memory_for_input_buffer
@@ -282,7 +232,7 @@ _signal_handling:
     .set_error_overriding_custom_handler_SIGINT_and_exit:
         mov [rel error_code], rax
         mov [rel error_custom_handler_number], SIGINT
-        call _errors.error_overriding_custom_handler
+        call print_error_overriding_custom_handler
         mov [rel exit_status_code], 1
         jmp _exit_with_status_code
 
@@ -290,7 +240,48 @@ _signal_handling:
     .set_error_overriding_custom_handler_SIGTSTP_and_exit:
         mov [rel error_code], rax
         mov [rel error_custom_handler_number], SIGTSTP
-        call _errors.error_overriding_custom_handler
+        call print_error_overriding_custom_handler
+        mov [rel exit_status_code], 1
+        jmp _exit_with_status_code
+
+
+_set_noncanonical_mode:
+    ; get old struct
+    mov     rax, sys_ioctl
+    mov     rdi, 0
+    mov     rsi, TCGETS                     ; get the current config
+    lea     rdx, [rel termios]
+    syscall
+
+    test rax, rax
+    jl .set_error_setting_non_con_mode_and_exit
+
+    ; Copy current settings to old_termios
+    lea     rsi, [rel termios]
+    lea     rdi, [rel old_termios]
+    mov     rcx, 60
+    rep     movsb
+
+    ; modify old struct
+    mov     eax, [rel termios + C_LFLAG]
+    and     eax, ~(0x0002 | 0x0008)
+    mov     [rel termios + C_LFLAG], eax
+
+    ; apply new settings
+    mov     rax, sys_ioctl
+    mov     rdi, 0
+    mov     rsi, TCSETS                     ; set the new config
+    lea     rdx, [rel termios]
+    syscall
+
+    test rax, rax
+    jl .set_error_setting_non_con_mode_and_exit
+
+    ret
+
+    .set_error_setting_non_con_mode_and_exit:
+        mov [rel error_code], rax
+        call print_error_setting_non_con_mode
         mov [rel exit_status_code], 1
         jmp _exit_with_status_code
 
@@ -307,7 +298,7 @@ _get_and_set_memory_for_input_buffer:
 
     .handle_init_memory_error_and_exit:
         mov [rel error_code], rax
-        call _errors.print_error_input_init_memory
+        call print_error_input_init_memory
         mov [rel exit_status_code], 1
         jmp _exit_with_status_code
 
@@ -326,7 +317,7 @@ _get_and_set_cwd:
 
     .set_error_getting_pwd_and_exit:
         mov [rel error_code], rax
-        call _errors.error_getting_cwd
+        call print_error_getting_cwd
         mov [rel exit_status_code], 1
         jmp _exit_with_status_code
 
@@ -394,90 +385,6 @@ _print_prefix_line:
     ret
 
 
-_read_input:
-    ; make a read call
-
-    mov qword [rel filled_size_input_buffer_len], 0
-    mov qword [rel input_interrupted], 0
-
-    .read_input_loop:
-        mov rax, sys_read
-        mov rdi, 0                              ; fd 0
-        mov rsi, [rel input_buffer_address]     ; addres of buffer
-        add rsi, [rel filled_size_input_buffer_len]
-        mov rdx, [rel capacity_input_buffer_len]
-        sub rdx, [rel filled_size_input_buffer_len]
-        syscall 
-
-        cmp rax, EINTR          ; -4, ctrl+c interrupted
-        je .interrupted
-
-
-        test rax, rax
-        jl .handle_error_reading_input
-        jz  .handle_eof                            ; rax == 0, ctrl+d 
-
-        add [rel filled_size_input_buffer_len], rax
-
-        mov rcx, [rel filled_size_input_buffer_len]
-        cmp rcx, [rel capacity_input_buffer_len]
-        je .get_more_buffer_size
-        ret
-
-    .interrupted:
-        mov qword [rel input_interrupted], 1
-        ret
-
-
-    .get_more_buffer_size:
-
-        mov rdi, [rel capacity_input_buffer_len]
-        shl rdi, 1            ; basically 2*capacity_input_buffer_len
-        call _malloc
-
-        test rax, rax
-        jl .handle_error_increasing_input_buffer_and_exit
-
-        push rax
-        ; copy old buffer data into new buffer
-        mov rdi, rax                                    ; new address : Dest
-        mov rsi, [rel input_buffer_address]             ; old address : Src
-        mov rdx, [rel filled_size_input_buffer_len]                ; total bytes to copy
-        call _mem_copy
-
-        mov rdi, [rel input_buffer_address]                ; free old address memory
-        call _free 
-
-        pop rax
-        mov [rel input_buffer_address], rax             ; update input address
-        
-        ; rn its: old_cap*2
-        mov rax, [rel capacity_input_buffer_len]        ; update buffer_capacity
-        shl rax, 1
-        mov [rel capacity_input_buffer_len], rax
-
-        jmp .read_input_loop
-
-
-    .handle_error_reading_input:
-        mov [rel error_code], rax
-        call _errors.print_error_reading_input
-        ret
-
-    .handle_error_increasing_input_buffer_and_exit:
-        mov [rel error_code], rax
-        call _errors.print_error_increasing_input_mem
-        mov [rel exit_status_code], 1
-        jmp _exit_with_status_code
-    .handle_eof:
-        ; print new line and exit
-        mov rax, 1
-        mov rdi, 1
-        lea rsi, [rel new_line]
-        call _print
-
-        mov [rel exit_flag], 1
-        ret
 
 _get_memory_for_parse_buffer:
     push r12
@@ -517,7 +424,7 @@ _get_memory_for_parse_buffer:
 
     .set_error_getting_parse_memory_and_exit:
         mov [rel error_code], rax
-        call _errors.print_error_getting_parse_memory
+        call print_error_getting_parse_memory
 
         mov [rel exit_status_code], 1
         jmp _exit_with_status_code
@@ -784,7 +691,7 @@ _execute_process:
 
     .set_error_executing_process:
         mov [rel error_code], rax
-        call _errors.print_error_executing_process
+        call print_error_executing_process
 
 
     mov [rel exit_status_code], 1
@@ -805,7 +712,7 @@ _execute_process:
 
     .set_error_forking:
         mov [rel error_code], rax
-        call _errors.print_error_forking
+        call print_error_forking
         mov [rel exit_status_code], 1
         jmp _exit_with_status_code
 
@@ -846,7 +753,7 @@ _start:
         call _read_input
 
         cmp qword [rel exit_flag], 1
-        je _exit
+        je _cleanup_and_exit
 
         cmp [rel input_interrupted], 1
         je .loop_main 
@@ -857,114 +764,23 @@ _start:
     ; TODO: _free_all_memory
 
 
-
-
-_errors:
-.print_error_input_init_memory:
-    mov rax, error_input_init_memory_len
-    mov rdi, 1
-    lea rsi, [rel error_input_init_memory]
-    call _print
-
-    mov rax, [rel error_code]
-    call _print_error_with_new_line
-    ret
-
-
-.print_error_reading_input:
-    mov rax, error_reading_input_len
-    mov rdi, 1
-    lea rsi, [rel error_reading_input]
-    call _print
-
-    mov rax, [rel error_code]
-    call _print_error_with_new_line
-    ret
-
-.print_error_getting_parse_memory:
-    mov rax, error_getting_parse_memory_len
-    mov rdi, 1
-    lea rsi, [rel error_getting_parse_memory]
-    call _print
-
-    mov rax, [rel error_code]
-    call _print_error_with_new_line
-    ret
-
-
-.print_error_increasing_input_mem:
-    mov rax, error_increasing_input_buffer_mem_len    
-    mov rdi, 1
-    lea rsi , [rel error_increasing_input_buffer_mem]
-    call _print
-
-    mov rax, [rel error_code]
-    call _print_error_with_new_line
-    ret
-
-.error_getting_cwd:
-    mov rax, error_getting_cwd_len
-    mov rdi, 1
-    lea rsi , [rel error_getting_cwd]
-    call _print
-
-    mov rax, [rel error_code]
-    call _print_error_with_new_line
-    ret
-
-.error_overriding_custom_handler:
-    mov rax, error_overriding_custom_handler_len
-    mov rdi, 1
-    lea rsi , [rel error_overriding_custom_handler]
-    call _print
-
-    mov rax, [rel error_custom_handler_number]
-    lea rdi, [rel reusable_buffer]
-    call _itoa                          ; rax has len of number in bytes
-
-    mov rdi, 1
-    lea rsi, [rel reusable_buffer]
-    call _print
-
-    mov rax, [rel error_code]
-    call _print_error_with_new_line
-    ret
-
-.print_error_forking:
-    mov rax, error_forking_len
-    mov rdi, 1
-    lea rsi , [rel error_forking]
-    call _print
-
-    mov rax, [rel error_code]
-    call _print_error_with_new_line
-    ret
-
-
-.print_error_executing_process:
-    mov rax, error_executing_process_len
-    mov rdi, 1
-    lea rsi , [rel error_executing_process]
-    call _print
-
-
-    mov rdi, [rel address_command]
-    call _strlen
+_cleanup_and_exit:
     
-    mov rdi, 1
-    mov rsi, [rel address_command]
-    call _print
+    ; restore old struct, get out of nin canonical mode
+    mov     rax, sys_ioctl
+    mov     rdi, 0
+    mov     rsi, TCSETS
+    lea     rdx, [rel old_termios]
+    syscall
 
-    mov rax, [rel error_code]
-    call _print_error_with_new_line
-    ret
-
+    jmp _exit
 
 
 _exit_with_status_code:
     mov rax, 60
     mov rdi, [rel exit_status_code]
     syscall
+
 
 _exit:
     mov rax, 60

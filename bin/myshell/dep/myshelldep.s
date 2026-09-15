@@ -8,6 +8,7 @@ global _mem_copy
 global _string_copy_including_null
 global _strcmp
 
+
 ; rax: number of bytes to print 
 ; rdi: fd to write to
 ; rsi: address of string 
@@ -18,6 +19,7 @@ _print:
 	mov rax, 1 						; write syscall
 	syscall
 	ret
+
 
 ; rax: number of bytes to print 
 ; rdi: fd to write to
@@ -62,6 +64,7 @@ _strlen:
 
 	.finish:
 		ret
+
 
 ; rax : the number
 ; rdi : address of buffer in which output is stored
@@ -192,6 +195,8 @@ _string_copy_including_null:
 	.done:
 		add rdi, rax
 		ret
+
+
 
 ; rax : address string 1
 ; rdi : address string 2
