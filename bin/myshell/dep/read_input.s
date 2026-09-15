@@ -73,10 +73,6 @@ _read_input:
         test rax, rax
         jl .handle_error_reading_input
             
-        cmp byte [rel key_buffer], 0x04                ; non-conp mode ctrl+d = 0x04
-        je .handle_eof
-
-
         cmp byte [rel key_buffer], 0x04         ; in non-cononical mode, this is ctrl+d
         je .handle_eof
 

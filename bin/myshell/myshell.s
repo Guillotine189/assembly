@@ -35,26 +35,35 @@ section .data
 
     input_interrupted dq 0
 
+    shell_pgid dq 0
+
+    child_pid dq 0
+    child_pgid dq 0
+
     exit_status_code dq 0
     exit_flag dq 0
     error_custom_handler_number dq 1
 
-
     align 8
-    sigint_idle_struct:
-        dq _sigint_myshell_handler                         ; address of handler
-        dq SA_RESTORER                          ; for the flags
-        dq _sigint_myshell_restorer                        ; address of restorer
-        times 16 dq 0                       ; 16 times dq = 16x8 = 128bytes for maskA
+    reset_action_struct:
+        dq 0
+        dq 0
+        dq 0
+        times 16 dq 0
 
-    align 8
-    sigtstp_idle_struct:
-        dq _sigtstp_myshell_handler                         ; address of handler
+    align 8 
+    signal_print_line_struct:
+        dq _signal_do_nothing_handler                         ; address of handler
         dq SA_RESTORER                         ; for the flags
-        dq _sigtstp_myshell_restorer                        ; address of restorer
+        dq _signal_do_nothing_restorer                        ; address of restorer
         times 16 dq 0                       ; 16 times dq = 16x8 = 128bytes for maskA
 
-
+    align 8
+    signal_ignore_struct:
+        dq 1                    ; SIG_IGN
+        dq 0                    ; sa_flags
+        dq 0                    ; sa_restorer
+        times 16 dq 0            ; sa_mask
 
     ;-------------------------built in commands-----------------------
 
@@ -151,7 +160,7 @@ extern print_error_overriding_custom_handler
 extern print_error_forking
 extern print_error_executing_process
 extern print_error_setting_non_con_mode
-
+extern print_error_getting_pgid
 
 extern _read_input
 
@@ -167,13 +176,14 @@ _init:
     call _signal_handling
     call _set_noncanonical_mode
     call _get_and_set_cwd
+    call _get_and_set_pgid
     call _set_prefix_line
     call _get_and_set_memory_for_input_buffer
     ret
 
 
 
-_sigint_myshell_handler:
+_signal_do_nothing_handler:
     mov rax, sys_write
     mov rdi, 1
     lea rsi, [rel new_line]
@@ -182,23 +192,10 @@ _sigint_myshell_handler:
     ret
 
 
-_sigint_myshell_restorer:
+_signal_do_nothing_restorer:
     mov rax, sys_rt_sigreturn
     syscall
 
-
-_sigtstp_myshell_handler:
-    mov rax, sys_write
-    mov rdi, 1
-    lea rsi, [rel new_line]
-    mov rdx, 1
-    syscall
-    ret
-
-
-_sigtstp_myshell_restorer:
-    mov rax, sys_rt_sigreturn
-    syscall
 
 
 
@@ -208,7 +205,7 @@ _signal_handling:
     ; SIGINT for ctrl+c 
     mov rax, sys_rt_sigaction
     mov rdi, SIGINT
-    lea rsi, [rel sigint_idle_struct]
+    lea rsi, [rel signal_print_line_struct]
     xor rdx, rdx                        ; buffer address for default hanlder, not needed
     mov r10, 8                          ; expects this in x86_64
     syscall
@@ -219,13 +216,40 @@ _signal_handling:
     ; SIGTSTP for ctrl+z
     mov rax, sys_rt_sigaction
     mov rdi, SIGTSTP
-    lea rsi, [rel sigtstp_idle_struct]
+    lea rsi, [rel signal_print_line_struct]
     xor rdx, rdx                        ; buffer address for default hanlder, not needed
     mov r10, 8                          ; expects this in x86_64
     syscall
 
     test rax, rax
     jl .set_error_overriding_custom_handler_SIGTSTP_and_exit
+    
+
+    ; SIGTTOU: background process group performs a terminal-control/output operation
+    ; like when changing gpid for temrinal
+    ; when my shell is background, i try to chenge it to be in foreground
+    ; that sends a interrupt to my shell as it is a background process.
+    ; i will ignore that signal.
+    mov rax, sys_rt_sigaction
+    mov rdi, SIGTTOU
+    lea rsi, [rel signal_ignore_struct]
+    xor rdx, rdx                        ; buffer address for default hanlder, not needed
+    mov r10, 8                          ; expects this in x86_64
+    syscall
+
+    test rax, rax
+    jl .set_error_overriding_custom_handler_SIGTTOU_and_exit
+
+    ;  SIGTTIN: background process group attempts to read from controlling terminal
+    mov rax, sys_rt_sigaction
+    mov rdi, SIGTTIN
+    lea rsi, [rel signal_ignore_struct]
+    xor rdx, rdx                        ; buffer address for default hanlder, not needed
+    mov r10, 8                          ; expects this in x86_64
+    syscall
+
+    test rax, rax
+    jl .set_error_overriding_custom_handler_SIGTTIN_and_exit
     ret
     
 
@@ -244,6 +268,51 @@ _signal_handling:
         mov [rel exit_status_code], 1
         jmp _exit_with_status_code
 
+
+    .set_error_overriding_custom_handler_SIGTTOU_and_exit:
+        mov [rel error_code], rax
+        mov [rel error_custom_handler_number], SIGTTOU
+        call print_error_overriding_custom_handler
+        mov [rel exit_status_code], 1
+        jmp _exit_with_status_code
+
+    .set_error_overriding_custom_handler_SIGTTIN_and_exit:
+        mov [rel error_code], rax
+        mov [rel error_custom_handler_number], SIGTTIN
+        call print_error_overriding_custom_handler
+        mov [rel exit_status_code], 1
+        jmp _exit_with_status_code
+
+
+
+; rsi = signal number like SIGINT
+_reset_signal:
+    push rdi
+
+    ; action = SIG_DFL meaning, action is default indicated by 0
+    mov qword [rel reset_action_struct], 0
+
+    ; sa_flags set as zero
+    mov qword [rel reset_action_struct + 8], 0
+
+    ; sa_restorer set as zero
+    mov qword [rel reset_action_struct + 16], 0
+
+    ; sa_mask is 128 bytes, write 128 bytes of zeros
+    lea rdi, [rel reset_action_struct + 24]
+    xor rax, rax
+    mov rcx, 16
+    rep stosq
+
+    pop rdi
+
+    mov rax, sys_rt_sigaction
+    lea rsi, [rel reset_action_struct]
+    xor rdx, rdx            ; oldact = NULL
+    mov r10, 8              ; always 8 in x86-64
+    syscall
+
+    ret
 
 _set_noncanonical_mode:
     ; get old struct
@@ -285,6 +354,18 @@ _set_noncanonical_mode:
         mov [rel exit_status_code], 1
         jmp _exit_with_status_code
 
+_set_canonical_mode:
+
+    ; restore old struct, get out of nin canonical mode
+    mov     rax, sys_ioctl
+    mov     rdi, 0
+    mov     rsi, TCSETS
+    lea     rdx, [rel old_termios]
+    syscall
+
+    ; TODO: handle error 
+    ret 
+
 
 _get_and_set_memory_for_input_buffer:
     mov rdi, [rel capacity_input_buffer_len]
@@ -320,6 +401,24 @@ _get_and_set_cwd:
         call print_error_getting_cwd
         mov [rel exit_status_code], 1
         jmp _exit_with_status_code
+
+_get_and_set_pgid:
+    mov rax, sys_getpgrp
+    syscall
+
+    test rax, rax
+    jl .set_error_getting_pgid_and_exit
+
+    mov [rel shell_pgid], rax
+
+    ret
+
+    .set_error_getting_pgid_and_exit:
+        mov [rel error_code], rax
+        call print_error_getting_pgid
+        mov [rel exit_status_code], 1
+        jmp _exit_with_status_code
+
 
 _set_prefix_line:
     ; 'myshell:[cwd]$'
@@ -682,6 +781,19 @@ _execute_process:
 
     ; this is child now
 
+
+    ; set the gpid of child to be it's own pid
+    mov rax, sys_setpgid
+    xor rdi, rdi               ; pid = 0  -> this process
+    xor rsi, rsi               ; pgid = 0 -> use this process's PID
+    syscall
+    test    rax, rax
+    jl      .set_error_executing_process
+
+    call _set_canonical_mode                ; terminal is now canonical
+    call _reset_child_signals         ; childs signals have been restored to default
+
+
     mov rax, sys_execve
     mov rdi, [rel address_command]
     mov rsi, [rel address_argc_address_array]
@@ -699,14 +811,48 @@ _execute_process:
 
 
     .parent:
+        ; child_pid is in rax
+
+        mov [rel child_pid], rax
+        mov [rel child_pgid], rax
+
+      ; make sure child is in its own process group. This is done here to avoid race
+        mov rax, sys_setpgid
+        mov rdi, [rel child_pid]
+        mov rsi, [rel child_pid]
+        syscall
+
+        ; TODO: handle the error for not begin able to change gpid of child
+
+        ; make child the fg process in terminal 
+        mov rax, sys_ioctl
+        mov rdi, 0                  ; fd of the temrinal / the controlling terminal
+        mov rsi, TIOCSPGRP          ; 0x5410
+        lea rdx, [rel child_pgid]
+        syscall
+
+
+        ; TODO: handle error for moving child to foreground
+
+        ; wait for the child to finish
         mov rax, sys_wait4   ;syscall number
-        mov rdi, -1 
+        mov rdi, [rel child_pid] 
         xor rsi, rsi     ;where to store exit status(For simply waiting, NULL/0 is fine)
         xor rdx, rdx     ;how to wait
         xor r10, r10      ;where to store resource usage
         syscall
 
-        ; TODO: handle error for this
+        ; TODO: handle error for waiting
+
+        ; child finished, now take the shell back to foreground
+        mov rax, sys_ioctl
+        xor rdi, rdi
+        mov rsi, TIOCSPGRP
+        lea rdx, [rel shell_pgid]
+        syscall
+
+        ; TODO: dont reset non-canonical, save the old state and apply it
+        call _set_noncanonical_mode
 
         ret
 
@@ -764,15 +910,21 @@ _start:
     ; TODO: _free_all_memory
 
 
+_reset_child_signals:
+    
+    mov rsi, SIGINT
+    call _reset_signal
+    mov rsi, SIGTSTP
+    call _reset_signal
+    mov rsi, SIGTTOU
+    call _reset_signal
+    mov rsi, SIGTTIN
+    call _reset_signal
+    ret
+
 _cleanup:
     
-    ; restore old struct, get out of nin canonical mode
-    mov     rax, sys_ioctl
-    mov     rdi, 0
-    mov     rsi, TCSETS
-    lea     rdx, [rel old_termios]
-    syscall
-
+    call _set_canonical_mode
     ret
 
 

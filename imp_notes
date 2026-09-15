@@ -449,7 +449,7 @@ wait4 can optionally give resource-usage information about the child, like CPU t
 
 
 ---------------------------------------------------------------------------------------
-
+                SIGNALS ARE SENT TO PGID (process group id, not pid)
 
                  USER MODE
 ┌─────────────────────────────────────────┐
@@ -585,6 +585,25 @@ The actual syscall:
                     resb SIGACTION_SIZE
         Yes SIGACTION_SIZE is the size defined in ABI.
 
+
+------The child inherit the signals change you made, so remember to reset them
+
+TO RESET SIGNAL =>
+
+
+align 8                 ; not necessary but tells assembler to move the sa to a address 
+                        ; thats divisible by 8
+reset_action_struct: 
+   dq 0           ; for the address of handler (which is a funtion defined already)
+   dq 0                 ; for the flags
+   dq 0                 ; for the restorer
+   times 16 dq 0        ; 16 times dq = 16x8 = 128bytes for mask
+
+   total = 128 + 8*3 = 152bytes of zeros
+
+NOW send this struct to sigaction syscall
+
+
 ----------------------------------------------------------------------
                                 LOGIC FOR PIPES
 
@@ -612,6 +631,9 @@ wait for all children
 
 ----------------------------------------------------------------------
                                 ioctl
+
+
+----------for non cononical
 
 %define TCGETS      0x5401
 %define TCSETS      0x5402
@@ -684,3 +706,29 @@ section .bss
     mov     rsi, TCSETS
     lea     rdx, [rel old_termios]
     syscall
+
+
+----------for process group id
+
+When a program uses fork
+
+shell pid: 100
+      gpid: 100
+
+child pid : 101 
+      gpid: 100 (same as parent gpid)
+
+1) gpid this tells us the hirarchy of process
+2) child gpid is same as gpid of shell. And gipd of shell is same as pid of shell. 
+                -> that means shell is the leader.
+3) when terminal sends a signal like SIGINT, it sends it to the foreground process's GPID.
+        -> that means, when i fork, and make the child the FG process.
+        - > if terminal sends SIGINT to fg (child process), SHELL will ALSO recv it.
+
+-> thats why, change the gpid of child to be same as pid of child
+shell pid: 100
+      gpid: 100
+
+child pid : 101 
+      gpid: 101 (same as childs pid)
+

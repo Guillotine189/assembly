@@ -11,6 +11,8 @@ sys_execve          equ 59
 sys_wait4           equ 61
 sys_getdents        equ 78  
 sys_getcwd          equ 79
+sys_setpgid  		equ 109	    ; set process group id
+sys_getpgrp 		equ 111  	; get process group id
 
 EINTR equ -4         
 
@@ -55,5 +57,6 @@ SA_RESETHAND equ 0x80000000 ; after rec the interrupt once, reset the handler to
 
 ; for noncanonical
 C_LFLAG   equ 12
+TIOCSPGRP equ 0x5410    ; for group pid changing
 TCGETS    equ 0x5401
 TCSETS    equ 0x5402

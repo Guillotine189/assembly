@@ -21,6 +21,9 @@ section .data
     error_getting_cwd db "myShell: Error getting cwd",0
     error_getting_cwd_len equ $ - error_getting_cwd
 
+    error_getting_pgid db "Error getting shells group id", 0
+    error_getting_pgid_len equ $ - error_getting_pgid
+
     error_forking db "myShell: Error forking",0
     error_forking_len equ $ - error_forking
 
@@ -51,7 +54,7 @@ global print_error_overriding_custom_handler
 global print_error_forking
 global print_error_executing_process
 global print_error_setting_non_con_mode
-
+global print_error_getting_pgid
 
 print_error_input_init_memory:
     mov rax, error_input_init_memory_len
@@ -161,6 +164,16 @@ print_error_executing_process:
     
     mov rdi, 1
     mov rsi, [rel address_command]
+    call _print
+
+    mov rax, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+print_error_getting_pgid:
+    mov rax, error_getting_pgid_len
+    mov rdi, 1
+    lea rsi , [rel error_getting_pgid]
     call _print
 
     mov rax, [rel error_code]
