@@ -28,6 +28,7 @@ section .rodata
     pwd db "pwd",0
     clear db "clear", 0
     exit db "exit",0
+    history db "history", 0
     home_env_var db "HOME", 0
 
 section .bss
@@ -59,6 +60,8 @@ extern address_argc_address_array
 extern address_envp_address_array
 extern address_command
 extern total_command_aruments
+
+extern _print_history
 
 extern _exit
 
@@ -154,6 +157,14 @@ _check_and_execute_if_built_in:
     test rax, rax
     je .clear_screen
 
+    mov rax, [rel address_command]
+    lea rdi, [rel history]
+    call _strcmp
+
+    test rax, rax
+    je .print_history_and_ret
+
+
 
     mov rax, [rel address_command]
     lea rdi, [rel exit]
@@ -238,6 +249,10 @@ _check_and_execute_if_built_in:
 		mov rdx, cursor_clear_screen_len
 		syscall
 
+		jmp .return_built_in
+
+	.print_history_and_ret:
+		call _print_history
 		jmp .return_built_in
 
     .return_built_in:

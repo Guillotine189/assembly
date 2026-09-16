@@ -178,7 +178,6 @@ extern _read_input
 extern _check_and_execute_if_built_in
 extern _check_if_cmd_is_in_path
 
-
 section .text
 
 
