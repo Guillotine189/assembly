@@ -17,7 +17,7 @@ section .data
 
 
 section .bss
-	resuable_buffer_path resb 4096
+	reusable_buffer_path resb 4096
 	struct_for_stat resb 144
 
 extern _print
@@ -70,6 +70,11 @@ _find_path_env_variable:
 
 		cmp byte [rcx + r9], '='
 		je .check_len_and_path
+
+
+		cmp byte [rcx + r9], 0 			; invalid env format eg 'abc', no = sign here
+		je .check_next_var
+
 		inc r9
 
 		cmp r9, 4 						; HOME is 4 in len
@@ -111,16 +116,6 @@ _find_path_env_variable:
 
 ; returns address in rax, if exists or -1 if not
 _check_if_cmd_is_in_path:
-
-	mov rax, [rel address_command]
-	cmp byte [rax], '/'  	; if 1st byte is /, its not a builtin
-	je .not_inside_path
-
-	mov rax, 2
-	mov rdi, [rel address_command]
-	lea rsi, [rel dot_back_slash]
-	call _cmp_equal_memory
-
 
 	call _find_path_env_variable
 
@@ -186,10 +181,46 @@ _parse_path_and_check_if_command_in_path:
 	.end_of_path_found: 
 		dec r13 					; r13 at end of path
 
+		; two cases when to use curr dir as base path
+		; 1) case when empty env variable,  "::", nothing in between semi-colons
+		; 2) case when variable is ":.:", a dot in between 2 semi-colons
+
+		;case 1
+		cmp r13, r12
+		je .add_current_dir 				; len = 0, add curr dir
+
+		; case2
+		mov rax, 13
+		sub rax, r12
+		inc rax
+
+		cmp rax, 1
+		jne .add_env_path 					; len not 1, add regular path
+
+		cmp byte [rax], '.'
+		je .add_current_dir 	; if len = 1, and path is '.' -> add curr working
+
+		
+		jmp .add_env_path
+
+		.add_current_dir:
 		mov rax, r13
 		sub rax, r12  			
 		inc rax  					; bec r12 r13 are 0 indexed, inc 1 for lenght
-		lea rdi, [rel resuable_buffer_path]
+		lea rdi, [rel reusable_buffer_path]
+		lea rsi, [rel curr_cwd]
+		add rsi, r12
+		mov rdx, '/'
+		mov r8, 1
+		call _memcpy_with_end_char 				; rax has address of next byte
+		push rax
+		jmp .add_command
+
+		.add_env_path:
+		mov rax, r13
+		sub rax, r12  			
+		inc rax  					; bec r12 r13 are 0 indexed, inc 1 for lenght
+		lea rdi, [rel reusable_buffer_path]
 		mov rsi, [rel path_address]
 		add rsi, r12
 		mov rdx, '/'
@@ -197,6 +228,7 @@ _parse_path_and_check_if_command_in_path:
 		call _memcpy_with_end_char 				; rax has address of next byte
 		push rax
 
+		.add_command:
 		mov rdi, [rel address_command]
 		call _strlen
 		pop rdi
@@ -209,14 +241,15 @@ _parse_path_and_check_if_command_in_path:
 		; find if this file exists
 
 		mov rax, sys_stat
-		lea rdi, [rel resuable_buffer_path]
+		lea rdi, [rel reusable_buffer_path]
 		lea rsi, [rel struct_for_stat]
 		syscall
 
 		test rax, rax 						; if file doesn't exists, check next path
 		jl .check_next_path
-
 		jmp .in_path
+
+
 
 	.check_next_path:
 		cmp qword [rel last_path_flag], 1
@@ -232,5 +265,5 @@ _parse_path_and_check_if_command_in_path:
 		ret
 
 	.in_path:
-		lea rax, [rel resuable_buffer_path]
+		lea rax, [rel reusable_buffer_path]
 		ret

@@ -132,19 +132,6 @@ _find_home_env_variable:
 
 _check_and_execute_if_built_in:
 
-	mov rax, [rel address_command]
-
-	cmp byte [rax], '/'  	; if 1st byte is /, its not a builtin
-	je .not_built_in
-
-	mov rax, 2
-	mov rdi, [rel address_command]
-	lea rsi, [rel dot_back_slash]
-	call _cmp_equal_memory
-
-	test rax, rax
-	je .not_built_in
-
     mov rax, [rel address_command]
     lea rdi, [rel cd]
     call _strcmp

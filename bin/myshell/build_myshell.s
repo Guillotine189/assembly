@@ -6,6 +6,7 @@ nasm -f elf64 ./dep/custom_errors.s -o ./dep/custom_errors.o
 nasm -f elf64 ./dep/myshelldep.s -o ./dep/myshelldep.o
 nasm -f elf64 ./dep/myshellbif.s  -o ./dep/myshellbif.o
 nasm -f elf64 ./dep/path_command.s  -o ./dep/path_command.o
+nasm -f elf64 ./dep/history.s -o ./dep/history.o
 
 ld   myshell.o \
     ./dep/read_input.o \
@@ -13,8 +14,9 @@ ld   myshell.o \
 	./dep/myshelldep.o \
     ./dep/myshellbif.o \
     ./dep/path_command.o \
-    /home/sarthak/Desktop/asm/bin/dependencies/errorHandling.o \
-    /home/sarthak/Desktop/asm/bin/dependencies/mymalloc.o \
+    ../dependencies/errorHandling.o \
+    ../dependencies/mymalloc.o \
+    ./dep/history.o \
    	-o myshell
 
 rm   myshell.o \
@@ -22,4 +24,5 @@ rm   myshell.o \
     ./dep/custom_errors.o \
     ./dep/myshelldep.o \
     ./dep/myshellbif.o \
-    ./dep/path_command.o
+    ./dep/path_command.o \
+    ./dep/history.o

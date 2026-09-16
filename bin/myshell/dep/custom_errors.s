@@ -1,24 +1,24 @@
 global error_code
 section .data
-    error_input_init_memory db "myShell: Error allocating memory for input buffer",0
+    error_input_init_memory db "myShell: Error allocating memory for input buffer: ",0
     error_input_init_memory_len equ $ - error_input_init_memory
 
-    error_getting_parse_memory db "myShell: Error getting memory for parse line", 0
+    error_getting_parse_memory db "myShell: Error getting memory for parse line: ", 0
     error_getting_parse_memory_len equ $ - error_getting_parse_memory
 
-    error_reading_input db "myShell: Error reading input", 0
+    error_reading_input db "myShell: Error reading input: ", 0
     error_reading_input_len equ $ - error_reading_input
 
-    error_increasing_input_buffer_mem db "myShell: Error increasing input buffer storage", 0
+    error_increasing_input_buffer_mem db "myShell: Error increasing input buffer storage: ", 0
     error_increasing_input_buffer_mem_len equ $ - error_increasing_input_buffer_mem
 
     error_overriding_custom_handler db "myShell: Error overriding custom handler: ", 0
     error_overriding_custom_handler_len equ $ - error_overriding_custom_handler
 
-    error_setting_non_con_mode db "Error setting mode to non canonical", 0
+    error_setting_non_con_mode db "Error setting mode to non canonical:", 0
     error_setting_non_con_mode_len equ $ - error_setting_non_con_mode
 
-    error_getting_cwd db "myShell: Error getting cwd",0
+    error_getting_cwd db "myShell: Error getting cwd:",0
     error_getting_cwd_len equ $ - error_getting_cwd
 
     error_getting_pgid db "Error getting shells group id", 0
@@ -27,8 +27,20 @@ section .data
     error_forking db "myShell: Error forking",0
     error_forking_len equ $ - error_forking
 
-    error_executing_process db "myShell: Error executing: ", 0
+    error_executing_process db "myShell: Error executing ", 0
     error_executing_process_len equ $ - error_executing_process
+
+    error_command_not_found0 db "myShell: Error executing ", 0
+    error_command_not_found0_len equ $ - error_command_not_found0
+    error_command_not_found1 db ": Command not found", 0
+    error_command_not_found1_len equ $ - error_command_not_found1
+
+    error_allocating_memory_for_history db "myShell: Error allocating memory for history: ", 0
+    error_allocating_memory_for_history_len equ $ - error_allocating_memory_for_history
+
+    error_getting_mem_for_cmd_in_history db "myShell: Error allocating memory for command for history.",0
+    error_getting_mem_for_cmd_in_history_len equ $ - error_getting_mem_for_cmd_in_history
+
     error_code dq 0
 
 
@@ -53,8 +65,11 @@ global print_error_getting_cwd
 global print_error_overriding_custom_handler
 global print_error_forking
 global print_error_executing_process
+global print_error_command_not_found
 global print_error_setting_non_con_mode
 global print_error_getting_pgid
+global print_error_allocating_memory_for_history
+global print_error_getting_mem_for_cmd_in_history
 
 print_error_input_init_memory:
     mov rax, error_input_init_memory_len
@@ -158,7 +173,6 @@ print_error_executing_process:
     lea rsi , [rel error_executing_process]
     call _print
 
-
     mov rdi, [rel address_command]
     call _strlen
     
@@ -169,6 +183,47 @@ print_error_executing_process:
     mov rax, [rel error_code]
     call _print_error_with_new_line
     ret
+
+print_error_command_not_found:
+    mov rax, error_command_not_found0_len
+    mov rdi, 1
+    lea rsi, [rel error_command_not_found0]
+    call _print
+
+    mov rdi, [rel address_command]
+    call _strlen
+    
+    mov rdi, 1
+    mov rsi, [rel address_command]
+    call _print
+
+    mov rax, error_command_not_found1_len
+    mov rdi, 1
+    lea rsi, [rel error_command_not_found1]
+    call _print_with_new_line
+    ret
+
+
+print_error_allocating_memory_for_history:
+    mov rax, error_allocating_memory_for_history_len
+    mov rdi, 1
+    lea rsi , [rel error_allocating_memory_for_history]
+    call _print
+
+    mov rax, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+print_error_getting_mem_for_cmd_in_history:
+    mov rax, error_getting_mem_for_cmd_in_history_len
+    mov rdi, 1
+    lea rsi , [rel error_getting_mem_for_cmd_in_history]
+    call _print
+
+    mov rax, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
 
 print_error_getting_pgid:
     mov rax, error_getting_pgid_len

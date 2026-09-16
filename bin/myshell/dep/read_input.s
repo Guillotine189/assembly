@@ -2,7 +2,7 @@
 
 section .data
     cursor_idx dq 0
-
+    history_command_number dq 0
 
 section .bss
     key_buffer resb 10
@@ -19,6 +19,8 @@ section .rodata
     move_cur_right db 27, "[C", 0
     move_cur_left db 27, "[D", 0
     move_cur_next_line db 27, "[E"
+    erase_char_in_front db 27, "[P"
+    clear_to_right db 27, "[K"
     erase_everything_after_cursor_including_cursor db 27, "[0K", 0
 
 
@@ -41,7 +43,10 @@ extern _malloc
 extern _free
 extern _mem_copy
 extern _print
+extern _strlen
 
+extern _add_cmd_into_history
+extern _return_address_of_command_from_newest
 
 extern print_error_reading_input
 extern print_error_increasing_input_mem
@@ -55,6 +60,7 @@ _read_input:
     mov qword [rel filled_size_input_buffer_len], 0
     mov qword [rel input_interrupted], 0
     mov qword [rel cursor_idx], 0
+    mov qword [rel history_command_number], 0        ; 0 for current, 1 for older
 
     ; in non-cononical mode, ctld+d return \4 
 
@@ -209,11 +215,11 @@ _read_input:
         mov rdx, 1
         syscall
 
-        cmp byte [rel key_buffer], 'A'          ; arrow key up : ignore
-        je .read_key
+        cmp byte [rel key_buffer], 'A'          ; arrow key up
+        je .print_older_history
 
-        cmp byte [rel key_buffer], 'B'          ; arrow key down : ignore
-        je .read_key
+        cmp byte [rel key_buffer], 'B'          ; arrow key down
+        je .print_newer_history
 
         cmp byte [rel key_buffer], 'D' 
         je .cursor_left
@@ -230,9 +236,200 @@ _read_input:
         cmp byte [rel key_buffer], '1'
         je .modifier
 
+        jmp .read_key
+
+    .print_newer_history:
+        cmp qword [rel history_command_number], 0
+        jle .read_key
+
+        
+        dec qword [rel history_command_number]      ; if it was 2 then 1
+        mov rdi, [rel history_command_number]
+        call _return_address_of_command_from_newest
+
+        test rax, rax
+        jl .no_more_new_commands
+
+        ; rax has address of older command
+        mov r12, rax                            ; r12 has address of command
+        mov rdi, rax
+        call _strlen
+        mov r13, rax                            ; r13 len of command
+        .loop_memory1:
+            cmp r13, [rel capacity_input_buffer_len]
+            jg .get_more_memory_buffer1
+            jmp .enough_memory1
+
+            .get_more_memory_buffer1:
+                call .get_more_buffer_size
+
+            .loopback1:
+                jmp .loop_memory
+
+        .enough_memory1:
+
+        ; move cursor to home
+        mov rax, [rel cursor_idx] 
+        test rax, rax
+        jz .home_done1            ; if already at home do nothing
+        mov rdi, rax
+
+        .move_home2:
+        test rdi, rdi
+        jz .home_done2
+        push rdi
+
+        mov eax, 1
+        mov edi, 1
+        lea rsi, [rel move_cur_left]
+        mov edx, 3
+        syscall
+
+        pop rdi
+        dec rdi
+        jmp .move_home2
+        .home_done2:
+
+        ; remove all char to the right
+        mov eax, 1
+        mov edi, 1
+        lea rsi, [rel clear_to_right]
+        mov edx, 3
+        syscall
+    
+        ; move the commmand into input_buffer_address
+        mov rcx, r13
+        mov rdi, [rel input_buffer_address]
+        mov rsi, r12
+        rep movsb
+
+        ; print the input_buffer_address
+        mov rax, r13
+        mov rdi, 1
+        mov rsi, [rel input_buffer_address]
+        call _print
+
+        mov [rel filled_size_input_buffer_len], r13
+        mov [rel cursor_idx], r13
 
         jmp .read_key
 
+
+        .no_more_new_commands:   ; i am accessing the latest byte
+            mov qword [rel history_command_number], 0
+            ; move cursor to home
+            mov rax, [rel cursor_idx]
+            test rax, rax
+            jz .home_done1            ; if already at home do nothing
+            mov rdi, rax
+
+            .move_home3:
+            test rdi, rdi
+            jz .home_done3
+            push rdi
+
+            mov eax, 1
+            mov edi, 1
+            lea rsi, [rel move_cur_left]
+            mov edx, 3
+            syscall
+
+            pop rdi
+            dec rdi
+            jmp .move_home3
+            .home_done3:
+
+            ; remove all char to the right
+            mov eax, 1
+            mov edi, 1
+            lea rsi, [rel clear_to_right]
+            mov edx, 3
+            syscall
+
+            mov qword [rel filled_size_input_buffer_len], 0
+            mov qword [rel cursor_idx], 0
+
+            jmp .read_key
+
+
+    .print_older_history:
+        inc qword [rel history_command_number]      ; if it was 0 then 1
+
+        mov rdi, [rel history_command_number]
+        call _return_address_of_command_from_newest
+
+        test rax, rax
+        jl .no_more_old_commands
+
+        ; rax has address of older command
+        mov r12, rax                            ; r12 has address of command
+        mov rdi, rax
+        call _strlen
+        mov r13, rax                            ; r13 len of command
+        .loop_memory:
+            cmp r13, [rel capacity_input_buffer_len]
+            jg .get_more_memory_buffer
+            jmp .enough_memory
+
+            .get_more_memory_buffer:
+                call .get_more_buffer_size
+
+            .loopback:
+                jmp .loop_memory
+
+        .enough_memory:
+
+        ; move cursor to home
+        mov rax, [rel cursor_idx] 
+        test rax, rax
+        jz .home_done1            ; if already at home do nothing
+        mov rdi, rax
+
+        .move_home1:
+        test rdi, rdi
+        jz .home_done1
+        push rdi
+
+        mov eax, 1
+        mov edi, 1
+        lea rsi, [rel move_cur_left]
+        mov edx, 3
+        syscall
+
+        pop rdi
+        dec rdi
+        jmp .move_home1
+        .home_done1:
+
+        ; remove all char to the right
+        mov eax, 1
+        mov edi, 1
+        lea rsi, [rel clear_to_right]
+        mov edx, 3
+        syscall
+    
+        ; move the commmand into input_buffer_address
+        mov rcx, r13
+        mov rdi, [rel input_buffer_address]
+        mov rsi, r12
+        rep movsb
+
+        ; print the input_buffer_address
+        mov rax, r13
+        mov rdi, 1
+        mov rsi, [rel input_buffer_address]
+        call _print
+
+        mov [rel filled_size_input_buffer_len], r13
+        mov [rel cursor_idx], r13
+
+        .bdk:
+        jmp .read_key
+
+
+        .no_more_old_commands:
+            dec qword [rel history_command_number]
+            jmp .read_key
 
     .cursor_home:
         mov rax, [rel cursor_idx] 
@@ -648,9 +845,19 @@ _read_input:
 
         ; i have atleast 8 bytes of free memory
         ; add char at end of input_buffer
+
         mov rax, [rel input_buffer_address]
         add rax, [rel filled_size_input_buffer_len]
-        mov byte [rax], 0x0a                        ; add a \n
+        mov byte [rax], 0                        ; add a 0
+
+        mov rdi, [rel input_buffer_address]      ; old command should not have \n in end
+        call _add_cmd_into_history
+
+
+        mov rax, [rel input_buffer_address]
+        add rax, [rel filled_size_input_buffer_len]
+        mov byte [rax], 0x0a                        ; replace the \n with 0
+
         inc qword [rel filled_size_input_buffer_len]
         inc rax
         mov byte [rax], 0                           ; add a NULL

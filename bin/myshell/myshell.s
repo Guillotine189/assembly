@@ -70,6 +70,9 @@ section .data
 
 
 
+
+
+
 global new_line
 section .rodata
 
@@ -81,6 +84,11 @@ section .rodata
     clear_scrollback db 0x1b, '[3J'   ; clear the scrollable part of the screen as well
     clear_scrollback_len equ $ - clear_scrollback
 
+    dot db ".",0
+    double_dot_slash db "../", 0
+    back_slash db "/"
+    dot_back_slash db "./", 0
+    dash db '-',0
     semicolon db ":" , 0
     dollar_sign_with_space db "$ ", 0
     new_line db 0x0a
@@ -151,6 +159,7 @@ extern _free
 extern _print_error_with_new_line
 extern _string_copy_including_null
 extern _strcmp
+extern _cmp_equal_memory
 
 extern print_error_input_init_memory
 extern print_error_getting_parse_memory
@@ -160,11 +169,15 @@ extern print_error_forking
 extern print_error_executing_process
 extern print_error_setting_non_con_mode
 extern print_error_getting_pgid
+extern print_error_command_not_found
 
+
+extern _get_and_set_mem_for_history_array
 extern _read_input
 
 extern _check_and_execute_if_built_in
 extern _check_if_cmd_is_in_path
+
 
 section .text
 
@@ -179,6 +192,7 @@ _init:
     call _set_noncanonical_mode
     call _get_and_set_cwd
     call _get_and_set_pgid
+    call _get_and_set_mem_for_history_array
     call _set_prefix_line
     call _get_and_set_memory_for_input_buffer
     ret
@@ -755,13 +769,44 @@ _process_tokens:
 
 _execute_process:
 
+    ; command starts with ./ or / or ../, this is not a built_in or a command that should
+    ; be ran after checking from path env variable
+
+    mov rax, [rel address_command]
+    cmp byte [rax], '/'     ; if 1st byte is /, its a absolute path, direct execution
+    je .execute_with_og_command
+
+    mov rax, 2
+    mov rdi, [rel address_command]
+    lea rsi, [rel dot_back_slash]
+    call _cmp_equal_memory
+
+    test rax, rax                    ; if starting with ./, then this is a relative path
+    jz .execute_with_og_command 
+
+
+    mov rax, 3
+    mov rdi, [rel address_command]
+    lea rsi, [rel double_dot_slash]
+    call _cmp_equal_memory
+
+    test rax, rax                    ; if starting with ../, then this is a relative path
+    jz .execute_with_og_command 
+
+    
+    ; now either the command is built in or it is supposed to be inside path variables
+
+    ; check if the command is built in
     call _check_and_execute_if_built_in
     test rax, rax
-    jz .return
+    jz .return                      ; zero mean it was builtin
 
+    ; check if the command is supposed to run using a path var or not
     call _check_if_cmd_is_in_path
     test rax, rax
-    jl .execute_with_og_command
+    jl .set_error_command_not_found  ; command not inside env_path either -> give error
+
+    ; now the command is actually in env_path
 
     ; now if path was found i need to change address of command
     mov [rel address_command], rax
@@ -806,6 +851,13 @@ _execute_process:
 
     mov [rel exit_status_code], 1
     call _exit_with_status_code
+
+    .set_error_command_not_found:
+        mov [rel error_code], rax
+        call print_error_command_not_found
+        ret
+
+
 
 
     .parent:
