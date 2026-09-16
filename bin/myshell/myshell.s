@@ -97,11 +97,11 @@ section .rodata
     colour_reset_len equ 4
 
     colour_reset    db 27, "[0m", 0
+    colour_blue     db 27, "[34m", 0
     colour_black    db 27, "[30m", 0     
     colour_red      db 27, "[31m", 0
     colour_green    db 27, "[32m", 0
     colour_yellow   db 27, "[33m", 0
-    colour_blue     db 27, "[34m", 0
     colour_magenta  db 27, "[35m", 0
     colour_cyan     db 27, "[36m", 0
     colour_white    db 27, "[37m", 0
@@ -185,6 +185,8 @@ global _start
 global _exit_with_status_code
 global _exit
 global _set_prefix_line
+global _print_prefix_line
+
 
 _init:
     call _signal_handling

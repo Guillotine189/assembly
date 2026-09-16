@@ -732,3 +732,22 @@ shell pid: 100
 child pid : 101 
       gpid: 101 (same as childs pid)
 
+----------- when handling multiple cmmands
+shell pid: 100
+      gpid: 100
+
+child1 pid : 101 
+      gpid: 100 (same as parent gpid)
+
+child2 pid : 102
+      gpid: 100 (same as parent gpid)
+
+child2 pid : 103 
+      gpid: 100 (same as parent gpid)
+
+Now shell(parent) decides, which process to put in fg. and then let them handle it.
+
+
+---------------TO CHANGE PROCESS GPID
+        
+

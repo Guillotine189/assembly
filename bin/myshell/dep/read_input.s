@@ -3,17 +3,34 @@
 section .data
     cursor_idx dq 0
     history_command_number dq 0
+    tabs_times_pressed dq 0
 
+    colour_reset    db 27, "[0m", 0
+    colour_blue     db 27, "[34m", 0
+    colour_bright_green   db 27, "[92m", 0
+    dot db ".", 0
+    double_dot db "..", 0
+    
+
+get_dent_buffer_cap equ 8192
 section .bss
-    key_buffer resb 10
+    key_buffer: resb 10
+    reusable_buffer_read: resb 4096
+
+    dir_fd_getdents: resq 1
+    dir_get_dent_buffer: resb get_dent_buffer_cap
+    dir_get_dent_buffer_len: resq 1
 
 section .rodata
     
+    ; what i receive when someone pressed home/end/ctrl+left/right button
     ;move_cur_home_pos db 27, "[H", 0
     ;move_cur_end_pos db 27, "[F", 0
     ;move_cur_left_space -> if ctrl+left_arrow -> i recv- > "[1;5D"
     ; ';' ->modifier 5D; = '5'->ctrl was pressed, 'D' -> left arrow key
 
+
+    ; what i print when i have to move the cursor somewhere
     move_cur_up db 27, "[A", 0
     move_cur_down db 27, "[B", 0
     move_cur_right db 27, "[C", 0
@@ -35,6 +52,8 @@ extern exit_status_code
 extern _exit_with_status_code
 extern new_line
 extern exit_flag
+extern curr_cwd
+extern curr_cwd_len
 
 extern termios
 extern old_termios
@@ -44,12 +63,19 @@ extern _free
 extern _mem_copy
 extern _print
 extern _strlen
-
+extern _strcmp
+extern _memcpy_with_end_char
+extern _print
+extern _print_with_new_line
+extern _print_with_tabs
 extern _add_cmd_into_history
 extern _return_address_of_command_from_newest
+extern _string_copy_including_null
 
 extern print_error_reading_input
 extern print_error_increasing_input_mem
+
+extern _print_prefix_line
 
 global _read_input
 
@@ -82,6 +108,11 @@ _read_input:
         cmp byte [rel key_buffer], 0x04         ; in non-cononical mode, this is ctrl+d
         je .handle_eof
 
+        cmp byte [rel key_buffer], 0x09         ; TODO: move cursor to end of line before exit
+        je .handle_tab
+
+        mov qword [rel tabs_times_pressed], 0
+
         cmp byte [rel key_buffer], 27 
         je .escape_seq  
 
@@ -91,9 +122,7 @@ _read_input:
         cmp byte [rel key_buffer], 0x0a         ; TODO: move cursor to end of line before exit
         je .return
 
-
         ; this si for ctrl + keys, right now i just ignore them except 
-        ; also , TABS is 0x09 so it is also ignored
         cmp byte [rel key_buffer], 31                ; last char before usable chars
         jle .check_if_new_line
 
@@ -753,6 +782,292 @@ _read_input:
         mov [rel cursor_idx], rax
         jmp .read_key
 
+
+    .handle_tab:
+
+        inc qword [rel tabs_times_pressed]
+
+        cmp [rel filled_size_input_buffer_len], 0   ;if nothing is written dont check
+        jz .read_key
+
+        cmp [rel tabs_times_pressed], 2   ; if tabs not pressed atleast twice, return
+        jl .read_key
+
+        ; find the last word written 1 byte before cursor pointer
+
+        mov r8, [rel cursor_idx]
+        dec r8
+        mov r9, [rel input_buffer_address]
+        xor r10, r10                    ; holds the position of last backslash
+        .loop_last_word_written:
+
+            cmp r8, 0
+            je .first_byte_reached
+
+
+            cmp byte [r9 + r8], '/'
+            je .back_slash_enc
+
+            cmp byte [r9 + r8], ' '
+            je .space_reached
+
+        .loopback22:
+            dec r8
+            jmp .loop_last_word_written
+
+
+        .back_slash_enc:    
+            test r10, r10               ; if backslash was encountered already, dont update
+            jnz .loopback22
+
+            mov r10, r8
+            jmp .loopback22
+
+        .space_reached:
+            inc r8              ; index is at space, move it to last
+
+        .first_byte_reached:        
+        ; r8 is at first byte, r10 is at index at which last '/'  is there, if there is
+        
+        ; first tcheck if it was empty or not
+        mov rax, [rel cursor_idx]
+        
+        cmp rax, r8         ; if the len of word is zero
+        je .read_key
+
+        ; now i know atleast 1 byte is there 
+        ;check if there was slash in the word "./path/to/something"
+        ;                                      |. r8    |/ r10
+        ;check if no slash  slash in the word "/something"
+        ;                                      |/ r8      r10 = r8
+
+
+        ; if the word start with /, use it as absolute path to check 
+
+        cmp [r9 + r8], '/'
+        je .absolute_path
+
+        ; here i have to add cwd before whatever the word was typed
+        ; eg "./path/file" -> "/cwd/./path" 
+        ; eg "file" -> "/cwd/" 
+        ; -> then check this path, and print entries matching "file"
+
+        push r10
+        push r9
+        push r8
+        mov rax, [rel curr_cwd_len]
+        lea rdi, [rel reusable_buffer_read]
+        lea rsi, [rel curr_cwd]
+        mov rdx, '/'
+        mov r8, 1
+        call _memcpy_with_end_char  ; rax has addres of next byte
+        pop r8
+        pop r9
+        pop r10
+        push rax
+
+        ; if there was no slash in word
+        test r10, r10
+        jz .copy_entire_word
+
+        sub r10, r8                 ; these many byte to copy into buffer
+        inc r10
+        jmp .copy
+
+        .copy_entire_word:
+        mov rcx, [rel cursor_idx]
+        sub rcx, r8
+        mov r10, rcx                 ; len of word found
+
+        .copy:
+
+        pop rdi
+        push r10
+        push r9
+        push r8
+        
+        mov rax, r10        
+        mov rsi, [rel input_buffer_address]
+        add rsi, r8
+        mov rdx, 0
+        mov r8, 1
+        call _memcpy_with_end_char  ; rax has addres of next byte
+        pop r8
+        pop r9
+        pop r10
+
+        
+
+        jmp .find_dir
+
+
+        .absolute_path:
+
+        ; here i have can check the word was typed
+        ; eg1 "/path/file"  ->  check
+        ; eg2 "/" -> "/"
+
+        sub r10, r8                 ; these many byte to copy into buffer
+        inc r10
+        test r10, r10               ; in example 2
+        je .incread_len_to_accomodate_slash
+        jmp .cont
+
+        .incread_len_to_accomodate_slash:
+            inc r10
+
+        .cont:
+        push r10
+        push r9
+        push r8
+        mov rax, r10        
+        lea rdi, [rel reusable_buffer_read]
+        mov rsi, [rel input_buffer_address]
+        add rsi, r8
+        mov rdx, 0
+        mov r8, 1
+        call _memcpy_with_end_char  ; rax has addres of next byte
+        pop r8
+        pop r10
+        pop r9
+
+        .find_dir:
+
+        ; reusable_buffer_read contains the addres of the directory
+        ; if the directory exists, then get contents of directory.
+        ; check the file with the starting of every entry and print those who matches
+
+
+        mov     rax, 2
+        lea     rdi, [rel reusable_buffer_read]
+        mov     rsi, O_RDONLY | O_DIRECTORY
+        xor     rdx, rdx
+        syscall
+
+        test rax, rax
+        jl .read_key        ; if directory does not exists leave it
+
+
+        mov [rel dir_fd_getdents], rax
+
+        ; move the cursor to new line
+        mov rax, 1
+        mov rdi, 1
+        lea rsi, [rel new_line]
+        call _print
+
+        
+
+        .loop_get_dents:
+
+        mov rax, sys_getdents64
+        mov rdi, [rel dir_fd_getdents]
+        lea rsi, [rel dir_get_dent_buffer]
+        mov rdx, get_dent_buffer_cap
+        syscall
+
+        test rax, rax
+        jle .done_printing_   ; if cannot get info/error, or no more info -> just return
+
+        mov [rel dir_get_dent_buffer_len], rax
+
+
+        ; print the contnets
+        lea r9, [rel dir_get_dent_buffer]
+
+        .get_next_segment:
+        lea rax, [rel dir_get_dent_buffer]
+        add rax, [rel dir_get_dent_buffer_len]
+        cmp r9, rax
+        jae .loop_get_dents
+
+        .find_type_and_print:
+        cmp byte [r9+ 18], DT_DIR
+        je .print_dir
+
+        cmp byte [r9+ 18], DT_REG
+        je .print_reg_file
+
+        push r9
+        jmp .move_to_next_segment
+
+        .print_reg_file:
+        push r9
+        lea rdi, [r9 + 19]
+        call _strlen                ; rax has len of the name of file
+        pop r9
+        push r9
+        mov rdi, 1
+        lea rsi, [r9 + 19]
+        call _print_with_tabs
+
+        jmp .move_to_next_segment
+
+        .print_dir:
+        push r9
+
+        lea rax, [rel dot]
+        lea rdi, [r9+19]
+        call _strcmp
+        test rax, rax
+        jz .move_to_next_segment
+
+        pop r9
+        push r9
+
+        lea rax, [rel double_dot]
+        lea rdi, [r9+19]
+        call _strcmp
+        test rax, rax
+        jz .move_to_next_segment
+
+
+        lea rdi, [rel reusable_buffer_read]
+        lea rsi, [rel colour_bright_green]
+        call _string_copy_including_null   ; rdi: add of null byte, rax len
+
+        pop r9
+        push r9
+
+        lea rsi, [r9 + 19]
+        call _string_copy_including_null
+        
+        lea rsi, [rel colour_reset]
+        call _string_copy_including_null
+
+
+        lea rcx, [rel reusable_buffer_read]
+        sub rdi, rcx 
+        mov rax, rdi
+        mov rdi, 1
+        lea rsi, [rel reusable_buffer_read]
+        call _print_with_tabs
+
+        .move_to_next_segment:
+            pop r9
+            movzx eax, word [r9 + 16]               ; 2 bytes reading 
+            add r9, rax
+            jmp .get_next_segment
+
+        .done_printing_:
+
+        ; move the cursor to new line
+        mov rax, 1
+        mov rdi, 1
+        lea rsi, [rel new_line]
+        call _print
+
+        ;restore the cursor back
+        call _print_prefix_line
+
+
+        mov rax, [rel filled_size_input_buffer_len]
+        mov rdi, 1
+        mov rsi, [rel input_buffer_address]
+        call _print
+
+        .return100:
+        jmp .read_key
 
     .interrupted:
         mov qword [rel input_interrupted], 1

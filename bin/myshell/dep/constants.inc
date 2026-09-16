@@ -9,10 +9,10 @@ sys_ioctl		    equ 16
 sys_fork            equ 57
 sys_execve          equ 59
 sys_wait4           equ 61
-sys_getdents        equ 78  
 sys_getcwd          equ 79
 sys_setpgid  		equ 109	    ; set process group id
 sys_getpgrp 		equ 111  	; get process group id
+sys_getdents64      equ 217
 
 EINTR equ -4         
 
@@ -60,3 +60,25 @@ C_LFLAG   equ 12
 TIOCSPGRP equ 0x5410    ; for group pid changing
 TCGETS    equ 0x5401
 TCSETS    equ 0x5402
+
+; stat
+O_RDONLY    equ 0
+O_WRONLY    equ 1
+O_RDWR      equ 2
+
+O_CREAT     equ 64      ; (0x40)
+O_EXCL      equ 128     ; (0x80)
+O_TRUNC     equ 512     ; (0x200)
+O_APPEND    equ 1024    ; (0x400)
+O_NONBLOCK  equ 2048    ; (0x800)
+O_DIRECTORY equ 65536   ; (0x10000)
+
+; getdents64
+DT_UNKNOWN  equ 0
+DT_FIFO     equ 1
+DT_CHR      equ 2
+DT_DIR      equ 4
+DT_BLK      equ 6
+DT_REG      equ 8
+DT_LNK      equ 10
+DT_SOCK     equ 12

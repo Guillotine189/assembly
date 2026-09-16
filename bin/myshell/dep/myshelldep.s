@@ -2,6 +2,7 @@ section .text
 
 global _print
 global _print_with_new_line
+global _print_with_tabs
 global _strlen
 global _itoa
 global _mem_copy
@@ -9,7 +10,6 @@ global _string_copy_including_null
 global _strcmp
 global _cmp_equal_memory
 global _memcpy_with_end_char
-
 
 ; rax: number of bytes to print 
 ; rdi: fd to write to
@@ -20,6 +20,31 @@ _print:
 	mov rdx, rax					; rdx total bytes
 	mov rax, 1 						; write syscall
 	syscall
+	ret
+
+
+; rax: number of bytes to print 
+; rdi: fd to write to
+; rsi: address of string 
+; returns bytes printed rax
+
+_print_with_tabs:
+	mov rdx, rax					; rdx total bytes
+	mov rax, 1 						; write syscall
+	syscall
+
+	; print new line
+	mov rax, 0x09
+	push rax
+
+	mov rax, 1
+	mov rdi, 1 						; fd
+	mov rsi, rsp 					; buffer address
+	mov rdx, 1 						; bytes to print
+	syscall
+
+	.cleanup:
+	pop rax
 	ret
 
 
