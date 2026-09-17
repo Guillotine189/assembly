@@ -570,21 +570,29 @@ _parse_input:
     mov r9, [rel input_buffer_address]
     xor r10, r10                        ; weather inside double quotes or not
     xor r11, r11                        ; weather inside single quotes or not
+    xor rcx, rcx                        ; weater last byte was '\' or not
     .loop_till_new_line:
         cmp byte [r9 + r8], 0x0a            ; if the byte is \n
         je .buffer_parsed
 
-        cmp byte [r9 + r8], 0x20            ; space
-        je .replace_with_null
+        cmp byte [r9 + r8], 0x5c            ; '\' front slash
+        je .front_slash_was_seen
 
-        cmp byte [r9 + r8], 0x09            ; tabs
-        je .replace_with_null
+        cmp byte [r9 + r8], 0x20            ; space
+        je .handle_space
 
         cmp byte [r9 + r8], 0x22            ; for : double quotes ""
         je .handle_dq
         
         cmp byte [r9 + r8], 0x27            ; for : single quotes ''
         je .handle_sq
+
+        xor rcx, rcx                        ; last byte was not '\'
+
+        jmp .copy_byte_and_loop
+
+        .front_slash_was_seen:
+            mov rcx, 1
 
         ; if any other char was passed, copy it to dst addr
         .copy_byte_and_loop:
@@ -597,6 +605,8 @@ _parse_input:
             jmp .loop_till_new_line
 
         .handle_dq:
+            xor rcx, rcx                        ; last byte was not \
+            
             ; if i am inside dq already, mark it as not inside dq
             test r10, r10
             jg .i_was_inside_dq_not_anymore
@@ -621,6 +631,7 @@ _parse_input:
 
 
         .handle_sq:
+            xor rcx, rcx                        ; last byte was not \
             ; if i am inside sq already, mark it as not inside sq
             test r11, r11
             jnz .i_was_inside_sq
@@ -644,7 +655,7 @@ _parse_input:
             jmp .loop_till_new_line
 
 
-        .replace_with_null:
+        .handle_space:
             test r10, r10
             jz .check_if_inside_single_quotes   ; if not inside DQ, cehck if inside SQ
             ; if inside DQ, just let this whitespace be
@@ -656,6 +667,10 @@ _parse_input:
             jnz  .copy_byte_and_loop ; i am inside single quote
             
             ; now i am not inside DQ, or SQ
+
+            ; check if last byte was '\', bec if it was, then allow this space
+            test rcx, rcx
+            jnz .last_byte_was_front_slash_allow_this_space
 
             test rdx, rdx
             jnz .last_copied_byte_was_null
@@ -670,6 +685,14 @@ _parse_input:
             inc r8
             jmp .loop_till_new_line
 
+        .last_byte_was_front_slash_allow_this_space:
+            xor rcx, rcx                        ; last byte no longer \
+
+            ; replace the slash with this space
+
+            mov byte [rdi + rsi - 1], ' '           ; replace last dst byte wiht space
+            inc r8                                  ; check next byte
+            jmp .loop_till_new_line
 
 
 

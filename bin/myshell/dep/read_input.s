@@ -10,12 +10,16 @@ section .data
     colour_bright_green   db 27, "[92m", 0
     dot db ".", 0
     double_dot db "..", 0
+    back_slash db "/", 0
+    nine_spaces db "         ", 0
     
 
 get_dent_buffer_cap equ 8192
 section .bss
     key_buffer: resb 10
     reusable_buffer_read: resb 4096
+
+    double_tab_string_object_address resq 1
 
     dir_fd_getdents: resq 1
     dir_get_dent_buffer: resb get_dent_buffer_cap
@@ -43,6 +47,7 @@ section .rodata
 
 section .text
 
+; var
 extern filled_size_input_buffer_len
 extern input_interrupted
 extern input_buffer_address
@@ -58,6 +63,7 @@ extern curr_cwd_len
 extern termios
 extern old_termios
 
+; funcs
 extern _malloc
 extern _free
 extern _mem_copy
@@ -71,11 +77,16 @@ extern _print_with_tabs
 extern _add_cmd_into_history
 extern _return_address_of_command_from_newest
 extern _string_copy_including_null
-
+extern _cmp_equal_memory
 extern print_error_reading_input
 extern print_error_increasing_input_mem
+extern _strcpy_add_space_before_backslash
 
 extern _print_prefix_line
+
+extern _constructor_mystring
+extern _destructor_mystring
+extern _append_string_mystring
 
 global _read_input
 
@@ -790,8 +801,6 @@ _read_input:
         cmp [rel filled_size_input_buffer_len], 0   ;if nothing is written dont check
         jz .read_key
 
-        cmp [rel tabs_times_pressed], 2   ; if tabs not pressed atleast twice, return
-        jl .read_key
 
         ; find the last word written 1 byte before cursor pointer
 
@@ -844,7 +853,7 @@ _read_input:
 
         ; if the word start with /, use it as absolute path to check 
 
-        cmp [r9 + r8], '/'
+        cmp byte [r9 + r8], '/'
         je .absolute_path
 
         ; here i have to add cwd before whatever the word was typed
@@ -853,7 +862,6 @@ _read_input:
         ; -> then check this path, and print entries matching "file"
 
         push r10
-        push r9
         push r8
         mov rax, [rel curr_cwd_len]
         lea rdi, [rel reusable_buffer_read]
@@ -862,7 +870,6 @@ _read_input:
         mov r8, 1
         call _memcpy_with_end_char  ; rax has addres of next byte
         pop r8
-        pop r9
         pop r10
         push rax
 
@@ -870,30 +877,29 @@ _read_input:
         test r10, r10
         jz .copy_entire_word
 
-        sub r10, r8                 ; these many byte to copy into buffer
-        inc r10
+        mov r11, r10
+        sub r11, r8                 ; these many byte to copy into buffer
+        inc r11
         jmp .copy
 
         .copy_entire_word:
         mov rcx, [rel cursor_idx]
         sub rcx, r8
-        mov r10, rcx                 ; len of word found
+        mov r11, rcx                 ; len of word found
 
         .copy:
 
         pop rdi
         push r10
-        push r9
         push r8
         
-        mov rax, r10        
+        mov rax, r11
         mov rsi, [rel input_buffer_address]
         add rsi, r8
         mov rdx, 0
         mov r8, 1
         call _memcpy_with_end_char  ; rax has addres of next byte
         pop r8
-        pop r9
         pop r10
 
         
@@ -910,15 +916,14 @@ _read_input:
         sub r10, r8                 ; these many byte to copy into buffer
         inc r10
         test r10, r10               ; in example 2
-        je .incread_len_to_accomodate_slash
+        je .increase_len_to_accomodate_slash
         jmp .cont
 
-        .incread_len_to_accomodate_slash:
+        .increase_len_to_accomodate_slash:
             inc r10
 
         .cont:
         push r10
-        push r9
         push r8
         mov rax, r10        
         lea rdi, [rel reusable_buffer_read]
@@ -929,7 +934,6 @@ _read_input:
         call _memcpy_with_end_char  ; rax has addres of next byte
         pop r8
         pop r10
-        pop r9
 
         .find_dir:
 
@@ -950,14 +954,21 @@ _read_input:
 
         mov [rel dir_fd_getdents], rax
 
-        ; move the cursor to new line
-        mov rax, 1
-        mov rdi, 1
-        lea rsi, [rel new_line]
-        call _print
 
-        
+        ; create string object
+        sub rsp, 24
+        mov qword [rsp + 0], 30             ; asking for 1024 bytes
+        mov qword [rsp + 8], 0
+        mov qword [rsp + 16], 0
+        mov rdi, rsp
+        call _constructor_mystring
 
+        mov [rel double_tab_string_object_address], rsp
+
+
+        inc r10             ; r10 is now pointing at the "./file", 'f'
+        mov r12, r10
+        xor r14, r14            ; hold how manny patterns match
         .loop_get_dents:
 
         mov rax, sys_getdents64
@@ -966,13 +977,18 @@ _read_input:
         mov rdx, get_dent_buffer_cap
         syscall
 
+        
+        mov r13, [rel cursor_idx]
+        sub r13, r12                    ; this is the lenght of "file" in "./file"
+        ; r13 is the length after directory
+
+
         test rax, rax
-        jle .done_printing_   ; if cannot get info/error, or no more info -> just return
+        jle .done_constructing   ; if cannot get info/error, or no more info -> just return
 
         mov [rel dir_get_dent_buffer_len], rax
 
 
-        ; print the contnets
         lea r9, [rel dir_get_dent_buffer]
 
         .get_next_segment:
@@ -983,65 +999,123 @@ _read_input:
 
         .find_type_and_print:
         cmp byte [r9+ 18], DT_DIR
-        je .print_dir
+        je .add_dir
 
         cmp byte [r9+ 18], DT_REG
-        je .print_reg_file
+        je .add_reg_file
 
-        push r9
+        push r9                         ; ignore other types of files for now
         jmp .move_to_next_segment
 
-        .print_reg_file:
-        push r9
-        lea rdi, [r9 + 19]
-        call _strlen                ; rax has len of the name of file
-        pop r9
-        push r9
-        mov rdi, 1
-        lea rsi, [r9 + 19]
-        call _print_with_tabs
+        .add_reg_file:
+            push r9
 
-        jmp .move_to_next_segment
+            ; if the "./" is input, r13 is zero, so append the file
+            test r13, r13
+            jz .append_reg_file
 
-        .print_dir:
-        push r9
+            ; check if the len of this file >= current len
+            lea rdi, [r9 + 19]
+            call _strlen
 
-        lea rax, [rel dot]
-        lea rdi, [r9+19]
-        call _strcmp
-        test rax, rax
-        jz .move_to_next_segment
+            pop r9
+            push r9
+            
+            cmp rax, r13
+            jge .check_if_file_starts_with_end
+            jmp .move_to_next_segment
 
-        pop r9
-        push r9
+        .check_if_file_starts_with_end:
+            ; now i know that the file len => same bytes long as input
+            mov rax, r13
+            lea rsi, [r9 + 19]
+            mov rdi, [rel input_buffer_address]
+            add rdi, r12
+            call _cmp_equal_memory
 
-        lea rax, [rel double_dot]
-        lea rdi, [r9+19]
-        call _strcmp
-        test rax, rax
-        jz .move_to_next_segment
+            pop r9
+            push r9
+            
+            test rax, rax
+            jz .append_reg_file
+            jmp .move_to_next_segment
+
+        .append_reg_file:
+            inc r14
+            lea rdi, [rel reusable_buffer_read]
+
+            lea rsi, [r9 + 19]
+            call _strcpy_add_space_before_backslash
+            lea rsi, [rel nine_spaces]
+            call _string_copy_including_null
+
+            mov rdi, [rel double_tab_string_object_address]
+            lea rsi, [rel reusable_buffer_read]
+            call _append_string_mystring
+
+            jmp .move_to_next_segment
+
+        .add_dir:
+            push r9
+
+            lea rax, [rel dot]
+            lea rdi, [r9+19]
+            call _strcmp
+            test rax, rax
+            jz .move_to_next_segment
+
+            pop r9
+            push r9
+
+            ; if the "./" is input, r11 is zero, so append the file
+            test r13, r13
+            jz .append_dir
+
+            ; check if the len of this file >= current len
+            lea rdi, [r9 + 19]
+            call _strlen
+
+            pop r9
+            push r9
+
+            cmp rax, r13
+            jge .check_if_dir_starts_with_end
+            jmp .move_to_next_segment
+
+        .check_if_dir_starts_with_end:
+            ; now i know that the dir len => same bytes long as input
+            mov rax, r13
+            lea rsi, [r9 + 19]
+            mov rdi, [rel input_buffer_address]
+            add rdi, r12
+            call _cmp_equal_memory
+
+            pop r9
+            push r9
+            
+            test rax, rax
+            jz .append_dir
+            jmp .move_to_next_segment
 
 
-        lea rdi, [rel reusable_buffer_read]
-        lea rsi, [rel colour_bright_green]
-        call _string_copy_including_null   ; rdi: add of null byte, rax len
+        .append_dir:
+            inc r14
 
-        pop r9
-        push r9
+            lea rdi, [rel reusable_buffer_read]
 
-        lea rsi, [r9 + 19]
-        call _string_copy_including_null
-        
-        lea rsi, [rel colour_reset]
-        call _string_copy_including_null
+            lea rsi, [r9 + 19]
+            call _strcpy_add_space_before_backslash
+            
+            lea rsi, [rel back_slash]
+            call _string_copy_including_null
+
+            lea rsi, [rel nine_spaces]
+            call _string_copy_including_null
 
 
-        lea rcx, [rel reusable_buffer_read]
-        sub rdi, rcx 
-        mov rax, rdi
-        mov rdi, 1
-        lea rsi, [rel reusable_buffer_read]
-        call _print_with_tabs
+            mov rdi, [rel double_tab_string_object_address]
+            lea rsi, [rel reusable_buffer_read]
+            call _append_string_mystring
 
         .move_to_next_segment:
             pop r9
@@ -1049,7 +1123,37 @@ _read_input:
             add r9, rax
             jmp .get_next_segment
 
-        .done_printing_:
+        .done_constructing:
+
+        cmp r14, 1
+        jl .zeros_the_tab_and_return
+        je .auto_complete
+        jmp .print_muliple_files
+
+        .zeros_the_tab_and_return:
+            mov qword [rel tabs_times_pressed], 0
+            jmp .cleanup_and_return
+
+        .print_muliple_files:
+
+        cmp [rel tabs_times_pressed], 2   ; if tabs not pressed atleast twice, return
+        jne .cleanup_and_return
+
+        mov qword [rel tabs_times_pressed], 0
+
+        ; move the cursor to new line
+        mov rax, 1
+        mov rdi, 1
+        lea rsi, [rel new_line]
+        call _print
+
+
+        ; print the line
+        mov rax, [rsp + 8]                  ; len of string
+        mov rdi, 1
+        mov rsi, [rel double_tab_string_object_address]
+        mov rsi, [rsi + 16]
+        call _print
 
         ; move the cursor to new line
         mov rax, 1
@@ -1066,8 +1170,83 @@ _read_input:
         mov rsi, [rel input_buffer_address]
         call _print
 
-        .return100:
+        ; right now the cursor in at end, but the value in cursor_idx is old
+
+        mov r8, [rel filled_size_input_buffer_len]     ; index after final_byte
+
+        .loop_restore_cur:
+
+            cmp r8, [rel cursor_idx]
+            je .cleanup_and_return
+
+            mov rax, 1
+            mov rdi, 1
+            lea rsi, [rel move_cur_left]
+            mov rdx, 3
+            syscall
+
+            dec r8
+            jmp .loop_restore_cur
+
+
+        .auto_complete:
+
+        cmp [rel tabs_times_pressed], 1   ; if tabs pressed once, and can complete
+        jne .cleanup_and_return
+
+        .move_cursor_back_left:
+            test r13, r13               ; len of the half word i have to autocomplete
+            jz .print_auto_complete
+
+            mov rax, 1
+            mov rdi, 1
+            lea rsi, [rel move_cur_left]
+            mov rdx, 3
+            syscall
+            dec r13
+            dec qword [rel cursor_idx]
+            dec qword [rel filled_size_input_buffer_len]
+            jmp .move_cursor_back_left
+
+        .print_auto_complete:
+
+        mov rdi, [rel double_tab_string_object_address]
+        ; len is just word + 9spaces
+        mov rax, [rdi + 8]          ; 8 is the offset for size of string
+        sub rax, 9                  ; bec i add 9 spaces in the end
+        
+
+        ; copy the word in input buffer
+        mov rdi, [rel input_buffer_address]
+        add rdi, [rel filled_size_input_buffer_len]
+        mov rsi, [rel double_tab_string_object_address]
+        mov rsi, [rsi + 16]
+        mov rcx, rax
+        rep movsb
+
+        add [rel cursor_idx], rax
+        add [rel filled_size_input_buffer_len], rax
+
+        mov rdi, 1
+        mov rsi, [rel double_tab_string_object_address]
+        mov rsi, [rsi + 16]
+        call _print
+        mov qword [rel tabs_times_pressed], 0
+
+        .cleanup_and_return:
+        ; destruct the string
+        mov rdi, rsp
+        call _destructor_mystring
+        add rsp, 24
+        mov qword [rel double_tab_string_object_address], 0
+
         jmp .read_key
+
+
+
+
+
+
 
     .interrupted:
         mov qword [rel input_interrupted], 1

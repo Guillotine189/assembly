@@ -10,6 +10,8 @@ global _string_copy_including_null
 global _strcmp
 global _cmp_equal_memory
 global _memcpy_with_end_char
+global _strcpy_add_space_before_backslash
+
 
 ; rax: number of bytes to print 
 ; rdi: fd to write to
@@ -339,3 +341,37 @@ _memcpy_with_end_char:
 		mov rax, rdi
 		add rax, r9
 		ret 
+
+
+; rdi: address desstination string
+; rsi: address source string
+; returns: rdi: the address of null byte
+_strcpy_add_space_before_backslash:
+	xor rax, rax 			; index for input string
+	xor rdx, rdx 			; indeex for output string
+
+	.loop_copy:
+		mov cl, [rsi + rax]
+
+		cmp cl, ' '
+		je .copy_slash_instead_of_space
+		
+		mov [rdi + rdx], cl
+		jmp .loopback
+
+		.copy_slash_instead_of_space:
+			mov [rdi + rdx], '\'
+			inc rdx
+			mov [rdi + rdx], ' '
+
+		.loopback:
+		cmp cl, 0
+		je .done
+
+		inc rax
+		inc rdx
+		jmp .loop_copy
+
+	.done:
+		add rdi, rdx
+		ret

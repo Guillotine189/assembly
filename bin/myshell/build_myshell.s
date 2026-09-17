@@ -14,9 +14,10 @@ ld   myshell.o \
 	./dep/myshelldep.o \
     ./dep/myshellbif.o \
     ./dep/path_command.o \
+    ./dep/history.o \
     ../dependencies/errorHandling.o \
     ../dependencies/mymalloc.o \
-    ./dep/history.o \
+    ../dependencies/mystring.o \
    	-o myshell
 
 rm   myshell.o \
