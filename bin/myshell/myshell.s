@@ -16,7 +16,7 @@ global og_envp_stack_array_address
 global total_command_aruments
 section .data
 
-    myshell_line db "myShell", 0
+    myshell_line db "MyShell", 0
     myshell_line_len equ $ - myshell_line
 
     capacity_input_buffer_len dq 4096
@@ -114,6 +114,7 @@ section .rodata
     colour_bright_magenta db 27, "[95m", 0
     colour_bright_cyan    db 27, "[96m", 0
     colour_bright_white   db 27, "[97m", 0
+
 
     style_reset             db 27, "[0m", 0
     style_bold              db 27, "[1m", 0
@@ -462,22 +463,15 @@ _set_prefix_line:
     ; reset colour
     lea rsi, [rel colour_reset]
     call _string_copy_including_null                ; rdi: address of NULL, \0
-    ; reset style
-    lea rsi, [rel style_reset]
-    call _string_copy_including_null                ; rdi: address of NULL, \0
-
 
     lea rsi, [rel semicolon]
     call _string_copy_including_null                ; rdi: address of NULL, \0
 
-
     ; add colour
-    lea rsi, [rel colour_bright_cyan]
+    lea rsi, [rel colour_bright_green]
     call _string_copy_including_null                ; rdi: address of NULL, \0
-    ; add style
-    lea rsi, [rel style_italic]
+    lea rsi, [rel style_bold]
     call _string_copy_including_null                ; rdi: address of NULL, \0
-
 
     lea rsi, [rel curr_cwd]
     call _string_copy_including_null                ; rdi: address of NULL, \0

@@ -25,6 +25,8 @@ section .bss
     dir_get_dent_buffer: resb get_dent_buffer_cap
     dir_get_dent_buffer_len: resq 1
 
+    command_latest_restore_buffer resb 4096
+
 section .rodata
     
     ; what i receive when someone pressed home/end/ctrl+left/right button
@@ -44,6 +46,8 @@ section .rodata
     clear_to_right db 27, "[K"
     erase_everything_after_cursor_including_cursor db 27, "[0K", 0
 
+    cursor_save    db 27, "[s", 0
+    cursor_restore db 27, "[u", 0
 
 section .text
 
@@ -90,7 +94,7 @@ extern _append_string_mystring
 
 global _read_input
 
-
+; TODO: handle overflow into next line
 _read_input:
     ; make a read call
 
@@ -98,6 +102,7 @@ _read_input:
     mov qword [rel input_interrupted], 0
     mov qword [rel cursor_idx], 0
     mov qword [rel history_command_number], 0        ; 0 for current, 1 for older
+    mov qword [rel command_latest_restore_buffer], 0
 
     ; in non-cononical mode, ctld+d return \4 
 
@@ -143,8 +148,6 @@ _read_input:
             cmp byte [rel key_buffer], 0x0a
             je .return
             jmp .read_key
-
-
 
         .handle_key:
         .add_char_to_input_buffer:
@@ -279,11 +282,64 @@ _read_input:
         jmp .read_key
 
     .print_newer_history:
-        cmp qword [rel history_command_number], 0
-        jle .read_key
-
-        
         dec qword [rel history_command_number]      ; if it was 2 then 1
+
+        cmp qword [rel history_command_number], 0
+        je .print_latest_command
+        jl .history_command_zero_and_read_next_key
+        jg .get_newer_history
+
+        .history_command_zero_and_read_next_key:
+            mov qword [rel history_command_number], 0
+            jmp .read_key
+
+        .print_latest_command:
+            mov r8, [rel cursor_idx]
+
+            .move_home11:
+            test r8, r8
+            jz .home_done11
+
+            mov eax, 1
+            mov edi, 1
+            lea rsi, [rel move_cur_left]
+            mov edx, 3
+            syscall
+
+            dec r8
+            dec qword [rel cursor_idx]
+            jmp .move_home11
+            .home_done11:
+
+            ; remove all char to the right
+            mov eax, 1
+            mov edi, 1
+            lea rsi, [rel clear_to_right]
+            mov edx, 3
+            syscall
+
+
+            lea rdi, [rel command_latest_restore_buffer]
+            call _strlen
+
+            ; move the command into the input_buffer
+            mov rdi, [rel input_buffer_address]
+            lea rsi, [rel command_latest_restore_buffer]
+            mov rcx, rax
+            rep movsb
+        
+            mov [rel filled_size_input_buffer_len], rax
+            mov [rel cursor_idx], rax
+ 
+            mov rdi, 1
+            lea rsi, [rel command_latest_restore_buffer]
+            call _print
+
+
+            jmp .read_key
+
+
+        .get_newer_history:
         mov rdi, [rel history_command_number]
         call _return_address_of_command_from_newest
 
@@ -312,12 +368,11 @@ _read_input:
         mov rax, [rel cursor_idx] 
         test rax, rax
         jz .home_done1            ; if already at home do nothing
-        mov rdi, rax
+        mov r8, rax
 
         .move_home2:
-        test rdi, rdi
+        test r8, r8
         jz .home_done2
-        push rdi
 
         mov eax, 1
         mov edi, 1
@@ -325,8 +380,7 @@ _read_input:
         mov edx, 3
         syscall
 
-        pop rdi
-        dec rdi
+        dec r8
         jmp .move_home2
         .home_done2:
 
@@ -354,19 +408,18 @@ _read_input:
 
         jmp .read_key
 
-
+        ; TODO: maybe this part is obsolete, remove this 
         .no_more_new_commands:   ; i am accessing the latest byte
             mov qword [rel history_command_number], 0
             ; move cursor to home
             mov rax, [rel cursor_idx]
             test rax, rax
             jz .home_done1            ; if already at home do nothing
-            mov rdi, rax
+            mov r8, rax
 
             .move_home3:
-            test rdi, rdi
+            test r8, r8
             jz .home_done3
-            push rdi
 
             mov eax, 1
             mov edi, 1
@@ -374,8 +427,7 @@ _read_input:
             mov edx, 3
             syscall
 
-            pop rdi
-            dec rdi
+            dec r8
             jmp .move_home3
             .home_done3:
 
@@ -393,6 +445,21 @@ _read_input:
 
 
     .print_older_history:
+
+        cmp qword [rel history_command_number], 0
+        je .save_the_latest_command_in_buffer
+        jmp .get_older_his
+
+        ; TODO: this is a hack, if command is > 4095 bytes, memory overflow
+        .save_the_latest_command_in_buffer:
+            lea rdi, [rel command_latest_restore_buffer]
+            mov rsi, [rel input_buffer_address]
+            mov rcx, [rel filled_size_input_buffer_len]
+            rep movsb
+            inc rdi
+            mov byte [rdi], 0       ; terminate it with null byte
+
+        .get_older_his:
         inc qword [rel history_command_number]      ; if it was 0 then 1
 
         mov rdi, [rel history_command_number]
@@ -463,7 +530,6 @@ _read_input:
         mov [rel filled_size_input_buffer_len], r13
         mov [rel cursor_idx], r13
 
-        .bdk:
         jmp .read_key
 
 
@@ -1137,9 +1203,9 @@ _read_input:
         .print_muliple_files:
 
         cmp [rel tabs_times_pressed], 2   ; if tabs not pressed atleast twice, return
-        jne .cleanup_and_return
+        jl .cleanup_and_return
 
-        mov qword [rel tabs_times_pressed], 0
+        mov qword [rel tabs_times_pressed], 2
 
         ; move the cursor to new line
         mov rax, 1
