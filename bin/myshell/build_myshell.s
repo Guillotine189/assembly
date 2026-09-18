@@ -7,6 +7,8 @@ nasm -f elf64 ./dep/myshelldep.s -o ./dep/myshelldep.o
 nasm -f elf64 ./dep/myshellbif.s  -o ./dep/myshellbif.o
 nasm -f elf64 ./dep/path_command.s  -o ./dep/path_command.o
 nasm -f elf64 ./dep/history.s -o ./dep/history.o
+nasm -f elf64 ./dep/proper_print.s -o ./dep/proper_print.o
+
 
 ld   myshell.o \
     ./dep/read_input.o \
@@ -15,6 +17,7 @@ ld   myshell.o \
     ./dep/myshellbif.o \
     ./dep/path_command.o \
     ./dep/history.o \
+    ./dep/proper_print.o \
     ../dependencies/errorHandling.o \
     ../dependencies/mymalloc.o \
     ../dependencies/mystring.o \
@@ -26,4 +29,5 @@ rm   myshell.o \
     ./dep/myshelldep.o \
     ./dep/myshellbif.o \
     ./dep/path_command.o \
-    ./dep/history.o
+    ./dep/history.o \
+    ./dep/proper_print.o

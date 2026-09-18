@@ -56,10 +56,12 @@ SA_RESETHAND equ 0x80000000 ; after rec the interrupt once, reset the handler to
 
 
 ; for noncanonical
-C_LFLAG   equ 12
-TIOCSPGRP equ 0x5410    ; for group pid changing
-TCGETS    equ 0x5401
-TCSETS    equ 0x5402
+C_LFLAG     equ 12
+TIOCGWINSZ  equ 0x5413 		; get window size of terminal
+TIOCSWINSZ  equ 0x5414 		; set window size of terminal
+TIOCSPGRP   equ 0x5410      ; change group pid of an fd
+TCGETS      equ 0x5401
+TCSETS      equ 0x5402
 
 ; stat
 O_RDONLY    equ 0

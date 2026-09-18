@@ -8,10 +8,6 @@ section .data
     colour_reset    db 27, "[0m", 0
     colour_blue     db 27, "[34m", 0
     colour_bright_green   db 27, "[92m", 0
-    dot db ".", 0
-    double_dot db "..", 0
-    back_slash db "/", 0
-    nine_spaces db "         ", 0
     
 
 get_dent_buffer_cap equ 8192
@@ -48,6 +44,12 @@ section .rodata
 
     cursor_save    db 27, "[s", 0
     cursor_restore db 27, "[u", 0
+
+    dot db ".", 0
+    double_dot db "..", 0
+    back_slash db "/", 0
+    nine_spaces db "         ", 0
+    new_line_byte db 0x0a, 0
 
 section .text
 
@@ -92,6 +94,12 @@ extern _print_prefix_line
 extern _constructor_mystring
 extern _destructor_mystring
 extern _append_string_mystring
+
+extern _print_proper_layout
+
+extern _check_and_return_if_string_matches_built_in
+
+
 
 global _read_input
 
@@ -945,6 +953,13 @@ _read_input:
         cmp byte [r9 + r8], '/'
         je .absolute_path
 
+        cmp byte [r9 + r8], '.'    
+        je .check_from_current_dir
+
+        ; only if it starts without / or ., check if its a built_in_command
+
+
+        .check_from_current_dir:
         ; here i have to add cwd before whatever the word was typed
         ; eg "./path/file" -> "/cwd/./path" 
         ; eg "file" -> "/cwd/" 
@@ -1135,7 +1150,7 @@ _read_input:
 
             lea rsi, [r9 + 19]
             call _strcpy_add_space_before_backslash
-            lea rsi, [rel nine_spaces]
+            lea rsi, [rel new_line_byte]
             call _string_copy_including_null
 
             mov rdi, [rel double_tab_string_object_address]
@@ -1198,7 +1213,7 @@ _read_input:
             lea rsi, [rel back_slash]
             call _string_copy_including_null
 
-            lea rsi, [rel nine_spaces]
+            lea rsi, [rel new_line_byte]
             call _string_copy_including_null
 
 
@@ -1230,25 +1245,16 @@ _read_input:
 
         mov qword [rel tabs_times_pressed], 2
 
-        ; move the cursor to new line
-        mov rax, 1
-        mov rdi, 1
-        lea rsi, [rel new_line]
-        call _print
-
-
-        ; print the line
-        mov rax, [rsp + 8]                  ; len of string
-        mov rdi, 1
-        mov rsi, [rel double_tab_string_object_address]
-        mov rsi, [rsi + 16]
-        call _print
 
         ; move the cursor to new line
         mov rax, 1
         mov rdi, 1
         lea rsi, [rel new_line]
         call _print
+
+        mov rdi, [rel double_tab_string_object_address]
+        mov rdi, [rdi + 16]                 ; address of the actual string
+        call _print_proper_layout           ; this will add a new line
 
         ;restore the cursor back
         call _print_prefix_line
@@ -1283,44 +1289,101 @@ _read_input:
         cmp [rel tabs_times_pressed], 1   ; if tabs pressed once, and can complete
         jne .cleanup_and_return
 
-        .move_cursor_back_left:
-            test r13, r13               ; len of the half word i have to autocomplete
-            jz .print_auto_complete
 
-            mov rax, 1
-            mov rdi, 1
-            lea rsi, [rel move_cur_left]
-            mov rdx, 3
-            syscall
-            dec r13
-            dec qword [rel cursor_idx]
-            dec qword [rel filled_size_input_buffer_len]
-            jmp .move_cursor_back_left
+        ; move the data after the cursor ahead first
+
+        mov rdi, [rel double_tab_string_object_address]
+        ; len is just word + 9spaces
+        mov r8, [rdi + 8]          ; 8 is the offset for size of string
+        dec r8                     ; string has a \n at the end, 
+        ; lenght of the full complete word in  : rdx
+        ; length of the half completed word in : r13
+        sub r8, r13            ; this much space to move every char ahead of cursor by
+
+        add [rel filled_size_input_buffer_len], r8
+
+        mov rax, [rel input_buffer_address]
+        add rax, [rel filled_size_input_buffer_len]   ; old length, so now rax points to 
+        dec rax                 ; address of the right most char in input_buffer
+        mov rcx, [rel input_buffer_address]
+        add rcx, [rel cursor_idx]   ; address of cursor
+
+        cmp rcx, rax                ; comparing addresses
+        jg .print_auto_complete
+
+        ; This is a hack, i am assuming i have rdx amount of space inside input buffer
+        .loop_shift_right_by_amount:
+            mov dl, [rax]
+            mov [rax+r8], dl
+
+            cmp rax, rcx            ; end address and cursor address
+            je .print_auto_complete
+
+            dec rax
+            jmp .loop_shift_right_by_amount
+
+
+        ; copy the string into the input buffer
+        ; print the entire word + data aheaf of its; restore cursor
+
 
         .print_auto_complete:
 
         mov rdi, [rel double_tab_string_object_address]
         ; len is just word + 9spaces
         mov rax, [rdi + 8]          ; 8 is the offset for size of string
-        sub rax, 9                  ; bec i add 9 spaces in the end
-        
+        dec rax                     ; string has a \n at the end
+
+        sub rax, r13                ; remaining len of word
 
         ; copy the word in input buffer
         mov rdi, [rel input_buffer_address]
-        add rdi, [rel filled_size_input_buffer_len]
+        add rdi, [rel cursor_idx]
+
         mov rsi, [rel double_tab_string_object_address]
         mov rsi, [rsi + 16]
+        add rsi, r13
+
         mov rcx, rax
         rep movsb
 
-        add [rel cursor_idx], rax
-        add [rel filled_size_input_buffer_len], rax
+        .before_print:
+        ; print the remaining word + bytes ahead
+        mov rcx, [rel filled_size_input_buffer_len]
+        mov rdx, [rel cursor_idx]
+        sub rcx, rdx                    ; these many bytes to print
 
+        ; save cursor position for after print
+        mov r8, [rel cursor_idx]            ; original cursor position saved
+        add [rel cursor_idx], rax           ; this will be the cursor position in end
+        
+        ; print the half+completed+word and rest of the remaining data 
+        mov rax, rcx
         mov rdi, 1
-        mov rsi, [rel double_tab_string_object_address]
-        mov rsi, [rsi + 16]
+        mov rsi, [rel input_buffer_address]
+        add rsi, r8
         call _print
+
+        ; now restore the cursor bac to its position
+        mov r8, [rel filled_size_input_buffer_len]  ; the cursor will ve at this index
+        .loop_final_left:
+
+            cmp r8, [rel cursor_idx]
+            je .final_done
+
+            mov rax, 1
+            mov rdi, 1
+            lea rsi, [rel move_cur_left]
+            mov rdx, 3
+            syscall
+
+            dec r8
+            jmp .loop_final_left
+
+        .final_done:
+
         mov qword [rel tabs_times_pressed], 0
+
 
         .cleanup_and_return:
         ; destruct the string
