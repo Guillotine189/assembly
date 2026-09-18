@@ -69,7 +69,6 @@ sys_chdir           equ 80
 
 
 global _check_and_execute_if_built_in
-global _check_and_return_if_string_matches_built_in
 
 
 
@@ -346,13 +345,4 @@ _builtin_pwd:
 	mov rdi, 1
 	lea rsi, [rel curr_cwd]
 	call _print_with_new_line
-	ret
-
-
-
-; rdi: address of string
-; rsi: len of string
-; checks is if the string matches any built in commnads, if it does returns the command address
-
-_check_and_return_if_string_matches_built_in:
 	ret

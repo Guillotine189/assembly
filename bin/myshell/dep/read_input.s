@@ -97,8 +97,6 @@ extern _append_string_mystring
 
 extern _print_proper_layout
 
-extern _check_and_return_if_string_matches_built_in
-
 
 
 global _read_input
@@ -896,15 +894,22 @@ _read_input:
         inc qword [rel tabs_times_pressed]
 
         cmp [rel filled_size_input_buffer_len], 0   ;if nothing is written dont check
-        jz .read_key
-
+        jz .reduce_tabs_and_return
 
         ; find the last word written 1 byte before cursor pointer
-
         mov r8, [rel cursor_idx]
+        test r8, r8                 ; if cursor at 0th index, dont check
+        jz .reduce_tabs_and_return
+        jmp .start_checking
+
+        .reduce_tabs_and_return:
+            dec qword [rel tabs_times_pressed]
+            jmp .read_key
+
+        .start_checking:
         dec r8
         mov r9, [rel input_buffer_address]
-        xor r10, r10                    ; holds the position of last backslash
+        mov r10, -1                    ; holds the position of last backslash
         .loop_last_word_written:
 
             cmp r8, 0
@@ -924,7 +929,7 @@ _read_input:
 
         .back_slash_enc:    
             test r10, r10               ; if backslash was encountered already, dont update
-            jnz .loopback22
+            jge .loopback22
 
             mov r10, r8
             jmp .loopback22
@@ -953,11 +958,6 @@ _read_input:
         cmp byte [r9 + r8], '/'
         je .absolute_path
 
-        cmp byte [r9 + r8], '.'    
-        je .check_from_current_dir
-
-        ; only if it starts without / or ., check if its a built_in_command
-
 
         .check_from_current_dir:
         ; here i have to add cwd before whatever the word was typed
@@ -975,25 +975,24 @@ _read_input:
         call _memcpy_with_end_char  ; rax has addres of next byte
         pop r8
         pop r10
-        push rax
 
-        ; if there was no slash in word
+        ; if there was no slash in word    r10 can only be 1 or more
         test r10, r10
-        jz .copy_entire_word
+        jl .copy_null
+        jmp .copy_remaining_path_before_file
 
+        ; make it copy 0 bytes but i need the null byte
+        .copy_null:
+            mov r10, r8
+            dec r10
+
+        
+        .copy_remaining_path_before_file:
         mov r11, r10
         sub r11, r8                 ; these many byte to copy into buffer
         inc r11
-        jmp .copy
-
-        .copy_entire_word:
-        mov rcx, [rel cursor_idx]
-        sub rcx, r8
-        mov r11, rcx                 ; len of word found
-
-        .copy:
-
-        pop rdi
+        
+        mov rdi, rax
         push r10
         push r8
         
