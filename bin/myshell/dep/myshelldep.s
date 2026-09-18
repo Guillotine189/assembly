@@ -100,6 +100,20 @@ _strlen:
 ; return address of buffer in rcx
 ; length of number in rax
 _itoa:
+	test rax, rax
+	jz .zero_lenght
+	jl .negative_number
+
+	xor r11, r11
+	jmp .convert_number_to_ascii
+
+	.negative_number:
+		mov r11, 1
+		neg rax
+		mov byte [rdi], '-'
+		inc rdi
+
+	.convert_number_to_ascii:
 	push rbp
 	mov rbp, rsp
 
@@ -146,6 +160,23 @@ _itoa:
 		pop rbp
 		mov rcx, rdi
 		mov rax, rsi
+
+		test r11, r11 			; if number was negative add 1 to length
+		jnz .add_one
+		jmp .return
+
+		.add_one:
+			inc rax
+
+		.return:
+		ret
+
+	.zero_lenght:
+		mov rcx, rdi
+		mov byte [rdi], '0'
+		inc rdi
+		mov byte [rdi], 0
+		mov rax, 1
 		ret
 
 

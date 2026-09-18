@@ -1,14 +1,32 @@
 section .data
+	
+	malloc_info db "myMalloc info: ", 0
+	malloc_info_len equ $ - malloc_info
+	info_total_seg db "Total segments: ", 0
+	info_total_seg_len equ $ - info_total_seg
+	info_filled_seg db "Total Occupied segments: ", 0
+	info_filled_seg_len equ $ - info_filled_seg
+	info_empty_seg db "Total Free segments: ", 0
+	info_empty_seg_len equ $ - info_empty_seg
 
 	malloc_address_first_segment dq 0
 	malloc_address_last_segment dq 0
+	malloc_total_segments dq 0
+	malloc_empty_segments dq 0
+	malloc_occupied_segments dq 0
+
+	newline db 10
+
+section .bss
+	number_buffer resb 32
+
 
 section .text
 
 
 global _malloc
 global _free
-
+global _print_malloc_segments_info
 
 ; [free_size_of_this_segments] -> 8bytes
 ; [occupied|free]			   -> 8bytes
@@ -109,6 +127,10 @@ _malloc:
 		jmp .return_this_segment
 
 		.split_this_segment:
+	    inc qword [rel malloc_empty_segments]
+	    inc qword [rel malloc_total_segments]
+
+
 		;rax has total size of new segment
 		sub rax, metadata_size					; rax: free space size of new seg
 
@@ -142,6 +164,10 @@ _malloc:
 		mov qword [r8 + USED_OFF], 1 					; mark this as occupied
 		mov rax, r8
 		add rax, metadata_size 				; return to user address of free space
+
+		dec qword [rel malloc_empty_segments]
+	    inc qword [rel malloc_occupied_segments]
+
 		jmp .return
 
 
@@ -159,11 +185,13 @@ _malloc:
 	.get_more_heap_space_when_last_seg_included:
 
 		mov r12, [rel malloc_address_last_segment]
+		mov rcx, rbx 				; rbx is original size requested
+		sub rcx, [r12 + SIZE_OFF]
 
 		mov rax, 12
 		mov rdi, r12						; address of last segment
 		add rdi, metadata_size 				; add metadat size
-		add rdi, rbx 						; total size needed
+		add rdi, rcx 						; total size needed
 		syscall 							; rax has new brk position
 
 		cmp rax, rdi
@@ -173,6 +201,9 @@ _malloc:
 	    mov [r12], rbx
 	    mov qword [r12 + USED_OFF], 1
 	    mov [r12 + NEXT_OFF], rax
+
+	    dec qword [rel malloc_empty_segments]
+	    inc qword [rel malloc_occupied_segments]
 
 	    mov rax, r12
 	    add rax, metadata_size
@@ -191,6 +222,8 @@ _malloc:
 	cmp rax, rdi
 	jne .error_moving_brk_up_and_ret
 
+	inc qword [rel malloc_total_segments]
+	inc qword [rel malloc_occupied_segments]
 
 	.fill_metadata:
 
@@ -230,10 +263,13 @@ _free:
 
 	sub rdi, metadata_size
 	mov rbx, rdi 								;store the address of og segment
-
+	    
 
 	.mark_this_segment_as_free:
 		mov qword [rbx+ USED_OFF], 0 					; mark this segment as free
+		dec qword [rel malloc_occupied_segments]
+		inc qword [rel malloc_empty_segments]
+
 
 	call .check_and_update_if_next_segment_is_free
 	call .check_if_prev_segment_is_free
@@ -269,10 +305,15 @@ _free:
 		mov rax, [rax+ NEXT_OFF] 				; address of og->next->next
 		mov [rax+ PREV_OFF], rbx 				; og->next->next->prev = og
 
-		ret
+		jmp .not_occupied
 
 		.update_last_segment_address_and_return:
 			mov [rel malloc_address_last_segment], rbx 	; the og segment is the last segment
+			jmp .not_occupied
+
+		.not_occupied:
+			dec qword [rel malloc_total_segments]
+			dec qword [rel malloc_empty_segments]
 			ret
 
 		.occupied:
@@ -305,12 +346,177 @@ _free:
 		mov rcx, [rbx+ NEXT_OFF] 				; address of og->next
 		mov [rcx+ PREV_OFF], rax 				; og->next->prev = prev
 
-		ret
+		jmp .not_occupied2
 
 		.update_prev_segment_address_and_return:
 			mov [rel malloc_address_last_segment], rax 	; the og segment is the last segment
+			jmp .not_occupied2
+
+		.not_occupied2:
+			dec qword [rel malloc_total_segments]
+			dec qword [rel malloc_empty_segments]
 			ret
 
 		.occupied2:
 			ret
 
+
+
+_print_malloc_segments_info:
+	
+	mov rax, malloc_info_len
+	mov rdi, 1
+	lea rsi, [rel malloc_info]
+	call print_with_new_line
+
+	mov rax, info_total_seg_len
+	mov rdi, 1
+	lea rsi, [rel info_total_seg]
+	call print
+	mov rax, [rel malloc_total_segments]
+	lea rdi, [rel number_buffer]
+	call itoa
+	mov rdi, 1
+	lea rsi, [rel number_buffer]
+	call print_with_new_line
+
+	mov rax, info_filled_seg_len
+	mov rdi, 1
+	lea rsi, [rel info_filled_seg]
+	call print
+	mov rax, [rel malloc_occupied_segments]
+	lea rdi, [rel number_buffer]
+	call itoa
+	mov rdi, 1
+	lea rsi, [rel number_buffer]
+	call print_with_new_line
+
+	mov rax, info_empty_seg_len
+	mov rdi, 1
+	lea rsi, [rel info_empty_seg]
+	call print
+	mov rax, [rel malloc_empty_segments]
+	lea rdi, [rel number_buffer]
+	call itoa
+	mov rdi, 1
+	lea rsi, [rel number_buffer]
+	call print_with_new_line
+
+	ret
+
+
+
+; rax : the number
+; rdi : address of buffer in which output is stored
+; return address of buffer in rcx
+; length of number in rax
+itoa:
+	test rax, rax
+	jz .zero_lenght
+	jl .negative_number
+
+	xor r11, r11
+	jmp .convert_number_to_ascii
+
+	.negative_number:
+		mov r11, 1
+		neg rax
+		mov byte [rdi], '-'
+		inc rdi
+
+	.convert_number_to_ascii:
+	push rbp
+	mov rbp, rsp
+
+	xor r8, r8								; index when writing from stack
+	xor r9, r9								; count of digits
+	xor rsi, rsi							; holds count of digits
+	mov r10, 10 							; constant divisor
+	
+	.loop:
+		; check if i have to process anohter number
+		test rax, rax
+		je .move_data_to_buffer
+
+		; find last digit 
+		xor rdx, rdx						; clear rdx before division
+		div r10
+		add rdx, 48
+
+		; push 1 byte to stack
+		sub rsp, 1
+		mov [rsp], dl
+
+		inc r9
+		inc rsi
+		jmp .loop
+
+	.move_data_to_buffer:
+		cmp r9, 0
+		je .done
+
+		; read 1 byte from stack
+		mov al, [rsp]
+		add rsp, 1
+		
+		mov [rdi + r8], al
+		inc r8
+		sub r9, 1
+		jmp .move_data_to_buffer
+
+
+	.done:
+		mov [rdi + r8], 0
+
+		pop rbp
+		mov rcx, rdi
+		mov rax, rsi
+
+		test r11, r11 			; if number was negative add 1 to length
+		jnz .add_one
+		jmp .return
+
+		.add_one:
+			inc rax
+
+		.return:
+		ret
+
+	.zero_lenght:
+		mov rcx, rdi
+		mov byte [rdi], '0'
+		inc rdi
+		mov byte [rdi], 0
+		mov rax, 1
+		ret
+
+
+; rax: number of bytes to print 
+; rdi: fd to write to
+; rsi: address of string 
+; returns bytes printed rax
+print_with_new_line:
+
+	mov rdx, rax					; rdx total bytes
+	mov rax, 1 						; write syscall
+	syscall
+
+	; print new line
+	mov rax, 1
+	mov rdi, 1 						; fd
+	lea rsi, [rel newline] 			; buffer address
+	mov rdx, 1 						; bytes to print
+	syscall
+
+	ret
+
+; rax: number of bytes to print 
+; rdi: fd to write to
+; rsi: address of string 
+; returns bytes printed rax
+print:
+
+	mov rdx, rax					; rdx total bytes
+	mov rax, 1 						; write syscall
+	syscall
+	ret

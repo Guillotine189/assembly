@@ -67,7 +67,7 @@ _constructor_mystring:
 		mov rax, -1
 		ret
 
-; rdi : address of vector object 
+; rdi : address of string object 
 ; just frees the malloc object
 _destructor_mystring:
 	

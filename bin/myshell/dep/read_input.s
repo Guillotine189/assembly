@@ -68,6 +68,7 @@ extern termios
 extern old_termios
 
 ; funcs
+extern _print_malloc_segments_info
 extern _malloc
 extern _free
 extern _mem_copy
@@ -743,6 +744,9 @@ _read_input:
         syscall
 
 
+        cmp byte [rel key_buffer], 'A'
+        je .print_malloc_info
+
         cmp byte [rel key_buffer], 'D'
         je .cursor_left_space
 
@@ -751,7 +755,26 @@ _read_input:
 
         jmp .read_key
 
-    
+    .print_malloc_info:
+
+        mov rax, 1
+        mov rdi, 1
+        lea rsi, [rel new_line]
+        call _print
+
+        call _print_malloc_segments_info
+
+        call _print_prefix_line
+
+        mov rax, [rel filled_size_input_buffer_len]
+        mov rdi, 1
+        mov rsi, [rel input_buffer_address]
+        call _print
+
+        mov rax, [rel filled_size_input_buffer_len]
+        mov [rel cursor_idx], rax
+        jmp .read_key
+        
     .cursor_left_space:
         mov rax, [rel cursor_idx]
 
@@ -1021,9 +1044,9 @@ _read_input:
         mov [rel dir_fd_getdents], rax
 
 
-        ; create string object
+        .create_string_object:
         sub rsp, 24
-        mov qword [rsp + 0], 30             ; asking for 1024 bytes
+        mov qword [rsp + 0], 1024             ; asking for 1024 bytes
         mov qword [rsp + 8], 0
         mov qword [rsp + 16], 0
         mov rdi, rsp
