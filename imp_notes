@@ -751,3 +751,48 @@ Now shell(parent) decides, which process to put in fg. and then let them handle 
 ---------------TO CHANGE PROCESS GPID
         
 
+
+
+---------------------------------------------------------------------------
+shell
+ |
+ | create sync pipe
+ |
+fork
+ |
+ +-------------------------------+
+ |                               |
+child                            parent
+ |                               |
+setpgid(0,0)                     setpgid(child, child)
+ |                               |
+read(sync pipe)  <--- BLOCK      tcsetpgrp(tty, child_pgid)
+ |                               |
+ |                               write(sync pipe)
+ |                               close(sync pipe)
+ |                               |
+ |                               wait
+ |
+read completes
+ |
+close pipe
+ |
+reset signals
+ |
+execve
+ |
+ +-------------> command running
+                         |
+                         v
+                    exits/stops
+                         |
+                         v
+                    parent wakes
+                         |
+                         v
+                  tcsetpgrp(tty,
+                         shell_pgid)
+                         |
+                         v
+                  restore shell
+                    termios

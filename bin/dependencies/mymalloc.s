@@ -1,13 +1,4 @@
 section .data
-	
-	malloc_info db "myMalloc info: ", 0
-	malloc_info_len equ $ - malloc_info
-	info_total_seg db "Total segments: ", 0
-	info_total_seg_len equ $ - info_total_seg
-	info_filled_seg db "Total Occupied segments: ", 0
-	info_filled_seg_len equ $ - info_filled_seg
-	info_empty_seg db "Total Free segments: ", 0
-	info_empty_seg_len equ $ - info_empty_seg
 
 	malloc_address_first_segment dq 0
 	malloc_address_last_segment dq 0
@@ -15,9 +6,41 @@ section .data
 	malloc_empty_segments dq 0
 	malloc_occupied_segments dq 0
 
-	newline db 10
+
+section .rodata
+		
+	malloc_info db "myMalloc info: ", 0
+	malloc_info_len equ $ - malloc_info
+
+	malloc_detailed_info db "myMalloc Detailed info: ", 0
+	malloc_detailed_info_len equ $ - malloc_detailed_info
+
+	info_total_seg db "Total segments: ", 0
+	info_total_seg_len equ $ - info_total_seg
+	info_filled_seg db "Total Occupied segments: ", 0
+	info_filled_seg_len equ $ - info_filled_seg
+	info_empty_seg db "Total Free segments: ", 0
+	info_empty_seg_len equ $ - info_empty_seg
+
+	new_line db 10
+	vertial_seperator_line db "------------------------------------------------------------", 0
+	vertial_seperator_line_len equ $ - vertial_seperator_line
+	horizontal_seperator db " | ", 0
+	horizontal_seperator_len equ $ - horizontal_seperator
+	word_size db " Allocated Size: ", 0
+	word_size_len equ $  - word_size
+	word_bytes db " bytes", 0
+	word_bytes_len equ $ - word_bytes
+	word_type db "Type: ", 0
+	word_type_len equ $ - word_type
+	word_free db "Free", 0
+	word_free_len equ $ - word_free
+	word_occupied db "Occupied", 0
+	word_occupied_len equ $ - word_occupied
 
 section .bss
+
+	malloc_info_buffer resb 256 		; detailed info line
 	number_buffer resb 32
 
 
@@ -27,6 +50,8 @@ section .text
 global _malloc
 global _free
 global _print_malloc_segments_info
+global _print_detailed_malloc
+
 
 ; [free_size_of_this_segments] -> 8bytes
 ; [occupied|free]			   -> 8bytes
@@ -407,6 +432,129 @@ _print_malloc_segments_info:
 
 
 
+_print_detailed_malloc:
+	push r12
+	push r13
+
+
+	mov rax, malloc_detailed_info_len
+	mov rdi, 1
+	lea rsi, [rel malloc_detailed_info]
+	call print_with_new_line
+
+
+	mov r12, [rel malloc_address_first_segment]
+	xor r13, r13 					; flag to check if last segment was reached
+
+	.loop_and_print_till_last_segment:
+		cmp r12, [rel malloc_address_last_segment]
+		je .last_segment_reached
+
+		.print_segment:
+
+
+		; copy the vertical line
+		lea rdi, [rel malloc_info_buffer]
+		lea rsi, [rel vertial_seperator_line]
+		mov rcx, vertial_seperator_line_len
+		rep movsb
+
+		; copy new_line
+		lea rsi, [rel new_line]
+		mov rcx, 1
+		rep movsb
+
+		; copy the word "Size: "
+		lea rsi, [rel word_size]
+		mov rcx, word_size_len
+		rep movsb
+
+		push rdi 				; save the next position for insertion
+		;convert size into ascii
+		mov rax, [r12 + SIZE_OFF]
+		lea rdi, [rel number_buffer]
+		call itoa
+		pop rdi
+
+		; copy the actual size
+		lea rsi, [rel number_buffer]
+		mov rcx, rax
+		rep movsb
+
+		lea rsi, [rel word_bytes]
+		mov rcx, word_bytes_len
+		rep movsb
+
+		; the horizontal seperator
+		lea rsi, [rel horizontal_seperator]
+		mov rcx, horizontal_seperator_len
+		rep movsb
+
+		; the word "Type: "
+		lea rsi, [rel word_type]
+		mov rcx, word_type_len
+		rep movsb
+
+		; weather occuped or free
+		mov rax, [r12 + USED_OFF]  	
+		test rax, rax
+		jz .free
+
+		lea rsi, [rel word_occupied]
+		mov rcx, word_occupied_len
+		rep movsb
+		jmp .add_new_line
+
+		.free:
+		lea rsi, [rel word_free]
+		mov rcx, word_free_len
+		rep movsb
+
+		.add_new_line:
+		lea rsi, [rel new_line]
+		mov rcx, 1
+		rep movsb
+
+		; calculate the length
+		; len = address after final byte - address 1st byte
+
+		mov rcx, rdi
+		lea r8, [rel malloc_info_buffer]
+		sub rcx, r8
+
+		mov rax, rcx
+		mov rdi, 1
+		lea rsi, [rel malloc_info_buffer]
+		call print
+
+		.loopback:
+		test r13, r13
+		jne .print_final_vertical_line
+
+		; move segment to next
+		mov r12, [r12 + NEXT_OFF]
+		jmp .loop_and_print_till_last_segment
+
+
+		.last_segment_reached:
+		mov r13, 1
+		jmp .print_segment
+
+	.print_final_vertical_line:
+		mov rax, vertial_seperator_line_len
+		mov rdi, 1
+		lea rsi, [rel vertial_seperator_line]
+		call print_with_new_line
+
+
+	.return:
+		pop r13
+		pop r12
+		ret
+
+
+
+
 ; rax : the number
 ; rdi : address of buffer in which output is stored
 ; return address of buffer in rcx
@@ -505,7 +653,7 @@ print_with_new_line:
 	; print new line
 	mov rax, 1
 	mov rdi, 1 						; fd
-	lea rsi, [rel newline] 			; buffer address
+	lea rsi, [rel new_line] 			; buffer address
 	mov rdx, 1 						; bytes to print
 	syscall
 

@@ -6,6 +6,7 @@ sys_stat            equ 4
 sys_rt_sigaction    equ 13  
 sys_rt_sigreturn    equ 15  
 sys_ioctl		    equ 16
+sys_pipe 			equ 22
 sys_fork            equ 57
 sys_execve          equ 59
 sys_wait4           equ 61
@@ -59,7 +60,8 @@ SA_RESETHAND equ 0x80000000 ; after rec the interrupt once, reset the handler to
 C_LFLAG     equ 12
 TIOCGWINSZ  equ 0x5413 		; get window size of terminal
 TIOCSWINSZ  equ 0x5414 		; set window size of terminal
-TIOCSPGRP   equ 0x5410      ; change group pid of an fd
+TIOCGPGRP   equ 0x540F 		; get the current pgid for terminal
+TIOCSPGRP   equ 0x5410      ; change group pid of an terminal
 TCGETS      equ 0x5401
 TCSETS      equ 0x5402
 

@@ -70,8 +70,10 @@ extern old_termios
 
 ; funcs
 extern _print_malloc_segments_info
+extern _print_detailed_malloc
 extern _malloc
 extern _free
+
 extern _mem_copy
 extern _print
 extern _strlen
@@ -753,6 +755,9 @@ _read_input:
         cmp byte [rel key_buffer], 'A'
         je .print_malloc_info
 
+        cmp byte [rel key_buffer], 'B'
+        je .print_malloc_detailed_info
+
         cmp byte [rel key_buffer], 'D'
         je .cursor_left_space
 
@@ -780,6 +785,27 @@ _read_input:
         mov rax, [rel filled_size_input_buffer_len]
         mov [rel cursor_idx], rax
         jmp .read_key
+
+    .print_malloc_detailed_info:
+
+        mov rax, 1
+        mov rdi, 1
+        lea rsi, [rel new_line]
+        call _print
+
+        call _print_detailed_malloc
+
+        call _print_prefix_line
+
+        mov rax, [rel filled_size_input_buffer_len]
+        mov rdi, 1
+        mov rsi, [rel input_buffer_address]
+        call _print
+
+        mov rax, [rel filled_size_input_buffer_len]
+        mov [rel cursor_idx], rax
+        jmp .read_key
+
         
     .cursor_left_space:
         mov rax, [rel cursor_idx]

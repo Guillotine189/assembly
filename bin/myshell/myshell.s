@@ -145,6 +145,9 @@ section .bss
     termios     resb 60
     old_termios resb 60
 
+    pipe_for_command resd 2             ; 2fd:  4bytes each, [read, write]
+    pipe_read_buffer_child resb 8
+
 
 ; variables
 extern error_code
@@ -793,6 +796,14 @@ _process_tokens:
 
 _execute_process:
 
+    ; get pipe
+    mov rax, sys_pipe
+    lea rdi, [rel pipe_for_command]
+    syscall 
+
+    test rax, rax
+    jl .set_error_executing_process   ; TODO: give proper error 
+
     ; command starts with ./ or / or ../, this is not a built_in or a command that should
     ; be ran after checking from path env variable
 
@@ -823,7 +834,7 @@ _execute_process:
     ; check if the command is built in
     call _check_and_execute_if_built_in
     test rax, rax
-    jz .return                      ; zero mean it was builtin
+    jz .close_pipe_and_return                      ; zero mean it was builtin
 
     ; check if the command is supposed to run using a path var or not
     call _check_if_cmd_is_in_path
@@ -844,8 +855,9 @@ _execute_process:
     jl .set_error_forking
     jnz .parent
 
-    ; this is child now
 
+
+    ; this is child now
 
     ; set the gpid of child to be it's own pid
     mov rax, sys_setpgid
@@ -854,6 +866,31 @@ _execute_process:
     syscall
     test    rax, rax
     jl      .set_error_executing_process
+
+
+
+    ; close the write part of pipe for child, no need
+    mov rax, sys_close
+    mov edi, [rel pipe_for_command + 4]
+    syscall
+
+    ; now wait for signal from parent before executing
+    ; eg : [3,4] for [read, write]
+    mov rax, sys_read
+    mov dword edi, [rel pipe_for_command]
+    lea rsi, [rel pipe_read_buffer_child]
+    mov rdx, 1                  ; just read 1 byte
+    syscall
+
+    cmp rax, 1
+    jne .set_error_executing_process
+
+    ; now close the read pipe 
+    mov rax, sys_close
+    mov dword edi, [rel pipe_for_command]
+    syscall
+
+    ; setup before executing child process
 
     call _set_canonical_mode                ; terminal is now canonical
     call _reset_child_signals         ; childs signals have been restored to default
@@ -876,10 +913,6 @@ _execute_process:
     mov [rel exit_status_code], 1
     call _exit_with_status_code
 
-    .set_error_command_not_found:
-        mov [rel error_code], rax
-        call print_error_command_not_found
-        ret
 
 
 
@@ -896,7 +929,14 @@ _execute_process:
         mov rsi, [rel child_pid]
         syscall
 
+        ; close the read part of the parent 
+        mov rax, sys_close
+        mov dword edi, [rel pipe_for_command]
+        syscall
+
+
         ; TODO: handle the error for not begin able to change gpid of child
+
 
         ; make child the fg process in terminal 
         mov rax, sys_ioctl
@@ -904,9 +944,24 @@ _execute_process:
         mov rsi, TIOCSPGRP          ; 0x5410
         lea rdx, [rel child_pgid]
         syscall
-
-
         ; TODO: handle error for moving child to foreground
+
+        ;test rax, rax
+        ;jl .set_error_foreground
+
+
+        ; Now send the signal to child group to continue
+        mov rax, sys_write
+        mov dword edi, [rel pipe_for_command + 4]
+        lea rsi, [rel dot]
+        mov rdx, 1                      ; juts write 1 byte to tell child to start
+        syscall
+        
+        ; close the write part of pipe
+        mov rax, sys_close
+        mov edi, [rel pipe_for_command + 4]
+        syscall
+
 
         ; wait for the child to finish
         mov rax, sys_wait4   ;syscall number
@@ -927,8 +982,21 @@ _execute_process:
 
         ; TODO: dont reset non-canonical, save the old state and apply it
         call _set_noncanonical_mode
+        ret
 
-        .return:
+
+    .set_error_command_not_found:
+        mov [rel error_code], rax
+        call print_error_command_not_found
+
+    .close_pipe_and_return:
+        mov rax, sys_close
+        mov edi, [rel pipe_for_command + 4]
+        syscall
+
+        mov rax, sys_close
+        mov dword edi, [rel pipe_for_command]
+        syscall
         ret
 
     .set_error_forking:

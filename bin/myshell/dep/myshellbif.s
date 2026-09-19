@@ -1,13 +1,13 @@
 %include "./dep/constants.inc"
 
 section .data
-	error_changing_dir db "Error changing directory: ", 0
+	error_changing_dir db "MyShell: cd: Error changing directory: ", 0
 	error_changing_dir_len equ $ - error_changing_dir
 
-	error_cd_too_many_args db "Error changing directory: too many arguments provided.",0
+	error_cd_too_many_args db "MyShell: cd: Error changing directory: too many arguments provided.",0
 	error_cd_too_many_args_len equ $ - error_cd_too_many_args
 
-	error_home_env_not_set db "Error 'HOME' env variable is not present.", 0
+	error_home_env_not_set db "MyShell: cd: Error 'HOME' env variable is not present.", 0
 	error_home_env_not_set_len equ $ - error_home_env_not_set
 
 
