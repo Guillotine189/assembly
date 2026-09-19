@@ -186,11 +186,12 @@ _malloc:
 
 		mov r12, [rel malloc_address_last_segment]
 		mov rcx, rbx 				; rbx is original size requested
-		sub rcx, [r12 + SIZE_OFF]
+		sub rcx, [r12 + SIZE_OFF]  	; the size diff of original vs requested
 
 		mov rax, 12
 		mov rdi, r12						; address of last segment
 		add rdi, metadata_size 				; add metadat size
+		add rdi, rbx 						; the original size of segment
 		add rdi, rcx 						; total size needed
 		syscall 							; rax has new brk position
 

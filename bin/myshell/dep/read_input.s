@@ -912,15 +912,14 @@ _read_input:
         mov r10, -1                    ; holds the position of last backslash
         .loop_last_word_written:
 
-            cmp r8, 0
-            je .first_byte_reached
-
+            cmp byte [r9 + r8], 0x20
+            je .space_reached
 
             cmp byte [r9 + r8], '/'
             je .back_slash_enc
 
-            cmp byte [r9 + r8], ' '
-            je .space_reached
+            cmp r8, 0
+            je .first_byte_reached
 
         .loopback22:
             dec r8
@@ -935,7 +934,7 @@ _read_input:
             jmp .loopback22
 
         .space_reached:
-            inc r8              ; index is at space, move it to last
+            inc r8              ; index is at space, move it ahead
 
         .first_byte_reached:        
         ; r8 is at first byte, r10 is at index at which last '/'  is there, if there is
@@ -966,16 +965,24 @@ _read_input:
 
         ; if the word doesnt start with [a-z], check if it's a file
         ; else 1st check if it's a built in command
+
         .check_bic:
+
+        ; auto complete needs this is 13, dont change 
         mov r13, [rel cursor_idx]
         sub r13, r8                     ; len of half word = cur_idx - start_idx_word
 
+        push r8
+        push r10
         mov rdi, [rel input_buffer_address]
         add rdi, r8                 ; rdi is address where the word starts
         mov rsi, r13
         call _check_and_return_command_if_bic
         test rax, rax
-        jl .check_from_current_dir          ; not a part of any built in command
+        jl .restore_reg_check_curr_dir          ; not a part of any built in command
+        pop r10
+        pop r8
+
         ; if it is a part of built in command
         mov r12, rax
 
@@ -1003,6 +1010,9 @@ _read_input:
 
         jmp .auto_complete
 
+        .restore_reg_check_curr_dir:
+            pop r10
+            pop r8
 
         .check_from_current_dir:
         ; here i have to add cwd before whatever the word was typed
@@ -1061,19 +1071,20 @@ _read_input:
         ; eg1 "/path/file"  ->  check
         ; eg2 "/" -> "/"
 
-        sub r10, r8                 ; these many byte to copy into buffer
-        inc r10
-        test r10, r10               ; in example 2
+        mov r9, r10
+        sub r9, r8                 ; these many byte to copy into buffer
+        inc r9
+        test r9, r9               ; in example 2
         je .increase_len_to_accomodate_slash
         jmp .cont
 
         .increase_len_to_accomodate_slash:
-            inc r10
+            inc r9
 
         .cont:
         push r10
         push r8
-        mov rax, r10        
+        mov rax, r9
         lea rdi, [rel reusable_buffer_read]
         mov rsi, [rel input_buffer_address]
         add rsi, r8
@@ -1099,8 +1110,20 @@ _read_input:
         test rax, rax
         jl .read_key        ; if directory does not exists leave it
 
-
         mov [rel dir_fd_getdents], rax
+        ; TODO: remember to close this   [IMPORTANT]
+        ; TODO: remember to close this   [IMPORTANT]
+        ; TODO: remember to close this   [IMPORTANT]
+        ; TODO: remember to close this   [IMPORTANT]
+        ; TODO: remember to close this   [IMPORTANT]
+        ; TODO: remember to close this   [IMPORTANT]
+        ; TODO: remember to close this   [IMPORTANT]
+        ; TODO: remember to close this   [IMPORTANT]
+        ; TODO: remember to close this   [IMPORTANT]
+        ; TODO: remember to close this   [IMPORTANT]
+        ; TODO: remember to close this   [IMPORTANT]
+        ; TODO: remember to close this   [IMPORTANT]
+        ; TODO: remember to close this   [IMPORTANT]
 
 
         .create_string_object:
@@ -1114,7 +1137,8 @@ _read_input:
         mov [rel double_tab_string_object_address], rsp
 
 
-        inc r10             ; r10 is now pointing at the "./file", 'f'
+        inc r10 
+        ; r10 is now pointing at the "./file", 'f', or at cursor_idx if nothign after / was written
         mov r12, r10
         xor r14, r14            ; hold how manny patterns match
         .loop_get_dents:
@@ -1272,6 +1296,10 @@ _read_input:
             jmp .get_next_segment
 
         .done_constructing:
+        ; close the dir fd
+        mov rax, sys_close
+        mov rdi, [rel dir_fd_getdents]
+        syscall
 
         cmp r14, 1
         jl .zeros_the_tab_and_return
