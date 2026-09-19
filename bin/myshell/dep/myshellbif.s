@@ -23,6 +23,7 @@ section .rodata
 	back_slash db "/"
 	dot_back_slash db "./", 0
 	dash db '-',0
+	space_byte db " ", 0
 
     cd db "cd",0
     pwd db "pwd",0
@@ -195,6 +196,11 @@ _check_and_execute_if_built_in:
         call _strcmp
         test rax, rax
         je .go_to_old_pwd
+
+        lea rax, [rel space_byte] 				; cehck if argument is ' '
+        call _strcmp
+        test rax, rax
+        je .move_to_home_dir
 
         pop rdi
         call _builtin_cd

@@ -1111,20 +1111,6 @@ _read_input:
         jl .read_key        ; if directory does not exists leave it
 
         mov [rel dir_fd_getdents], rax
-        ; TODO: remember to close this   [IMPORTANT]
-        ; TODO: remember to close this   [IMPORTANT]
-        ; TODO: remember to close this   [IMPORTANT]
-        ; TODO: remember to close this   [IMPORTANT]
-        ; TODO: remember to close this   [IMPORTANT]
-        ; TODO: remember to close this   [IMPORTANT]
-        ; TODO: remember to close this   [IMPORTANT]
-        ; TODO: remember to close this   [IMPORTANT]
-        ; TODO: remember to close this   [IMPORTANT]
-        ; TODO: remember to close this   [IMPORTANT]
-        ; TODO: remember to close this   [IMPORTANT]
-        ; TODO: remember to close this   [IMPORTANT]
-        ; TODO: remember to close this   [IMPORTANT]
-
 
         .create_string_object:
         sub rsp, 24

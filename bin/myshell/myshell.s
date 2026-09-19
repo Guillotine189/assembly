@@ -23,7 +23,7 @@ section .data
     filled_size_input_buffer_len dq 0               ; includes \n
     input_buffer_address dq 0         ; address from malloc
 
-    capacity_parse_buffer_address dq 0              ; DO NOT CHANGE dq 0, i use it in code
+    parse_buffer_address dq 0              ; DO NOT CHANGE dq 0, i use it in code
     capacity_parse_buffer_len dq 0
     filled_size_parse_buffer_len dq 0
 
@@ -524,14 +524,14 @@ _get_memory_for_parse_buffer:
     mov r13, rax                    ; save addres of new memory address
 
     ; i have to release old memory, but, if this is 1st time, i dont
-    cmp qword [rel capacity_parse_buffer_address], 0   ; before first commmand address is zero
+    cmp qword [rel parse_buffer_address], 0   ; before first commmand address is zero
     jz .dont_free_memory
 
-    mov rdi, [rel capacity_parse_buffer_address]
+    mov rdi, [rel parse_buffer_address]
     call _free
 
     .dont_free_memory:
-    mov [rel capacity_parse_buffer_address], r13
+    mov [rel parse_buffer_address], r13
     mov [rel capacity_parse_buffer_len], r12
     
     .enough_memory:
@@ -554,10 +554,11 @@ _parse_input:
     ; PARSER LOGIC FOR
     ; ["./program arg1  arg2 arg3\n"] -> ["./program\0agr1\0arg2\n"]
     ; copy <space>, <tab> as NULL
+    ; if '\' before ' ', copy this space instead of '\'
     ; do not copy "", ''
     ; RN -> one command followed by everything as arguments
 
-    mov rdi, [rel capacity_parse_buffer_address]
+    mov rdi, [rel parse_buffer_address]
     xor rdx, rdx                        ; weather last byte copied was NULL or not
     xor rsi, rsi                        ; index for dst to copy bytes to
     xor r8, r8                          ; index for line traversal
@@ -711,7 +712,7 @@ _process_tokens:
 
     xor rdx, rdx                    ; total tokens processed for a line
     xor r8, r8                      ; idx for looping
-    mov r9, [rel capacity_parse_buffer_address]
+    mov r9, [rel parse_buffer_address]
     xor  r10, r10                   ; len of token
     xor r11, r11                    ; counts how many args have passed
 
@@ -732,7 +733,7 @@ _process_tokens:
         ; r10 len of token
         ; address at r8 - len of token = starting address of token
 
-        mov rdi, [rel capacity_parse_buffer_address]
+        mov rdi, [rel parse_buffer_address]
         add rdi, r8
         sub rdi, r10                    ; addres of token
 
@@ -749,11 +750,16 @@ _process_tokens:
         ; assuming total arguments passed are not more than 4096/8 or 512 args,
         ; reusable_buffer will be enough_memory
 
+
+        test r10, r10
+        jz .token_with_no_len
+
         inc rdx                                 ; inc parsed token len
+
+        .token_with_no_len:
         xor r10, r10                            ; reset len of token
         inc r8
         jmp .loop_till_new_line
-
     .command_expected:
         ; save address of command
         mov [rel address_command], rdi

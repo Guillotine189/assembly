@@ -192,7 +192,7 @@ _malloc:
 		mov rdi, r12						; address of last segment
 		add rdi, metadata_size 				; add metadat size
 		add rdi, rbx 						; the original size of segment
-		add rdi, rcx 						; total size needed
+		add rdi, rcx 						; extra size needed
 		syscall 							; rax has new brk position
 
 		cmp rax, rdi
