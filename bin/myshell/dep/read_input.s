@@ -48,8 +48,7 @@ section .rodata
     dot db ".", 0
     double_dot db "..", 0
     back_slash db "/", 0
-    nine_spaces db "         ", 0
-    new_line_byte db 0x0a, 0
+    space_char db ' ', 0
 
 section .text
 
@@ -98,6 +97,7 @@ extern _append_string_mystring
 extern _print_proper_layout
 
 
+extern _check_and_return_command_if_bic
 
 global _read_input
 
@@ -958,6 +958,51 @@ _read_input:
         cmp byte [r9 + r8], '/'
         je .absolute_path
 
+        cmp byte [r9 + r8], 'a'
+        jl .check_from_current_dir
+
+        cmp byte [r9 + r8], 'z'
+        jg .check_from_current_dir
+
+        ; if the word doesnt start with [a-z], check if it's a file
+        ; else 1st check if it's a built in command
+        .check_bic:
+        mov r13, [rel cursor_idx]
+        sub r13, r8                     ; len of half word = cur_idx - start_idx_word
+
+        mov rdi, [rel input_buffer_address]
+        add rdi, r8                 ; rdi is address where the word starts
+        mov rsi, r13
+        call _check_and_return_command_if_bic
+        test rax, rax
+        jl .check_from_current_dir          ; not a part of any built in command
+        ; if it is a part of built in command
+        mov r12, rax
+
+        sub rsp, 24
+        mov qword [rsp + 0], 64             ; asking for 64 bytes is enough
+        mov qword [rsp + 8], 0
+        mov qword [rsp + 16], 0
+        mov rdi, rsp
+        call _constructor_mystring
+
+        mov [rel double_tab_string_object_address], rsp
+
+        mov rdi, [rel double_tab_string_object_address]
+        mov rsi, r12                         ; copy the bic into string object
+        call _append_string_mystring
+
+        mov rdi, [rel double_tab_string_object_address]
+        lea rsi, [rel space_char]
+        call _append_string_mystring
+
+        ; the auto complete needs a word followed by \n before null bytes
+        mov rdi, [rel double_tab_string_object_address]
+        lea rsi, [rel new_line]
+        call _append_string_mystring
+
+        jmp .auto_complete
+
 
         .check_from_current_dir:
         ; here i have to add cwd before whatever the word was typed
@@ -1149,7 +1194,7 @@ _read_input:
 
             lea rsi, [r9 + 19]
             call _strcpy_add_space_before_backslash
-            lea rsi, [rel new_line_byte]
+            lea rsi, [rel new_line]
             call _string_copy_including_null
 
             mov rdi, [rel double_tab_string_object_address]
@@ -1212,7 +1257,7 @@ _read_input:
             lea rsi, [rel back_slash]
             call _string_copy_including_null
 
-            lea rsi, [rel new_line_byte]
+            lea rsi, [rel new_line]
             call _string_copy_including_null
 
 
@@ -1292,10 +1337,9 @@ _read_input:
         ; move the data after the cursor ahead first
 
         mov rdi, [rel double_tab_string_object_address]
-        ; len is just word + 9spaces
         mov r8, [rdi + 8]          ; 8 is the offset for size of string
-        dec r8                     ; string has a \n at the end, 
-        ; lenght of the full complete word in  : rdx
+        dec r8                     ; string has a \n at the end bec i constructed string that way
+        ; lenght of the full complete word in  : r8
         ; length of the half completed word in : r13
         sub r8, r13            ; this much space to move every char ahead of cursor by
 
@@ -1446,6 +1490,10 @@ _read_input:
         jmp _exit_with_status_code
 
     .handle_eof:
+        ; if there is something in the input buffer, do not exit
+        cmp qword [rel filled_size_input_buffer_len], 0
+        jne .read_key
+
         ; print new line and exit
         mov rax, 1
         mov rdi, 1

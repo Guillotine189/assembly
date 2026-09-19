@@ -69,6 +69,7 @@ sys_chdir           equ 80
 
 
 global _check_and_execute_if_built_in
+global _check_and_return_command_if_bic
 
 
 
@@ -173,7 +174,7 @@ _check_and_execute_if_built_in:
     je _exit
 
     .not_built_in:
-	    mov rax, 1
+	    mov rax, -1
 	    ret
 
 
@@ -346,3 +347,84 @@ _builtin_pwd:
 	lea rsi, [rel curr_cwd]
 	call _print_with_new_line
 	ret
+
+
+
+; rdi: address of string
+; rsi: len of string
+; checks is if the string matches any built in commnads, if it does returns the command address
+_check_and_return_command_if_bic:
+	push r12
+	push r13
+
+	mov r12, rdi 					; r12: address of command
+	mov r13, rsi 					; r13: len of memory to compare
+
+	mov rax, r13
+    lea rdi, [rel cd]
+    mov rsi, r12
+    call _cmp_equal_memory
+
+    test rax, rax
+    je .return_cd
+
+    mov rax, r13
+    lea rdi, [rel pwd]
+    mov rsi, r12
+    call _cmp_equal_memory
+
+    test rax, rax
+    je .return_pwd
+
+    mov rax, r13
+    lea rdi, [rel clear]
+    mov rsi, r12
+    call _cmp_equal_memory
+
+    test rax, rax
+    je .return_clear
+
+    mov rax, r13
+    lea rdi, [rel history]
+    mov rsi, r12
+    call _cmp_equal_memory
+
+    test rax, rax
+    je .return_his
+
+    mov rax, r13
+    lea rdi, [rel exit]
+    mov rsi, r12
+    call _cmp_equal_memory
+
+    test rax, rax
+    je .return_exit
+
+    .not_built_in:
+	    mov rax, -1
+	    jmp .return
+
+	.return_cd:
+		lea rax, [rel cd]
+		jmp .return
+
+	.return_pwd:
+		lea rax, [rel pwd]
+		jmp .return
+
+	.return_his:
+		lea rax, [rel history]
+		jmp .return
+
+	.return_clear:
+		lea rax, [rel clear]
+		jmp .return
+
+	.return_exit:
+		lea rax, [rel exit]
+		jmp .return
+
+	.return:
+		pop r13
+		pop r12
+		ret

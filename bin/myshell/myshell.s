@@ -91,7 +91,7 @@ section .rodata
     dash db '-',0
     semicolon db ":" , 0
     dollar_sign_with_space db "$ ", 0
-    new_line db 0x0a
+    new_line db 0x0a, 0
 
     colour_len equ 5
     colour_reset_len equ 4
