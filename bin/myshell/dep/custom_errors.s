@@ -1,5 +1,9 @@
 global error_code
+
 section .data
+    error_code dq 0
+    
+section .rodata
     error_input_init_memory db "MyShell: Error allocating memory for input buffer: ",0
     error_input_init_memory_len equ $ - error_input_init_memory
 
@@ -24,12 +28,6 @@ section .data
     error_getting_pgid db "Error getting shells group id", 0
     error_getting_pgid_len equ $ - error_getting_pgid
 
-    error_forking db "MyShell: Error forking",0
-    error_forking_len equ $ - error_forking
-
-    error_executing_process db "MyShell: Error executing ", 0
-    error_executing_process_len equ $ - error_executing_process
-
     error_command_not_found0 db "MyShell: Error executing ", 0
     error_command_not_found0_len equ $ - error_command_not_found0
     error_command_not_found1 db ": Command not found", 0
@@ -41,8 +39,29 @@ section .data
     error_getting_mem_for_cmd_in_history db "MyShell: Error allocating memory for command for history.",0
     error_getting_mem_for_cmd_in_history_len equ $ - error_getting_mem_for_cmd_in_history
 
-    error_code dq 0
+    error_getting_pipes db "MyShell: Error executing process: Error creating pipe: ", 0
+    error_getting_pipes_len equ $ - error_getting_pipes 
 
+    error_forking db "MyShell: Error forking",0
+    error_forking_len equ $ - error_forking
+
+    child_error_executing_process db "MyShell: Error executing ", 0
+    child_error_executing_process_len equ $ - child_error_executing_process
+
+    parent_error_closing_read_pipe db "MyShell: Error creating pipe for child:", 0
+    parent_error_closing_read_pipe_len equ $ - parent_error_closing_read_pipe
+
+    parent_error_setting_gpid_for_child db "MyShell: Error setting gpid for child process:", 0
+    parent_error_setting_gpid_for_child_len equ $ - parent_error_setting_gpid_for_child
+
+    parent_error_moving_child_to_fg db "MyShell: Error moving child to foreground:", 0
+    parent_error_moving_child_to_fg_len equ $ - parent_error_moving_child_to_fg
+
+    parent_error_synchronizing_with_child db "MyShell: Error synchronizing with child process:", 0
+    parent_error_synchronizing_with_child_len equ $ - parent_error_synchronizing_with_child
+
+    parent_error_closing_write_pipe db "MyShell: Error closing parent write pipe: ", 0
+    parent_error_closing_write_pipe_len equ $ - parent_error_closing_write_pipe
 
 extern _print
 extern _print_with_new_line
@@ -64,12 +83,18 @@ global print_error_getting_parse_memory
 global print_error_getting_cwd
 global print_error_overriding_custom_handler
 global print_error_forking
-global print_error_executing_process
+global child_print_error_executing_process
 global print_error_command_not_found
 global print_error_setting_non_con_mode
 global print_error_getting_pgid
 global print_error_allocating_memory_for_history
 global print_error_getting_mem_for_cmd_in_history
+global print_error_getting_pipes
+global parent_print_error_closing_read_pipe
+global parent_print_error_setting_gpid_for_child
+global parent_print_error_moving_child_to_fg
+global parent_print_error_synchronizing_with_child
+global parent_print_error_closing_write_pipe
 
 print_error_input_init_memory:
     mov rax, error_input_init_memory_len
@@ -167,10 +192,10 @@ print_error_forking:
     ret
 
 
-print_error_executing_process:
-    mov rax, error_executing_process_len
+child_print_error_executing_process:
+    mov rax, child_error_executing_process_len
     mov rdi, 1
-    lea rsi , [rel error_executing_process]
+    lea rsi , [rel child_error_executing_process]
     call _print
 
     mov rdi, [rel address_command]
@@ -183,6 +208,57 @@ print_error_executing_process:
     mov rax, [rel error_code]
     call _print_error_with_new_line
     ret
+
+parent_print_error_closing_read_pipe:
+    mov rax, parent_error_closing_read_pipe_len
+    mov rdi, 1
+    lea rsi, [rel parent_error_closing_read_pipe]
+    call _print
+
+    mov rax, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+parent_print_error_setting_gpid_for_child:
+    mov rax, parent_error_setting_gpid_for_child_len
+    mov rdi, 1
+    lea rsi, [rel parent_error_setting_gpid_for_child]
+    call _print
+
+    mov rax, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+parent_print_error_moving_child_to_fg:
+    mov rax, parent_error_moving_child_to_fg_len
+    mov rdi, 1
+    lea rsi, [rel parent_error_moving_child_to_fg]
+    call _print
+
+    mov rax, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+parent_print_error_synchronizing_with_child:
+    mov rax, parent_error_synchronizing_with_child_len
+    mov rdi, 1
+    lea rsi, [rel parent_error_synchronizing_with_child]
+    call _print
+
+    mov rax, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+parent_print_error_closing_write_pipe:
+    mov rax, parent_error_closing_write_pipe_len
+    mov rdi, 1
+    lea rsi, [rel parent_error_closing_write_pipe]
+    call _print
+
+    mov rax, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
 
 print_error_command_not_found:
     mov rax, error_command_not_found0_len
@@ -218,6 +294,16 @@ print_error_getting_mem_for_cmd_in_history:
     mov rax, error_getting_mem_for_cmd_in_history_len
     mov rdi, 1
     lea rsi , [rel error_getting_mem_for_cmd_in_history]
+    call _print
+
+    mov rax, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+print_error_getting_pipes:
+    mov rax, error_getting_pipes_len
+    mov rdi, 1
+    lea rsi , [rel error_getting_pipes]
     call _print
 
     mov rax, [rel error_code]

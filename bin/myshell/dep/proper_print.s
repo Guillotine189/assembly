@@ -6,9 +6,8 @@ section .data
 	columns_per_line dq 0
 	len_each_col dq 0
 
+section .rodata
 	new_line db 0x0a, 0
-
-
 
 section .bss
 	win_size:

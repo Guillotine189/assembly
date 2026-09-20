@@ -1,13 +1,15 @@
 %include "./dep/constants.inc"
 
 section .data
-	
-	error_path_env_not_found db "Error: 'PATH; env variable not present.", 0
-	error_path_env_not_found_len equ $ - error_path_env_not_found
-
 	path_env_var db "PATH", 0
 	path_address dq 0
 	last_path_flag dq 0
+
+
+
+section .rodata	
+	error_path_env_not_found db "Error: 'PATH; env variable not present.", 0
+	error_path_env_not_found_len equ $ - error_path_env_not_found
 
 	dot db ".",0
 	back_slash db "/"

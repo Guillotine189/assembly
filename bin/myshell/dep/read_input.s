@@ -5,24 +5,6 @@ section .data
     history_command_number dq 0
     tabs_times_pressed dq 0
 
-    colour_reset    db 27, "[0m", 0
-    colour_blue     db 27, "[34m", 0
-    colour_bright_green   db 27, "[92m", 0
-    
-
-get_dent_buffer_cap equ 8192
-section .bss
-    key_buffer: resb 10
-    reusable_buffer_read: resb 4096
-
-    double_tab_string_object_address resq 1
-
-    dir_fd_getdents: resq 1
-    dir_get_dent_buffer: resb get_dent_buffer_cap
-    dir_get_dent_buffer_len: resq 1
-
-    command_latest_restore_buffer resb 4096
-
 section .rodata
     
     ; what i receive when someone pressed home/end/ctrl+left/right button
@@ -30,7 +12,7 @@ section .rodata
     ;move_cur_end_pos db 27, "[F", 0
     ;move_cur_left_space -> if ctrl+left_arrow -> i recv- > "[1;5D"
     ; ';' ->modifier 5D; = '5'->ctrl was pressed, 'D' -> left arrow key
-
+    
 
     ; what i print when i have to move the cursor somewhere
     move_cur_up db 27, "[A", 0
@@ -49,6 +31,22 @@ section .rodata
     double_dot db "..", 0
     back_slash db "/", 0
     space_char db ' ', 0
+
+    
+section .bss
+    key_buffer: resb 10
+    reusable_buffer_read: resb 4096
+
+    double_tab_string_object_address resq 1
+
+    get_dent_buffer_cap equ 8192
+    dir_fd_getdents: resq 1
+    dir_get_dent_buffer: resb get_dent_buffer_cap
+    dir_get_dent_buffer_len: resq 1
+
+    command_latest_restore_buffer resb 4096
+
+
 
 section .text
 
@@ -97,7 +95,6 @@ extern _destructor_mystring
 extern _append_string_mystring
 
 extern _print_proper_layout
-
 
 extern _check_and_return_command_if_bic
 
@@ -971,6 +968,25 @@ _read_input:
         cmp rax, r8         ; if the len of word is zero
         je .read_key
 
+        mov r12, r8
+        mov r13, r9
+        mov r14, r10
+
+        sub rsp, 24
+        mov qword [rsp + 0], 64             ; asking for 64 bytes is enough
+        mov qword [rsp + 8], 0
+        mov qword [rsp + 16], 0
+        mov rdi, rsp
+        call _constructor_mystring
+
+        mov [rel double_tab_string_object_address], rsp
+
+
+        mov r8, r12
+        mov r9, r13
+        mov r10, r14
+
+
         ; now i know atleast 1 byte is there 
         ;check if there was slash in the word "./path/to/something"
         ;                                      |. r8    |/ r10
@@ -1011,15 +1027,6 @@ _read_input:
 
         ; if it is a part of built in command
         mov r12, rax
-
-        sub rsp, 24
-        mov qword [rsp + 0], 64             ; asking for 64 bytes is enough
-        mov qword [rsp + 8], 0
-        mov qword [rsp + 16], 0
-        mov rdi, rsp
-        call _constructor_mystring
-
-        mov [rel double_tab_string_object_address], rsp
 
         mov rdi, [rel double_tab_string_object_address]
         mov rsi, r12                         ; copy the bic into string object
@@ -1137,16 +1144,6 @@ _read_input:
         jl .read_key        ; if directory does not exists leave it
 
         mov [rel dir_fd_getdents], rax
-
-        .create_string_object:
-        sub rsp, 24
-        mov qword [rsp + 0], 1024             ; asking for 1024 bytes
-        mov qword [rsp + 8], 0
-        mov qword [rsp + 16], 0
-        mov rdi, rsp
-        call _constructor_mystring
-
-        mov [rel double_tab_string_object_address], rsp
 
 
         inc r10 
@@ -1470,7 +1467,7 @@ _read_input:
 
         .cleanup_and_return:
         ; destruct the string
-        mov rdi, rsp
+        mov rdi, [rel double_tab_string_object_address]
         call _destructor_mystring
         add rsp, 24
         mov qword [rel double_tab_string_object_address], 0

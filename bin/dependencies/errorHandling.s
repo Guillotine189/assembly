@@ -134,21 +134,6 @@
 	EHWPOISON       equ 133
 
 
-%macro CHECK_ERRNO 2
-    cmp rax, %1
-    je %2
-%endmacro
-
-
-%macro PRINT_ERRNO 1
-.errno_%1:
-    mov rax, errno_%1_msg_len
-    mov rdi, 1
-    lea rsi, [rel errno_%1_msg]
-    call errorHandling_print_with_new_line
-    ret
-%endmacro
-
 section .data
 
     errno_1_msg db ": Operation not permitted", 0
@@ -570,6 +555,24 @@ errorHandling_print_with_new_line:
     .cleanup:
     pop rax
     ret
+
+
+
+%macro CHECK_ERRNO 2
+    cmp rax, %1
+    je %2
+%endmacro
+
+
+%macro PRINT_ERRNO 1
+.errno_%1:
+    mov rax, errno_%1_msg_len
+    mov rdi, 1
+    lea rsi, [rel errno_%1_msg]
+    call errorHandling_print_with_new_line
+    ret
+%endmacro
+
 
 
 

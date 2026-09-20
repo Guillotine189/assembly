@@ -16,9 +16,6 @@ global og_envp_stack_array_address
 global total_command_aruments
 section .data
 
-    myshell_line db "MyShell", 0
-    myshell_line_len equ $ - myshell_line
-
     capacity_input_buffer_len dq 4096
     filled_size_input_buffer_len dq 0               ; includes \n
     input_buffer_address dq 0         ; address from malloc
@@ -78,6 +75,9 @@ section .rodata
 
     ; modern ANSI/VT-compatible terminal
     ; like GNOME Terminal, Konsole, Kitty, Alacritty
+    myshell_line db "MyShell", 0
+    myshell_line_len equ $ - myshell_line
+
 
     clear_screen db 0x1b, '[2J'      ; clear the screen
     clear_screen_len equ $ - clear_screen
@@ -170,10 +170,16 @@ extern print_error_getting_parse_memory
 extern print_error_getting_cwd
 extern print_error_overriding_custom_handler
 extern print_error_forking
-extern print_error_executing_process
 extern print_error_setting_non_con_mode
 extern print_error_getting_pgid
 extern print_error_command_not_found
+extern print_error_getting_pipes
+extern child_print_error_executing_process
+extern parent_print_error_closing_read_pipe
+extern parent_print_error_setting_gpid_for_child
+extern parent_print_error_moving_child_to_fg
+extern parent_print_error_synchronizing_with_child
+extern parent_print_error_closing_write_pipe
 
 
 extern _get_and_set_mem_for_history_array
@@ -802,14 +808,14 @@ _execute_process:
     syscall 
 
     test rax, rax
-    jl .set_error_executing_process   ; TODO: give proper error 
+    jl .error_getting_pipe
 
     ; command starts with ./ or / or ../, this is not a built_in or a command that should
     ; be ran after checking from path env variable
 
     mov rax, [rel address_command]
     cmp byte [rax], '/'     ; if 1st byte is /, its a absolute path, direct execution
-    je .execute_with_og_command
+    je .execute_command
 
     mov rax, 2
     mov rdi, [rel address_command]
@@ -817,7 +823,7 @@ _execute_process:
     call _cmp_equal_memory
 
     test rax, rax                    ; if starting with ./, then this is a relative path
-    jz .execute_with_og_command 
+    jz .execute_command 
 
 
     mov rax, 3
@@ -826,7 +832,7 @@ _execute_process:
     call _cmp_equal_memory
 
     test rax, rax                    ; if starting with ../, then this is a relative path
-    jz .execute_with_og_command 
+    jz .execute_command 
 
     
     ; now either the command is built in or it is supposed to be inside path variables
@@ -834,12 +840,12 @@ _execute_process:
     ; check if the command is built in
     call _check_and_execute_if_built_in
     test rax, rax
-    jz .close_pipe_and_return                      ; zero mean it was builtin
+    jz .close_pipes                      ; zero mean it was builtin
 
     ; check if the command is supposed to run using a path var or not
     call _check_if_cmd_is_in_path
     test rax, rax
-    jl .set_error_command_not_found  ; command not inside env_path either -> give error
+    jl .command_not_found  ; command not inside env_path either -> give error
 
     ; now the command is actually in env_path
 
@@ -847,48 +853,57 @@ _execute_process:
     mov [rel address_command], rax
 
 
-    .execute_with_og_command:
+    .execute_command:
     mov rax, sys_fork
     syscall  
 
     test rax, rax
-    jl .set_error_forking
+    jl .error_forking
     jnz .parent
 
 
 
     ; this is child now
 
+    ; close the write part of pipe for child, no need
+    call .close_write_pipe
+    test rax, rax
+    jl .child_error_closing_write_pipe
+
     ; set the gpid of child to be it's own pid
     mov rax, sys_setpgid
-    xor rdi, rdi               ; pid = 0  -> this process
-    xor rsi, rsi               ; pgid = 0 -> use this process's PID
+    xor rdi, rdi               ; pid = 0  -> change for current process
+    xor rsi, rsi               ; gpid = 0 -> use current process's PID as gpid
     syscall
-    test    rax, rax
-    jl      .set_error_executing_process
 
+    test rax, rax
+    jl .child_error_setting_gpid
 
-
-    ; close the write part of pipe for child, no need
-    mov rax, sys_close
-    mov edi, [rel pipe_for_command + 4]
-    syscall
 
     ; now wait for signal from parent before executing
     ; eg : [3,4] for [read, write]
-    mov rax, sys_read
-    mov dword edi, [rel pipe_for_command]
-    lea rsi, [rel pipe_read_buffer_child]
-    mov rdx, 1                  ; just read 1 byte
-    syscall
+    .try_sync:
+        mov rax, sys_read
+        mov edi, [rel pipe_for_command]
+        lea rsi, [rel pipe_read_buffer_child]
+        mov edx, 1
+        syscall
 
-    cmp rax, 1
-    jne .set_error_executing_process
+        cmp rax, 1
+        je .sync_success
+
+        ; if there is an interrupt, this does not mean sync failed
+        cmp rax, -EINTR
+        je .try_sync
+
+        jmp .child_error_synchronizing
+
+    .sync_success:
 
     ; now close the read pipe 
-    mov rax, sys_close
-    mov dword edi, [rel pipe_for_command]
-    syscall
+    call .close_read_pipe
+    test rax, rax
+    jl .child_error_closing_read_pipe
 
     ; setup before executing child process
 
@@ -896,32 +911,58 @@ _execute_process:
     call _reset_child_signals         ; childs signals have been restored to default
 
 
-    ; TODO: wait for shell signal to execute.
-    ; I want this to execute in foreground directly, not sometime after i execve
     mov rax, sys_execve
     mov rdi, [rel address_command]
     mov rsi, [rel address_argc_address_array]
     mov rdx, [rel address_envp_address_array]
     syscall
 
-
-    .set_error_executing_process:
-        mov [rel error_code], rax
-        call print_error_executing_process
-
-
-    mov [rel exit_status_code], 1
+    ; this part only executes when execve failed
+    mov [rel exit_status_code], rax
+    mov [rel error_code], rax
+    call child_print_error_executing_process
     call _exit_with_status_code
 
+    .child_error_setting_gpid:
+        mov [rel exit_status_code], rax   ; the og error code why checnging gpid failed
+        call .close_read_pipe
+        call _exit_with_status_code
+
+    .child_error_closing_write_pipe:
+        ; close read pipe and exit
+        mov [rel exit_status_code], rax
+        call .close_read_pipe
+        call _exit_with_status_code
+
+    .child_error_closing_read_pipe:
+        ; write pipe is already closed, cannnot close read pipe so exit
+        mov [rel exit_status_code], rax
+        call _exit_with_status_code
+        
+
+    .child_error_synchronizing:
+        mov [rel exit_status_code], rax   ; the og error code why checnging gpid failed
+        ; close the read pipe, wite pipe already closed
+        mov rax, sys_close
+        mov edi, [rel pipe_for_command]
+        syscall
+
+        call _exit_with_status_code
 
 
 
 
     .parent:
-        ; child_pid is in rax
 
         mov [rel child_pid], rax
         mov [rel child_pgid], rax
+
+        ; close the read part of the parent
+        call .close_read_pipe
+        test rax, rax
+        jl .parent_error_closing_read_pipe
+
+        ; child_pid is in rax
 
       ; make sure child is in its own process group. This is done here to avoid race
         mov rax, sys_setpgid
@@ -929,14 +970,8 @@ _execute_process:
         mov rsi, [rel child_pid]
         syscall
 
-        ; close the read part of the parent 
-        mov rax, sys_close
-        mov dword edi, [rel pipe_for_command]
-        syscall
-
-
-        ; TODO: handle the error for not begin able to change gpid of child
-
+        test rax, rax
+        jl .parent_error_setting_gpid_for_child
 
         ; make child the fg process in terminal 
         mov rax, sys_ioctl
@@ -946,26 +981,39 @@ _execute_process:
         syscall
         ; TODO: handle error for moving child to foreground
 
-        ;test rax, rax
-        ;jl .set_error_foreground
+        test rax, rax
+        jl .parent_error_moving_child_to_fg
 
 
         ; Now send the signal to child group to continue
         mov rax, sys_write
-        mov dword edi, [rel pipe_for_command + 4]
+        mov edi, [rel pipe_for_command + 4]
         lea rsi, [rel dot]
         mov rdx, 1                      ; juts write 1 byte to tell child to start
         syscall
         
+        cmp rax, 1
+        jne .parent_error_synchronizing_with_child
+
         ; close the write part of pipe
-        mov rax, sys_close
-        mov edi, [rel pipe_for_command + 4]
-        syscall
+        call .close_write_pipe
+        test rax, rax
+        jl .print_parent_error_closing_write_pipe
+        jmp .wait_and_reclaim_terminal
+
+        
+        .print_parent_error_closing_write_pipe:
+          ; i don't want to kill child process here    
+            call .parent_error_closing_write_pipe
+        
 
 
-        ; wait for the child to finish
+
+        .wait_and_reclaim_terminal:
+        ; reap child group
         mov rax, sys_wait4   ;syscall number
-        mov rdi, [rel child_pid] 
+        mov rdi, [rel child_pgid] 
+        neg rdi                 ; -ve pid means i have given it a pgid
         xor rsi, rsi     ;where to store exit status(For simply waiting, NULL/0 is fine)
         xor rdx, rdx     ;how to wait
         xor r10, r10      ;where to store resource usage
@@ -985,25 +1033,108 @@ _execute_process:
         ret
 
 
-    .set_error_command_not_found:
+    .parent_error_closing_read_pipe:
+        mov [rel error_code], rax
+        call .close_write_pipe
+        call .kill_and_reap_child_process
+        call parent_print_error_closing_read_pipe
+        ret
+
+    .parent_error_setting_gpid_for_child:
+        mov [rel exit_status_code], rax   ; the og error code why checnging gpid failed
+        call .close_write_pipe          ; read pipe is already closed
+        call .kill_and_reap_child_process
+        call parent_print_error_setting_gpid_for_child
+        ret
+
+    .parent_error_moving_child_to_fg:
+        mov [rel exit_status_code], rax
+        call .close_write_pipe
+        call .kill_and_reap_child_process
+        call parent_print_error_moving_child_to_fg
+        ret
+
+    .parent_error_synchronizing_with_child:
+        mov [rel exit_status_code], rax
+        call .close_write_pipe
+        call .kill_and_reap_child_process
+        call parent_print_error_synchronizing_with_child
+        ret        
+
+    .parent_error_closing_write_pipe:
+        mov [rel exit_status_code], rax
+        call parent_print_error_closing_write_pipe
+        ret        
+
+    .kill_and_reap_child_process:
+        ; 0 pid => send this signal to every process in calling process group 
+        ; pid is -ve: pid is actually a gpid, send signal to all pid inside pgid
+
+        ; sig : 0 => no SIGNAL is sent, but permission and checks are performed
+        ; meaning, i can use this to check if that pid/gpid exists
+        ; but there is a race between checking and killing the child
+        ; thec hild can disappear in between checking if it exists and killing it
+        ; so no point in checking, just kill the child bec i will do it in the end
+
+        ; now send the kill signal to child process group
+        mov rax, sys_kill
+        mov rdi, [rel child_pgid]  
+        neg rdi
+        mov rsi, SIGKILL
+        syscall
+
+        ; whether kill succeeded or not,
+        ; try to reap the child process group.
+        mov rax, sys_wait4
+        mov rdi, [rel child_pgid]
+        neg rdi 
+        xor rsi, rsi
+        xor rdx, rdx
+        xor r10, r10
+        syscall
+
+        ret
+
+
+
+    .command_not_found:
         mov [rel error_code], rax
         call print_error_command_not_found
+        jmp .close_pipes
 
-    .close_pipe_and_return:
+    .error_forking:
+        mov [rel error_code], rax
+        call print_error_forking
+        jmp .close_pipes
+
+    .close_pipes:
+        mov rax, sys_close
+        mov edi, [rel pipe_for_command]
+        syscall
+
         mov rax, sys_close
         mov edi, [rel pipe_for_command + 4]
         syscall
+        ret
 
+    .close_read_pipe:
         mov rax, sys_close
-        mov dword edi, [rel pipe_for_command]
+        mov edi, [rel pipe_for_command]
         syscall
         ret
 
-    .set_error_forking:
+    .close_write_pipe:
+        mov rax, sys_close
+        mov edi, [rel pipe_for_command + 4]
+        syscall
+        ret
+
+    .error_getting_pipe:
         mov [rel error_code], rax
-        call print_error_forking
-        mov [rel exit_status_code], 1
-        jmp _exit_with_status_code
+        call print_error_getting_pipes
+        ret
+
+
 
 
 
@@ -1045,7 +1176,7 @@ _start:
         je _exit
 
         cmp [rel input_interrupted], 1
-        je .loop_main 
+        je .loop_main
 
         call _handle_input
         jmp .loop_main

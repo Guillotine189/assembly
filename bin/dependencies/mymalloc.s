@@ -31,8 +31,8 @@ section .rodata
 	word_size_len equ $  - word_size
 	word_bytes db " bytes", 0
 	word_bytes_len equ $ - word_bytes
-	word_type db "Type: ", 0
-	word_type_len equ $ - word_type
+	word_status db "Status: ", 0
+	word_status_len equ $ - word_status
 	word_free db "Free", 0
 	word_free_len equ $ - word_free
 	word_occupied db "Occupied", 0
@@ -491,8 +491,8 @@ _print_detailed_malloc:
 		rep movsb
 
 		; the word "Type: "
-		lea rsi, [rel word_type]
-		mov rcx, word_type_len
+		lea rsi, [rel word_status]
+		mov rcx, word_status_len
 		rep movsb
 
 		; weather occuped or free
