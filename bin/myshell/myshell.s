@@ -14,15 +14,14 @@ global address_argc_address_array
 global address_envp_address_array
 global og_envp_stack_array_address
 global total_command_aruments
+
+global input_buffer_address
+global filled_size_input_buffer_len
 section .data
 
     capacity_input_buffer_len dq 4096
     filled_size_input_buffer_len dq 0               ; includes \n
     input_buffer_address dq 0         ; address from malloc
-
-    parse_buffer_address dq 0              ; DO NOT CHANGE dq 0, i use it in code
-    capacity_parse_buffer_len dq 0
-    filled_size_parse_buffer_len dq 0
 
 
     address_command dq 1
@@ -151,6 +150,7 @@ section .bss
 
 ; variables
 extern error_code
+extern parse_string_object_address
 
 ; functons
 extern _print
@@ -166,7 +166,6 @@ extern _strcmp
 extern _cmp_equal_memory
 
 extern print_error_input_init_memory
-extern print_error_getting_parse_memory
 extern print_error_getting_cwd
 extern print_error_overriding_custom_handler
 extern print_error_forking
@@ -184,6 +183,8 @@ extern parent_print_error_closing_write_pipe
 
 extern _get_and_set_mem_for_history_array
 extern _read_input
+
+extern _parse_input
 
 extern _check_and_execute_if_built_in
 extern _check_if_cmd_is_in_path
@@ -512,237 +513,45 @@ _print_prefix_line:
 
 
 
-_get_memory_for_parse_buffer:
-    push r12
-    push r13
-
-
-    mov rax, [rel filled_size_input_buffer_len]
-    add rax, 8                              ; some extra bytes i may need
-    mov r12, rax                    ; save allocated size
-    cmp [rel capacity_parse_buffer_len], rax
-    jge .enough_memory
-
-    ; not anough memory
-    mov rdi, rax
-    call _malloc
-
-    test rax, rax
-    jl .set_error_getting_parse_memory_and_exit
-
-    mov r13, rax                    ; save addres of new memory address
-
-    ; i have to release old memory, but, if this is 1st time, i dont
-    cmp qword [rel parse_buffer_address], 0   ; before first commmand address is zero
-    jz .dont_free_memory
-
-    mov rdi, [rel parse_buffer_address]
-    call _free
-
-    .dont_free_memory:
-    mov [rel parse_buffer_address], r13
-    mov [rel capacity_parse_buffer_len], r12
-    
-    .enough_memory:
-        pop r13
-        pop r12
-        ret
-
-    .set_error_getting_parse_memory_and_exit:
-        mov [rel error_code], rax
-        call print_error_getting_parse_memory
-
-        mov [rel exit_status_code], 1
-        jmp _exit_with_status_code
-
-
-; TODO: "", empty argumets are ignored
-; because its basically NULL followed by NULL in pu parser
-_parse_input:
-
-    ; PARSER LOGIC FOR
-    ; ["./program arg1  arg2 arg3\n"] -> ["./program\0agr1\0arg2\n"]
-    ; copy <space>, <tab> as NULL
-    ; if '\' before ' ', copy this space instead of '\'
-    ; do not copy "", ''
-    ; RN -> one command followed by everything as arguments
-
-    mov rdi, [rel parse_buffer_address]
-    xor rdx, rdx                        ; weather last byte copied was NULL or not
-    xor rsi, rsi                        ; index for dst to copy bytes to
-    xor r8, r8                          ; index for line traversal
-    mov r9, [rel input_buffer_address]
-    xor r10, r10                        ; weather inside double quotes or not
-    xor r11, r11                        ; weather inside single quotes or not
-    xor rcx, rcx                        ; weater last byte was '\' or not
-    .loop_till_new_line:
-        cmp byte [r9 + r8], 0x0a            ; if the byte is \n
-        je .buffer_parsed
-
-        cmp byte [r9 + r8], 0x5c            ; '\' front slash
-        je .front_slash_was_seen
-
-        cmp byte [r9 + r8], 0x20            ; space
-        je .handle_space
-
-        cmp byte [r9 + r8], 0x22            ; for : double quotes ""
-        je .handle_dq
-        
-        cmp byte [r9 + r8], 0x27            ; for : single quotes ''
-        je .handle_sq
-
-        xor rcx, rcx                        ; last byte was not '\'
-
-        jmp .copy_byte_and_loop
-
-        .front_slash_was_seen:
-            mov rcx, 1
-
-        ; if any other char was passed, copy it to dst addr
-        .copy_byte_and_loop:
-
-            mov al, [r9 + r8]
-            mov [rdi + rsi], al
-            inc r8
-            inc rsi
-            xor rdx, rdx                          ; last byte coped was not NULL
-            jmp .loop_till_new_line
-
-        .handle_dq:
-            xor rcx, rcx                        ; last byte was not \
-            
-            ; if i am inside dq already, mark it as not inside dq
-            test r10, r10
-            jg .i_was_inside_dq_not_anymore
-            jmp .check_if_i_am_now_inside_sq
-
-            .i_was_inside_dq_not_anymore:
-                ; dont copy anything and move one
-                inc r8
-                xor r10, r10
-                jmp .loop_till_new_line
-
-            .check_if_i_am_now_inside_sq:
-            ; if i am inside SQ, dont mark this as inside DQ
-            test r11, r11
-            jnz .copy_byte_and_loop ; i am inside SQ , let DQ be as it is
-            
-            ; since not inside dq, or sq, i am now inside DQ
-            ; dont copy anything
-            mov r10, 1
-            inc r8
-            jmp .loop_till_new_line
-
-
-        .handle_sq:
-            xor rcx, rcx                        ; last byte was not \
-            ; if i am inside sq already, mark it as not inside sq
-            test r11, r11
-            jnz .i_was_inside_sq
-            jmp .check_if_i_am_now_inside_dq
-
-            .i_was_inside_sq:
-                ; dont copy anything
-                inc r8
-                xor r11, r11            ; not inside SQ anymore
-                jmp .loop_till_new_line
-
-            .check_if_i_am_now_inside_dq:
-            ; if i am inside SQ, dont mark this as inside SQ
-            test r10, r10
-            jnz .copy_byte_and_loop ; i am inside DQ , let SQ be as it is
-            
-            ; since not inside dq, or sq, i am now inside SQ
-            ; dont copy anything
-            inc r8
-            mov r11, 1
-            jmp .loop_till_new_line
-
-
-        .handle_space:
-            test r10, r10
-            jz .check_if_inside_single_quotes   ; if not inside DQ, cehck if inside SQ
-            ; if inside DQ, just let this whitespace be
-            jmp .copy_byte_and_loop
-            
-
-        .check_if_inside_single_quotes:
-            test r11, r11
-            jnz  .copy_byte_and_loop ; i am inside single quote
-            
-            ; now i am not inside DQ, or SQ
-
-            ; check if last byte was '\', bec if it was, then allow this space
-            test rcx, rcx
-            jnz .last_byte_was_front_slash_allow_this_space
-
-            test rdx, rdx
-            jnz .last_copied_byte_was_null
-
-            mov byte [rdi + rsi], 0
-            inc rsi
-            inc r8
-            mov rdx, 1                          ; last byte coped was NULL
-            jmp .loop_till_new_line
-
-        .last_copied_byte_was_null:
-            inc r8
-            jmp .loop_till_new_line
-
-        .last_byte_was_front_slash_allow_this_space:
-            xor rcx, rcx                        ; last byte no longer \
-
-            ; replace the slash with this space
-
-            mov byte [rdi + rsi - 1], ' '           ; replace last dst byte wiht space
-            inc r8                                  ; check next byte
-            jmp .loop_till_new_line
-
-
-
-    .buffer_parsed:
-        mov byte [rdi + rsi], 0                 ; add a NULL before \n
-        
-        inc rsi
-        mov al, [r9 + r8]
-        mov [rdi + rsi], al                 ; copy the \n as well
-
-        inc rsi
-        mov byte [rdi + rsi], 0                 ; add NULL after \n
-        
-        mov [rel filled_size_parse_buffer_len], rsi        ; update len of parsed buffer
-        ret
-
-
 _process_tokens:
+    ; expects ["./program\nagr1\narg2\n\n"]
+    ; ["./programNULLagr1NULLarg2NULL\n"]
     ; RN -> 
     ; arg[0] -> command
     ; every other arg is arguments for,entire string is treated as a single line command
 
     xor rdx, rdx                    ; total tokens processed for a line
     xor r8, r8                      ; idx for looping
-    mov r9, [rel parse_buffer_address]
-    xor  r10, r10                   ; len of token
+    mov r9, [rel parse_string_object_address]
+    mov r9, [r9 + 16]               ; 16: string offset for address of string
+    xor r10, r10                   ; len of token
     xor r11, r11                    ; counts how many args have passed
+    xor r12, r12                    ; checks if last byte was \n
 
-    .loop_till_new_line:
+    .loop_till_double_new_line:
 
-        cmp byte [r9 + r8], 0x0a
-        je .all_tokens_processed
-
-        cmp byte [r9 + r8], 0      ; this means the token has just ended
+        cmp byte [r9 + r8], 0x0a      ; this means the token has just ended
         je .process_token
 
     .loopback:
         inc r8                      ; idx for looping
         inc r10                     ; len of token
-        jmp .loop_till_new_line
+        xor r12, r12                ; last byte was not \n
+        jmp .loop_till_double_new_line
 
     .process_token:
+        add r12, 1
+
+        mov byte [r9 + r8], 0       ; over write the \n with NULL byte
+
+        cmp r12, 2
+        je .all_tokens_processed
+
         ; r10 len of token
         ; address at r8 - len of token = starting address of token
 
-        mov rdi, [rel parse_buffer_address]
+        
+        mov rdi, r9
         add rdi, r8
         sub rdi, r10                    ; addres of token
 
@@ -768,14 +577,14 @@ _process_tokens:
         .token_with_no_len:
         xor r10, r10                            ; reset len of token
         inc r8
-        jmp .loop_till_new_line
+        jmp .loop_till_double_new_line
     .command_expected:
         ; save address of command
         mov [rel address_command], rdi
         inc rdx                                 ; inc parsed token len
         xor r10, r10                            ; reset len of token
         inc r8
-        jmp .loop_till_new_line
+        jmp .loop_till_double_new_line
 
     .all_tokens_processed:
         ; add a NULL in the argc address arary, [reusable_buffer user here]
@@ -1001,7 +810,7 @@ _execute_process:
         jl .print_parent_error_closing_write_pipe
         jmp .wait_and_reclaim_terminal
 
-        
+
         .print_parent_error_closing_write_pipe:
           ; i don't want to kill child process here    
             call .parent_error_closing_write_pipe
@@ -1143,18 +952,22 @@ _handle_input:
     
     ; check if line empty
     mov rax, [rel filled_size_input_buffer_len]
-    cmp rax, 1
+    cmp rax, 1             ; when enter was presses. "\n" was written in buffer
     je .empty_line
 
-    call _get_memory_for_parse_buffer
     call _parse_input
+    test rax, rax
+    jl .error_parsing_input
+
     call _process_tokens
     call _execute_process
-
 
     .empty_line:
     ret
 
+
+    .error_parsing_input:  ; TODO: print error and exit
+        ret
     
 
 _start:

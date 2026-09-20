@@ -8,10 +8,11 @@ nasm -f elf64 ./dep/myshellbif.s  -o ./dep/myshellbif.o
 nasm -f elf64 ./dep/path_command.s  -o ./dep/path_command.o
 nasm -f elf64 ./dep/history.s -o ./dep/history.o
 nasm -f elf64 ./dep/proper_print.s -o ./dep/proper_print.o
-
+nasm -f elf64 ./dep/parse_input.s -o ./dep/parse_input.o
 
 ld   myshell.o \
     ./dep/read_input.o \
+    ./dep/parse_input.o \
     ./dep/custom_errors.o \
 	./dep/myshelldep.o \
     ./dep/myshellbif.o \
@@ -25,6 +26,7 @@ ld   myshell.o \
 
 rm   myshell.o \
     ./dep/read_input.o \
+    ./dep/parse_input.o \
     ./dep/custom_errors.o \
     ./dep/myshelldep.o \
     ./dep/myshellbif.o \

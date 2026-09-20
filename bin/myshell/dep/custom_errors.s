@@ -7,8 +7,6 @@ section .rodata
     error_input_init_memory db "MyShell: Error allocating memory for input buffer: ",0
     error_input_init_memory_len equ $ - error_input_init_memory
 
-    error_getting_parse_memory db "MyShell: Error getting memory for parse line: ", 0
-    error_getting_parse_memory_len equ $ - error_getting_parse_memory
 
     error_reading_input db "MyShell: Error reading input: ", 0
     error_reading_input_len equ $ - error_reading_input
@@ -79,7 +77,6 @@ section .text
 global print_error_input_init_memory
 global print_error_reading_input
 global print_error_increasing_input_mem
-global print_error_getting_parse_memory
 global print_error_getting_cwd
 global print_error_overriding_custom_handler
 global print_error_forking
@@ -111,16 +108,6 @@ print_error_reading_input:
     mov rax, error_reading_input_len
     mov rdi, 1
     lea rsi, [rel error_reading_input]
-    call _print
-
-    mov rax, [rel error_code]
-    call _print_error_with_new_line
-    ret
-
-print_error_getting_parse_memory:
-    mov rax, error_getting_parse_memory_len
-    mov rdi, 1
-    lea rsi, [rel error_getting_parse_memory]
     call _print
 
     mov rax, [rel error_code]
