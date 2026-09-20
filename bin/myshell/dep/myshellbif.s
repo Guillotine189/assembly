@@ -47,6 +47,7 @@ extern _cmp_equal_memory
 extern _strlen
 extern _mem_copy
 extern _memcpy_with_end_char
+extern _itoa
 
 extern _set_prefix_line
 
@@ -56,6 +57,7 @@ extern curr_cwd
 extern curr_cwd_len
 extern old_cwd
 extern old_cwd_len
+extern last_command_exit_code_ascii
 
 extern address_argc_address_array
 extern address_envp_address_array

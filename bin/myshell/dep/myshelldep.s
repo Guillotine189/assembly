@@ -101,7 +101,7 @@ _strlen:
 ; length of number in rax
 _itoa:
 	test rax, rax
-	jz .zero_lenght
+	jz .zero_length
 	jl .negative_number
 
 	xor r11, r11
@@ -171,7 +171,7 @@ _itoa:
 		.return:
 		ret
 
-	.zero_lenght:
+	.zero_length:
 		mov rcx, rdi
 		mov byte [rdi], '0'
 		inc rdi

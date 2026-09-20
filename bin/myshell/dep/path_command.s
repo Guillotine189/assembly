@@ -1,7 +1,6 @@
 %include "./dep/constants.inc"
 
 section .data
-	path_env_var db "PATH", 0
 	path_address dq 0
 	last_path_flag dq 0
 
@@ -15,7 +14,7 @@ section .rodata
 	back_slash db "/"
 	dot_back_slash db "./", 0
 	dash db '-',0
-
+	path_env_var db "PATH", 0
 
 
 section .bss
@@ -33,7 +32,7 @@ extern _mem_copy
 extern _memcpy_with_end_char
 
 
-
+extern og_envp_stack_array_address
 extern error_code
 extern curr_cwd
 extern curr_cwd_len
@@ -47,20 +46,29 @@ extern total_command_aruments
 
 
 global _check_if_cmd_is_in_path
-
+global _find_var_in_env_var
 
 section .text
 
-; returns rax : address of path env variable
-_find_path_env_variable:
+
+; rdi: address of the variable to check if it's in env or not
+; rsi: len of the varible
+; returns rax : address of env path variable if it exists
+; 		      : -ve number on failure
+; CHECKS the og_envp_stack_array_address weather the env variable exists or not
+
+_find_var_in_env_var:
+	test rsi, rsi
+	je .path_not_found
+
 	xor r8 ,r8 							; this will store which env var i am checking
 
 	.check_next_env_var:
-		mov rax, [rel address_envp_address_array]
+		mov rax, [rel og_envp_stack_array_address]
 		mov rdx, r8
 		shl rdx, 3
 		add rax, rdx
-		; rax = [address_envp_address_array + r8*8]
+		; rax = [og_envp_stack_array_address + r8*8]
 		
 		mov rcx, [rax]			; rcx now stores the address of env variable
 
@@ -70,43 +78,27 @@ _find_path_env_variable:
 		xor r9, r9 				; idx for going over the env var
 	.check_this_address:
 
-		cmp byte [rcx + r9], '='
-		je .check_len_and_path
+		cmp r9, rsi    			; r9 is index, rsi is length.
+		je .check_if_env_name_ends_here
 
-
-		cmp byte [rcx + r9], 0 			; invalid env format eg 'abc', no = sign here
-		je .check_next_var
-
-		inc r9
-
-		cmp r9, 4 						; HOME is 4 in len
-		jg .check_next_var
-		jmp .check_this_address
-
-
-	.check_len_and_path:
-		cmp r9, 4
+		mov al, byte [rcx + r9] 		; "PATH=usr/:"
+		cmp byte [rdi + r9], al    ; compare byte of asking variable with current envp var
 		jne .check_next_var
 
-		push rcx
-		push r8
-
-		mov rax, 4
-		lea rdi, [rel path_env_var]
-		mov rsi, rcx
-		call _cmp_equal_memory
-
-		pop r8
-		pop rcx
-
-		test rax, rax
-		je .path_found
-		jmp .check_next_var
+		inc r9
+		jmp .check_this_address
 
 
 	.check_next_var:
 		inc r8
 		jmp .check_next_env_var
+
+	.check_if_env_name_ends_here:
+		cmp byte [rcx + r9], '=' 		; if the next byte in my og_env_var is '=' 
+		je .path_found
+
+		jmp .check_next_var
+
 
 	.path_found:
 		mov rax, rcx
@@ -116,10 +108,16 @@ _find_path_env_variable:
 		mov rax, -1
 		ret
 
+
+
+
+
 ; returns address in rax, if exists or -1 if not
 _check_if_cmd_is_in_path:
 
-	call _find_path_env_variable
+	lea rdi, [rel path_env_var]
+	mov rsi, 4
+	call _find_var_in_env_var
 
 	test rax, rax
 	jl .error_path_env_not_found

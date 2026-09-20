@@ -1,9 +1,13 @@
 section .data
     parse_string_object_address dq 0
 
+
 section .bss
+    ; DO not make this less than 32 bytes, i copy that many bytes as exit code status
+    ; directly into the buffer without checking and expanding
     parse_buffer_capacity equ 2048
     parse_buffer resb parse_buffer_capacity
+    number_buffer resb 32
 
 
 section .text
@@ -14,6 +18,12 @@ extern filled_size_input_buffer_len
 extern _constructor_mystring
 extern _destructor_mystring
 extern _append_string_mystring
+
+extern last_command_exit_code_ascii
+
+extern _itoa
+
+extern _find_var_in_env_var
 
 global parse_string_object_address
 
@@ -36,8 +46,11 @@ _parse_input:
 
     ; PARSER LOGIC FOR
     ; ["./program arg1  arg2 arg3\n"] -> ["./program\nagr1\narg2\n\n"]
-    ; copy <space>, <tab> as '\n'
+    ; copy <space> as '\n'
     ; if '\' before ' ', copy this space instead of '\'
+    ; double/single quotes: "Hello" -> Hello, "'hello'" -> 'hello'
+    ; '$' followed by keywords
+    ;           : '$?' -> resolbe into the exit status code of last command
     ; do not copy "", ''
     ; RN -> one command followed by everything as arguments
 
@@ -92,6 +105,10 @@ _parse_input:
         cmp byte [r9 + r8], 0x27            ; for : single quotes ''
         je .handle_sq
 
+
+        cmp byte [r9 + r8], '$'
+        je .handle_expansion_variable
+
         xor rcx, rcx                        ; last byte was not '\'
 
         jmp .copy_byte_and_loop
@@ -107,7 +124,6 @@ _parse_input:
             jmp .copy_byte_to_buffer
 
 
-            ; todo: save the fucking registers before calling this stupid function
             .copy_buffer_into_string:
                 push rdx
                 push rcx
@@ -250,6 +266,125 @@ _parse_input:
             inc r8                                  ; check next byte
             jmp .loop_till_new_line
 
+
+        .handle_expansion_variable:
+                xor rdx, rdx        ; last line was not \n
+                xor rcx, rcx        ; last line was not \
+
+                inc r8
+                xor rax, rax
+                push rax                    ; in stack i store the len of the expansion variable
+            .loop_expansion_variable:
+                
+
+                cmp byte [r9 + r8], '_'      ; less than 48 not a valid char
+                je .valid_expansion_variable_char
+
+                cmp byte [r9 + r8], '0'      ; less than 48 not a valid char
+                jb .not_valid_expansion_variable_char
+
+                cmp byte [r9 + r8], '9'
+                jbe .valid_expansion_variable_char
+                            
+                cmp byte [r9 + r8], 'A'
+                jb .not_valid_expansion_variable_char
+
+                cmp byte [r9 + r8], 'Z'
+                jbe .valid_expansion_variable_char
+
+                cmp byte [r9 + r8], 'a'
+                jb .not_valid_expansion_variable_char
+
+                cmp byte [r9 + r8], 'z'
+                jbe .valid_expansion_variable_char
+
+
+                jmp .not_valid_expansion_variable_char
+
+                .valid_expansion_variable_char:
+                    inc r8
+                    inc qword [rsp]
+                    jmp .loop_expansion_variable
+
+                .not_valid_expansion_variable_char:
+                
+                cmp qword [rsp], 0     ; if valid len is not 0
+                jne .check_and_expand_if_it_exists_in_env
+
+                ; if valid length is zero and i immediately got into not_a_valid_char
+                ; check the next byte
+                jmp .check_if_exit_status
+
+            .check_if_exit_status:
+                cmp byte [r9 + r8], '?'
+                je .replace_with_last_command_exit_code_status
+                jmp .check_and_expand_if_it_exists_in_env
+
+
+            .replace_with_last_command_exit_code_status:
+                ; copy old data before copying the exit code string
+                call .copy_buffer_into_string
+                
+                ; the exit code is null terminated
+                ; i can copy 32 bytes into the buffer directly
+                ; the string will only append until NULL is found
+                lea rdi, [rel parse_buffer]
+                lea rsi, [rel last_command_exit_code_ascii]
+                mov rcx, 32
+                rep movsb
+
+                mov rsi, 31         ; copy buffer into string adds a null terminator at rs
+                ; copy exit code from buffer into string, and now buffer is reset
+                call .copy_buffer_into_string
+                inc r8                  ; i have replace $? with exit status code
+
+                pop rax
+                jmp .loop_till_new_line
+
+            .check_and_expand_if_it_exists_in_env:
+                ; copy old data before copying the exit code string
+                call .copy_buffer_into_string
+
+                ; r8 is pointing at byte after the last byte of env var
+                ; eg: "$PATH?", r8 is index at "?", at the non valid char
+                sub r8, [rsp]       ; r8 is at the index pointing to "P"
+
+                push rdx
+                push rcx
+                push r8
+                push r9
+                push r10
+                push r11
+                
+                lea rdi, [r9 + r8]          ; address of starting of var
+                mov rsi, [rsp + 48]              ; len of variable, just added 6qword into stack
+                call _find_var_in_env_var
+
+                test rax, rax
+                jl .pop_and_continue
+
+                mov rdi, [rel parse_string_object_address]
+                mov rsi, rax
+                call _append_string_mystring
+
+                
+                .pop_and_continue:
+
+                ; start from the beginning 
+                xor r12, r12
+                xor rsi, rsi 
+
+                pop r11
+                pop r10
+                pop r9
+                pop r8
+                pop rcx
+                pop rdx
+
+                .not_in_env:
+                add r8, [rsp]
+                pop rax
+                jmp .loop_till_new_line
 
 
     .buffer_parsed:

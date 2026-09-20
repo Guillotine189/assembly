@@ -127,6 +127,8 @@ global old_cwd
 global old_cwd_len
 
 global reusable_buffer
+
+global last_command_exit_code_ascii
 section .bss
     reusable_buffer resb 4096
 
@@ -146,6 +148,8 @@ section .bss
 
     pipe_for_command resd 2             ; 2fd:  4bytes each, [read, write]
     pipe_read_buffer_child resb 8
+
+    last_command_exit_code_ascii resb 32
 
 
 ; variables
@@ -207,8 +211,8 @@ _init:
     call _get_and_set_mem_for_history_array
     call _set_prefix_line
     call _get_and_set_memory_for_input_buffer
+    call _set_last_command_exit_code
     ret
-
 
 
 _signal_do_nothing_handler:
@@ -503,6 +507,13 @@ _set_prefix_line:
     mov [rel prefix_line_len], rdi
 
     ret
+
+_set_last_command_exit_code:
+    mov rax, 0
+    lea rdi, [rel last_command_exit_code_ascii]
+    call _itoa
+    ret
+
 
 _print_prefix_line:
     mov rax, [rel prefix_line_len]
