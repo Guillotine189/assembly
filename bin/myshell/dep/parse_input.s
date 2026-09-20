@@ -268,6 +268,8 @@ _parse_input:
 
 
         .handle_expansion_variable:
+
+            .check_for_env_var:
                 xor rdx, rdx        ; last line was not \n
                 xor rcx, rcx        ; last line was not \
 
@@ -317,8 +319,11 @@ _parse_input:
 
             .check_if_exit_status:
                 cmp byte [r9 + r8], '?'
-                je .replace_with_last_command_exit_code_status
-                jmp .check_and_expand_if_it_exists_in_env
+                je .replace_with_last_command_exit_code_status  
+
+                ; if no valid length, "$:", i have to copy both "$" and ":"
+                dec r8
+                jmp .copy_byte_and_loop
 
 
             .replace_with_last_command_exit_code_status:
