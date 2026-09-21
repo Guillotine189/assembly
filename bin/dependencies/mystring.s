@@ -17,10 +17,11 @@ global _constructor_mystring
 global _destructor_mystring
 global _append_string_mystring
 
-
-CAPACITY_OFF 		equ 0
-SIZE_OFF     		equ 8
-POINTER_OFF 		equ 16
+; remember to redefine them in mystring.inc if changed
+MYSTRING_OBJECT_SIZE 		equ 24
+MYSTRING_CAPACITY_OFF 		equ 0
+MYSTRING_SIZE_OFF     		equ 8
+MYSTRING_POINTER_OFF 		equ 16
 
 
 ; rdi : address of costructed string object 
@@ -32,7 +33,7 @@ _constructor_mystring:
 	mov r12, rdi 							; r12 address of string object
 
 	; chek how much memory to allocate
-	mov rdi, [r12 + CAPACITY_OFF]
+	mov rdi, [r12 + MYSTRING_CAPACITY_OFF]
 
 	test rdi, rdi
 	jle .zero_cap_given
@@ -52,9 +53,9 @@ _constructor_mystring:
 	test rax, rax
 	jl .error_allocating_memory
 
-	mov [r12 + POINTER_OFF], rax 		; store the pointer info
-	mov qword [r12 + SIZE_OFF], 0 		; total elements stored is zero
-	mov [r12 + CAPACITY_OFF], r13 		; maybe capacity was changed
+	mov [r12 + MYSTRING_POINTER_OFF], rax 		; store the pointer info
+	mov qword [r12 + MYSTRING_SIZE_OFF], 0 		; total elements stored is zero
+	mov [r12 + MYSTRING_CAPACITY_OFF], r13 		; maybe capacity was changed
 
 	pop r13
 	pop r12
@@ -71,7 +72,7 @@ _constructor_mystring:
 ; just frees the malloc object
 _destructor_mystring:
 	
-	mov rdi, [rdi + POINTER_OFF]
+	mov rdi, [rdi + MYSTRING_POINTER_OFF]
 	call _free
 	ret
 
@@ -94,8 +95,8 @@ _append_string_mystring:
 	
 	mov r13, rax
 
-	mov r8, [r12 + CAPACITY_OFF]
-	mov r9, [r12 + SIZE_OFF]
+	mov r8, [r12 + MYSTRING_CAPACITY_OFF]
+	mov r9, [r12 + MYSTRING_SIZE_OFF]
 	add r9, r13
 
 
@@ -105,8 +106,8 @@ _append_string_mystring:
 
 	.append_string:
 
-	mov rcx, [r12 + POINTER_OFF]
-	add rcx, [r12 + SIZE_OFF] 				; rcx at address where the new string will go
+	mov rcx, [r12 + MYSTRING_POINTER_OFF]
+	add rcx, [r12 + MYSTRING_SIZE_OFF] 				; rcx at address where the new string will go
 
 
 	; r14 : address of new string
@@ -115,7 +116,7 @@ _append_string_mystring:
 	mov rcx, r13  						; rcx : len of new string
 	rep movsb							; actuallly copy the new string into old
 
-	add [r12 + SIZE_OFF], r13 			; update the size
+	add [r12 + MYSTRING_SIZE_OFF], r13 			; update the size
 
 	jmp .return
 
@@ -123,7 +124,7 @@ _append_string_mystring:
 	.get_more_space_string:
 
 	; r13 has the len of new string
-	mov r9, [r12 + SIZE_OFF]
+	mov r9, [r12 + MYSTRING_SIZE_OFF]
 	add r9, r13                  ; required size
 	add r9, 1024                 ; growth
 	add r9, 7
@@ -142,19 +143,19 @@ _append_string_mystring:
 	; copy old string into new
 
 	mov rdi, rax 					; rdi: address of destination
-	mov rsi, [r12 + POINTER_OFF] 	; rsi : address of  src
-	mov rcx, [r12 + SIZE_OFF] 		; rcx : size of old string
+	mov rsi, [r12 + MYSTRING_POINTER_OFF] 	; rsi : address of  src
+	mov rcx, [r12 + MYSTRING_SIZE_OFF] 		; rcx : size of old string
 	rep movsb
 
 	;update capacity
 
-	mov [r12 + CAPACITY_OFF], r9
+	mov [r12 + MYSTRING_CAPACITY_OFF], r9
 
 	; save old pointer
-	mov r8, [r12 + POINTER_OFF]
+	mov r8, [r12 + MYSTRING_POINTER_OFF]
 
 	; update new pointer
-	mov [r12 + POINTER_OFF], rax 
+	mov [r12 + MYSTRING_POINTER_OFF], rax 
 
 	; free old memory
 	mov rdi, r8

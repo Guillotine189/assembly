@@ -1,4 +1,6 @@
 %include "./dep/constants.inc"
+%include "../dependencies/mystring.inc"
+%include "../dependencies/dynamicarray.inc"
 
 section .data
 	path_address dq 0
@@ -21,6 +23,7 @@ section .bss
 	reusable_buffer_path resb 4096
 	struct_for_stat resb 144
 
+; funcs
 extern _print
 extern _print_with_new_line
 extern _string_copy_including_null
@@ -31,7 +34,11 @@ extern _strlen
 extern _mem_copy
 extern _memcpy_with_end_char
 
+extern _default_dynamic_array_constructor
+extern _default_dynamic_array_destructor
+extern _dynamic_array_add_element
 
+; vars
 extern og_envp_stack_array_address
 extern error_code
 extern curr_cwd
@@ -45,10 +52,39 @@ extern address_command
 extern total_command_aruments
 
 
+
+section .text
+
+global _initialize_shell_env_var
 global _check_if_cmd_is_in_path
 global _find_var_in_env_var
 
-section .text
+
+
+
+; env variable 
+; [String object][exported or not]
+; [String object][exported or not]
+; [String object][exported or not]
+; [String object][exported or not]
+; [String object][exported or not]
+; 	24bytes  +       8bytes, 0/1 -> 0: not exported, 1: exported
+; total = 32bytes * total env variables
+
+
+
+
+; at start, og_envp_stack_array_address was initialized.
+; now i am going to make my dynamic array
+_initialize_shell_env_var:
+
+
+	ret
+
+
+
+
+
 
 
 ; rdi: address of the variable to check if it's in env or not
@@ -114,6 +150,9 @@ _find_var_in_env_var:
 
 ; returns address in rax, if exists or -1 if not
 _check_if_cmd_is_in_path:
+	
+	; TODO: change this so i can check the env variables for individual commands
+	; Rn i am checking from the original list on env var.
 
 	lea rdi, [rel path_env_var]
 	mov rsi, 4

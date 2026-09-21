@@ -63,10 +63,12 @@ global _print_detailed_malloc
 
 metadata_size equ 32
 min_free_space_size equ 16
-SIZE_OFF equ 0
-USED_OFF equ 8
-PREV_OFF equ 16
-NEXT_OFF equ 24
+
+; remember to update these in mymalloc.inc if changed
+MYMALLOC_SIZE_OFF 		equ 0
+MYMALLOC_USED_OFF 		equ 8
+MYMALLOC_PREV_OFF 		equ 16
+MYMALLOC_NEXT_OFF 		equ 24
 
 ; brk in ASSEMBLY, can return the old brk after asking for new brk on failure
 ; thats why rax might not contain a -ve number but the old brk
@@ -119,7 +121,7 @@ _malloc:
 
 
 		.check_if_segment_is_free:
-		cmp qword [r8+ USED_OFF], 0
+		cmp qword [r8+ MYMALLOC_USED_OFF], 0
 		je .check_if_segment_has_enough_size
 		jmp .loopback
 
@@ -130,7 +132,7 @@ _malloc:
 
 		.loopback:
 			mov r9, r8 					; r9: add of prev segment for next segment
-			mov r8, [r8+ NEXT_OFF] 				; r8 is now next segment address
+			mov r8, [r8+ MYMALLOC_NEXT_OFF] 				; r8 is now next segment address
 			jmp .loop
 
 
@@ -164,21 +166,21 @@ _malloc:
 		add rcx, rbx 								; rcx is the adddress of new seg
 
 		mov qword [rcx], rax
-		mov qword [rcx + USED_OFF], 0 						; unoccupied segment
-		mov [rcx+ PREV_OFF], r8  						; prev segment						
+		mov qword [rcx + MYMALLOC_USED_OFF], 0 						; unoccupied segment
+		mov [rcx+ MYMALLOC_PREV_OFF], r8  						; prev segment						
 		; prev segment for this new segment  is the segment being split
-		mov rdx, [r8+ NEXT_OFF]
-		mov qword [rcx + NEXT_OFF], rdx 				; new seg points to old seg's next segment
+		mov rdx, [r8+ MYMALLOC_NEXT_OFF]
+		mov qword [rcx + MYMALLOC_NEXT_OFF], rdx 				; new seg points to old seg's next segment
 
-		mov [r8+ NEXT_OFF], rcx 							; old segment points to new segment
+		mov [r8+ MYMALLOC_NEXT_OFF], rcx 							; old segment points to new segment
 		mov [r8], rbx 							; old segment size has been updated
 
 		; now point the next segment's prev to this new segment
-		mov rdx, [rcx+ NEXT_OFF] 				; next segment address
+		mov rdx, [rcx+ MYMALLOC_NEXT_OFF] 				; next segment address
 		cmp rdx, r12   					; cmp next segment address with brk
 		je .mark_this_as_last_segment_and_ret  		; if this was last segment, return
 
-		mov [rdx+ PREV_OFF], rcx 				; prev of next segment is this new segment created
+		mov [rdx+ MYMALLOC_PREV_OFF], rcx 				; prev of next segment is this new segment created
 		jmp .return_this_segment
 
 		.mark_this_as_last_segment_and_ret:
@@ -186,7 +188,7 @@ _malloc:
 			jmp .return_this_segment
 
 	.return_this_segment:
-		mov qword [r8 + USED_OFF], 1 					; mark this as occupied
+		mov qword [r8 + MYMALLOC_USED_OFF], 1 					; mark this as occupied
 		mov rax, r8
 		add rax, metadata_size 				; return to user address of free space
 
@@ -198,7 +200,7 @@ _malloc:
 
 	.check_if_last_segment_is_free:
 		mov rax, [rel malloc_address_last_segment]
-		cmp qword [rax + USED_OFF], 0
+		cmp qword [rax + MYMALLOC_USED_OFF], 0
 		jne .get_more_heap_space 	; if last segment not empty, just get more space
 
 		jmp .get_more_heap_space_when_last_seg_included
@@ -211,7 +213,7 @@ _malloc:
 
 		mov r12, [rel malloc_address_last_segment]
 		mov rcx, rbx 				; rbx is original size requested
-		sub rcx, [r12 + SIZE_OFF]  	; the size diff of original vs requested
+		sub rcx, [r12 + MYMALLOC_SIZE_OFF]  	; the size diff of original vs requested
 
 		mov rax, 12
 		mov rdi, r12						; address of last segment
@@ -225,8 +227,8 @@ _malloc:
 
 		; Existing last segment is now the requested size.
 	    mov [r12], rbx
-	    mov qword [r12 + USED_OFF], 1
-	    mov [r12 + NEXT_OFF], rax
+	    mov qword [r12 + MYMALLOC_USED_OFF], 1
+	    mov [r12 + MYMALLOC_NEXT_OFF], rax
 
 	    dec qword [rel malloc_empty_segments]
 	    inc qword [rel malloc_occupied_segments]
@@ -254,9 +256,9 @@ _malloc:
 	.fill_metadata:
 
 	mov qword [r12], rbx 			; 1st 8 bytes: size of free space in this segment
-	mov qword [r12 + USED_OFF], 1 			; 0 -> free, 1 -> occupied
-	mov qword [r12 + PREV_OFF], r13 		; add_prev_segment
-	mov qword [r12 + NEXT_OFF], rax 		; add_next_segment = new brk address
+	mov qword [r12 + MYMALLOC_USED_OFF], 1 			; 0 -> free, 1 -> occupied
+	mov qword [r12 + MYMALLOC_PREV_OFF], r13 		; add_prev_segment
+	mov qword [r12 + MYMALLOC_NEXT_OFF], rax 		; add_next_segment = new brk address
 
 	mov [rel malloc_address_last_segment], r12   ; this segment is the last segment now
 
@@ -292,7 +294,7 @@ _free:
 	    
 
 	.mark_this_segment_as_free:
-		mov qword [rbx+ USED_OFF], 0 					; mark this segment as free
+		mov qword [rbx+ MYMALLOC_USED_OFF], 0 					; mark this segment as free
 		dec qword [rel malloc_occupied_segments]
 		inc qword [rel malloc_empty_segments]
 
@@ -308,10 +310,10 @@ _free:
 		je .occupied
 
 
-		mov rax, [rbx + NEXT_OFF] 				 ; address of next segment
+		mov rax, [rbx + MYMALLOC_NEXT_OFF] 				 ; address of next segment
 
 
-		cmp qword [rax+ USED_OFF], 1 				; check if new  segment is occupied or not
+		cmp qword [rax+ MYMALLOC_USED_OFF], 1 				; check if new  segment is occupied or not
 		je .occupied
 
 		; merge current segment with next
@@ -319,8 +321,8 @@ _free:
 		add rcx, metadata_size 			; total size of next segment in rcx
 		add [rbx], rcx 					; the og segment size been increased
 
-		mov rdi, [rax+ NEXT_OFF]
-		mov [rbx+ NEXT_OFF], rdi 				; og->next = curr->next
+		mov rdi, [rax+ MYMALLOC_NEXT_OFF]
+		mov [rbx+ MYMALLOC_NEXT_OFF], rdi 				; og->next = curr->next
 
 		; check if segment consumed was the last segment 
 		cmp rax, [rel malloc_address_last_segment]
@@ -328,8 +330,8 @@ _free:
 
 		; if this segment was not last
 
-		mov rax, [rax+ NEXT_OFF] 				; address of og->next->next
-		mov [rax+ PREV_OFF], rbx 				; og->next->next->prev = og
+		mov rax, [rax+ MYMALLOC_NEXT_OFF] 				; address of og->next->next
+		mov [rax+ MYMALLOC_PREV_OFF], rbx 				; og->next->next->prev = og
 
 		jmp .not_occupied
 
@@ -347,12 +349,12 @@ _free:
 
 	.check_if_prev_segment_is_free:
 
-		cmp qword [rbx + PREV_OFF], 0 					; og->prev is 0? meaning 1st segment?
+		cmp qword [rbx + MYMALLOC_PREV_OFF], 0 					; og->prev is 0? meaning 1st segment?
 		je .occupied2
 
-		mov rax, [rbx + PREV_OFF] 				 ; og->prev
+		mov rax, [rbx + MYMALLOC_PREV_OFF] 				 ; og->prev
 
-		cmp qword [rax+ USED_OFF], 1 				; check if new  segment is occupied or not
+		cmp qword [rax+ MYMALLOC_USED_OFF], 1 				; check if new  segment is occupied or not
 		je .occupied2
 
 		; merge current segment with previous
@@ -360,8 +362,8 @@ _free:
 		add rcx, metadata_size 			; total size of next segment in rcx
 		add [rax], rcx 					; siz of prev += size of og
 
-		mov rdi, [rbx+ NEXT_OFF]
-		mov [rax+ NEXT_OFF], rdi 				; prev->next = og->next
+		mov rdi, [rbx+ MYMALLOC_NEXT_OFF]
+		mov [rax+ MYMALLOC_NEXT_OFF], rdi 				; prev->next = og->next
 
 		; check if og was last segment
 		cmp rbx, [rel malloc_address_last_segment]
@@ -369,8 +371,8 @@ _free:
 
 		; if og segment was not last segment
 
-		mov rcx, [rbx+ NEXT_OFF] 				; address of og->next
-		mov [rcx+ PREV_OFF], rax 				; og->next->prev = prev
+		mov rcx, [rbx+ MYMALLOC_NEXT_OFF] 				; address of og->next
+		mov [rcx+ MYMALLOC_PREV_OFF], rax 				; og->next->prev = prev
 
 		jmp .not_occupied2
 
@@ -471,7 +473,7 @@ _print_detailed_malloc:
 
 		push rdi 				; save the next position for insertion
 		;convert size into ascii
-		mov rax, [r12 + SIZE_OFF]
+		mov rax, [r12 + MYMALLOC_SIZE_OFF]
 		lea rdi, [rel number_buffer]
 		call itoa
 		pop rdi
@@ -496,7 +498,7 @@ _print_detailed_malloc:
 		rep movsb
 
 		; weather occuped or free
-		mov rax, [r12 + USED_OFF]  	
+		mov rax, [r12 + MYMALLOC_USED_OFF]  	
 		test rax, rax
 		jz .free
 
@@ -532,7 +534,7 @@ _print_detailed_malloc:
 		jne .print_final_vertical_line
 
 		; move segment to next
-		mov r12, [r12 + NEXT_OFF]
+		mov r12, [r12 + MYMALLOC_NEXT_OFF]
 		jmp .loop_and_print_till_last_segment
 
 

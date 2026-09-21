@@ -1,4 +1,5 @@
 %include "./dep/constants.inc"
+%include "../dependencies/mystring.inc"
 
 global filled_size_input_buffer_len
 global input_interrupted
@@ -193,6 +194,8 @@ extern _parse_input
 extern _check_and_execute_if_built_in
 extern _check_if_cmd_is_in_path
 
+extern _initialize_shell_env_var
+
 section .text
 
 
@@ -212,6 +215,7 @@ _init:
     call _set_prefix_line
     call _get_and_set_memory_for_input_buffer
     call _set_last_command_exit_code
+    call _initialize_shell_env_var
     ret
 
 
@@ -984,7 +988,7 @@ _handle_input:
 _start:
     mov rbp, rsp 
 
-    ; save the address of shells envp variables
+    ; saving the address so that i can initialize them later
     mov rax, [rbp]                      ; total argc
     add rax, 2
     lea rax, [rbp + rax*8]                ; address where the array of address start for envp

@@ -58,14 +58,14 @@ SA_RESTART equ 0x10000000   ; if a syscall was in progress, restart that syscall
 SA_RESETHAND equ 0x80000000 ; after rec the interrupt once, reset the handler to default.
 
 
-; for noncanonical
+; for ioctl
 C_LFLAG     equ 12
 TIOCGWINSZ  equ 0x5413 		; get window size of terminal
 TIOCSWINSZ  equ 0x5414 		; set window size of terminal
 TIOCGPGRP   equ 0x540F 		; get the current pgid for terminal
 TIOCSPGRP   equ 0x5410      ; change group pid of an terminal
-TCGETS      equ 0x5401
-TCSETS      equ 0x5402
+TCGETS      equ 0x5401  	; signal interrupt get old info
+TCSETS      equ 0x5402  	; signal interrupt set
 
 ; stat
 O_RDONLY    equ 0

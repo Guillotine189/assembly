@@ -1,3 +1,5 @@
+%include "../dependencies/mystring.inc"
+
 section .data
     parse_string_object_address dq 0
 
@@ -41,7 +43,7 @@ global _parse_input
 _parse_input:
     push rbp
     mov rbp, rsp
-    push r12
+    push r12        ; i don't have to save these registers in my program in this function
     push r13
 
     ; PARSER LOGIC FOR
@@ -49,8 +51,10 @@ _parse_input:
     ; copy <space> as '\n'
     ; if '\' before ' ', copy this space instead of '\'
     ; double/single quotes: "Hello" -> Hello, "'hello'" -> 'hello'
+    ; in dq/sq, '$' still expands the path var
     ; '$' followed by keywords
     ;           : '$?' -> resolbe into the exit status code of last command
+    ; '\' -> ignored, '\\' -> '\' and so on
     ; do not copy "", ''
     ; RN -> one command followed by everything as arguments
 
@@ -67,10 +71,10 @@ _parse_input:
         add rax, 512            ; add to original len 512bytes, safe length
 
     .create_parse_string_object:
-    sub rsp, 24
-    mov qword [rsp + 0], rax
-    mov qword [rsp + 8], 0
-    mov qword [rsp + 16], 0
+    sub rsp, MYSTRING_OBJECT_SIZE
+    mov qword [rsp + MYSTRING_CAPACITY_OFF], rax
+    mov qword [rsp + MYSTRING_SIZE_OFF], 0
+    mov qword [rsp + MYSTRING_POINTER_OFF], 0
     mov rdi, rsp
     call _constructor_mystring
 
@@ -81,14 +85,14 @@ _parse_input:
 
 
     lea r13, [rel parse_buffer]         ; always contains the parse buffer
-    xor r12, r12                        ; length of parse buffer
-    xor rdx, rdx                        ; weather last byte copied was \n or not
+    xor r12, r12                        ; filled space of parse_buffer
     xor rsi, rsi                        ; index for dst to copy bytes to
     xor r8, r8                          ; index for line traversal
     mov r9, [rel input_buffer_address]
     xor r10, r10                        ; weather inside double quotes or not
     xor r11, r11                        ; weather inside single quotes or not
     xor rcx, rcx                        ; weater last byte was '\' or not
+    xor rdx, rdx                        ; weather last byte copied was \n or not
     .loop_till_new_line:
         cmp byte [r9 + r8], 0x0a            ; if the byte is \n
         je .buffer_parsed
@@ -114,7 +118,17 @@ _parse_input:
         jmp .copy_byte_and_loop
 
         .front_slash_was_seen:
+
+            test rcx, rcx
+            jz .mark_as_seen_and_continue
+            ; last byte was \, so now i can append this
+            jmp .copy_byte_and_loop
+
+            .mark_as_seen_and_continue:
             mov rcx, 1
+            inc r8
+            xor rdx,  rdx               ; this byte not not \n
+            jmp .loop_till_new_line
 
         ; if any other char was passed, copy it to dst addr
         .copy_byte_and_loop:
@@ -269,7 +283,6 @@ _parse_input:
 
         .handle_expansion_variable:
 
-            .check_for_env_var:
                 xor rdx, rdx        ; last line was not \n
                 xor rcx, rcx        ; last line was not \
 

@@ -186,53 +186,22 @@ _itoa:
 ; rdx : how many bytes to copy
 ; returns: rax : the how many bytes copied
 _mem_copy:
-	push rbp
-	mov rbp, rsp
-	push rdx
 
-	; find how many 8 bytes i can copy
-	mov rax, rdx
-	shr rax, 3 					; basically rax/8 quotient
+	mov rcx, rdx
+	shr rcx, 3 					; len/8 quotient
 
-	; find how many 1 bytes i need to copy
+	mov rax, rcx  				; saving how many 8bytes to copy
+	shl rax, 3 					; total 8bytes that are copied
+
+	rep movsq 					; copy 8 bytes at a time
+
+
 	mov rcx, rdx
 	and rcx, 7 					; basically rdx%8
+	add rax, rcx
+	rep movsb 					; copy remaining 1 byte at a time
 
-	.loop_eight_bytes:
-
-		test rax, rax
-		jz .loop_single_byte
-
-		mov rdx, [rsi] 				; move 8bytes into register
-		mov qword [rdi], rdx 				; move 8 bytes into memory
-
-		add rsi, 8
-		add rdi, 8
-
-		dec rax
-
-		jmp .loop_eight_bytes
-
-
-	.loop_single_byte:
-		test rcx, rcx
-		je .done
-
-		mov dl, [rsi]
-		mov [rdi], dl
-
-		inc rsi
-		inc rdi
-
-		dec rcx
-
-		jmp .loop_single_byte
-
-	.done:
-		pop rax
-		mov rsp, rbp
-		pop rbp
-		ret
+	ret
 
 
 ; rdi : address of destination string
@@ -313,22 +282,22 @@ _strcmp:
 ; rsi: address 2
 ; returns : 0 if same, 1 if different
 _cmp_equal_memory:
+	; cld = clear direction flag, clears direction_flag to 0, rep, will +1 the registers
+	; std: set direction flag, sets direction flag to = 1, if DF=1, rep will do -1 after every instruction
+	cld 			; i never set std, but still
 
-	xor r8, r8 				; stores how many bytes compared
+	mov rcx, rax
+	shr rcx, 3 			; rcx = length to compare / 8
+	
+	repe cmpsq
+	jne .not_equal
 
-	.loop:
+	mov rcx, rax
+	and rcx, 7 			; ; rcx = length % 8 
 
-		cmp r8, rax
-		je .equal
-
-		mov cl, [rdi + r8]						; 1 byte comparision
-		mov dl, [rsi + r8]						; TODO: change it later for efficiency
-		cmp cl, dl
-		jne .not_equal
-
-		inc r8
-		jmp .loop
-
+	repe cmpsb   		; for remaining, comapre 1 byte at a time
+	jne .not_equal
+	jmp .equal
 
 	.not_equal:
 		mov rax, 1
@@ -346,32 +315,27 @@ _cmp_equal_memory:
 ; r8b 	 : if 0 -> dont append anything, anything else -> append dl
 ; returns: address of byte ahead of last byte written in  rax 
 _memcpy_with_end_char:
+	cld
 
-	xor r9, r9							; this will store how many bytes i have copied
-	.loop:
-		; check if i have to cpoy another byte
-		cmp r9, rax 			; rax will always store the original count of bytes
-		je .add_end_char
+	mov rcx, rax
+	shr rcx, 3 			; rcx = length to compare / 8
+	
+	rep movsq 			; copy 8 bytes at a time
 
-		; move data from src to destination
-		mov cl , [rsi + r9]					; move exactly 1 byte
-		mov [rdi + r9] , cl 				; 1 byte
+	mov rcx, rax
+	and rcx, 7 			; ; rcx = length % 8 
 
-		; increment bytes copied and loop
-		inc r9
-		jmp .loop
+	rep movsb   		; copy 1 byte at a time
 
-	.add_end_char:
-		test r8b, r8b
-		jz .done
+	test r8b, r8b       ; if r8 is zero, i am done
+	jz .done
 
-		mov [rdi + r9], dl
-		inc r9
+	mov [rdi], dl   	; if r8 is not zero, copy the byte sent in dl register
+	inc rdi
 
 	.done:
-		mov rax, rdi
-		add rax, r9
-		ret 
+	mov rax, rdi
+	ret 
 
 
 ; rdi: address desstination string

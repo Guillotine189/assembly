@@ -1,0 +1,9 @@
+%ifndef _MYMALLOC_INC
+%define  _MYMALLOC_INC
+
+MYMALLOC_SIZE_OFF 		equ 0
+MYMALLOC_USED_OFF 		equ 8
+MYMALLOC_PREV_OFF 		equ 16
+MYMALLOC_NEXT_OFF 		equ 24
+
+%endif

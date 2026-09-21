@@ -1,4 +1,5 @@
 %include "./dep/constants.inc"
+%include "../dependencies/mystring.inc"
 
 section .data
     cursor_idx dq 0
@@ -972,10 +973,10 @@ _read_input:
         mov r13, r9
         mov r14, r10
 
-        sub rsp, 24
-        mov qword [rsp + 0], 64             ; asking for 64 bytes is enough
-        mov qword [rsp + 8], 0
-        mov qword [rsp + 16], 0
+        sub rsp, MYSTRING_OBJECT_SIZE
+        mov qword [rsp + MYSTRING_CAPACITY_OFF], 64   ; asking for 64 bytes is enough
+        mov qword [rsp + MYSTRING_SIZE_OFF], 0
+        mov qword [rsp + MYSTRING_POINTER_OFF], 0
         mov rdi, rsp
         call _constructor_mystring
 
