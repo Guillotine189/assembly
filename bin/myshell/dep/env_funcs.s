@@ -7,7 +7,6 @@ section .data
 	last_path_flag dq 0
 
 
-
 section .rodata	
 	error_path_env_not_found db "Error: 'PATH; env variable not present.", 0
 	error_path_env_not_found_len equ $ - error_path_env_not_found
@@ -19,9 +18,12 @@ section .rodata
 	path_env_var db "PATH", 0
 
 
+
 section .bss
 	reusable_buffer_path resb 4096
 	struct_for_stat resb 144
+	number_buffer resb 32
+	shell_env_array_object resb DYNAMICARRAY_OBJECT_SIZE
 
 ; funcs
 extern _print
@@ -33,14 +35,25 @@ extern _cmp_equal_memory
 extern _strlen
 extern _mem_copy
 extern _memcpy_with_end_char
+extern _itoa
 
 extern _default_dynamic_array_constructor
 extern _default_dynamic_array_destructor
 extern _dynamic_array_add_element
 
+
+extern _constructor_mystring
+extern _destructor_mystring
+extern _append_string_mystring
+
+extern _malloc
+extern _free
+
+
 ; vars
 extern og_envp_stack_array_address
 extern error_code
+extern exit_status_code
 extern curr_cwd
 extern curr_cwd_len
 extern old_cwd
@@ -51,40 +64,183 @@ extern address_envp_address_array
 extern address_command
 extern total_command_aruments
 
+extern _exit
+extern _exit_with_status_code
 
 
 section .text
 
-global _initialize_shell_env_var
+global _initialize_shell_env_array
 global _check_if_cmd_is_in_path
 global _find_var_in_env_var
 
+global shell_env_array_object
+
+; env_struct
+; [String object] 24bytes  
+; [exported or not] 8bytes, 0/1 -> 0: not exported, 1: exported
+; total = 32bytes
+; i will add env_struct to 
+
+ENV_STRUCT_STRING_OBJ_OFF equ 0
+ENV_STRUCT_EXPORTED_OFF equ MYSTRING_OBJECT_SIZE
+ENV_STRUCT_SIZE equ MYSTRING_OBJECT_SIZE + 8
 
 
-
-; env variable 
-; [String object][exported or not]
-; [String object][exported or not]
-; [String object][exported or not]
-; [String object][exported or not]
-; [String object][exported or not]
-; 	24bytes  +       8bytes, 0/1 -> 0: not exported, 1: exported
-; total = 32bytes * total env variables
-
-
+; REMEMBER: the array does not own the ENV_STRUCT
+; so if you have to delete a ENV_STRUCT, make sure to free the string
 
 
 ; at start, og_envp_stack_array_address was initialized.
-; now i am going to make my dynamic array
-_initialize_shell_env_var:
+_initialize_shell_env_array:
+	push rbp
+	mov rbp, rsp
+	push r12
+
+	.get_a_lot_of_heap_memory:
+		mov rdi, 32768  					; 32kb
+		call _malloc
+
+		test rax, rax
+		jl .error_getting_heap_memory
+
+		; immediately free this so i can use this chunk of memory
+		; _free does not give the memory back to os, it keeps it
+		mov rdi, rax
+		call _free
 
 
+	.create_array_env:
+		lea rax, [rel shell_env_array_object]
+		mov qword [rax + DYNAMICARRAY_CAPACITY_OFF], 40
+		mov qword [rax + DYNAMICARRAY_SIZE_OFF], 0
+		mov qword [rax + DYNAMICARRAY_ELEMENT_SIZE_OFF], ENV_STRUCT_SIZE
+		mov qword [rax + DYNAMICARRAY_POINTER_OFF], 0
+		mov rdi, rax
+		call _default_dynamic_array_constructor
+
+		test rax, rax
+		jl .error_creating_array
+
+	xor r12, r12 					; index fow which env var to copy
+
+	.loop_populate_env_struct:
+
+		mov rax, [rel og_envp_stack_array_address]
+		mov rcx, r12
+		shl rcx, 3
+		add rax, rcx
+		cmp qword [rax], 0
+		je .done_populating
+
+	.create_env_struct_object:
+		sub rsp, ENV_STRUCT_SIZE
+		; create string object
+		mov qword [rsp + MYSTRING_CAPACITY_OFF], 128   ; assign 128bytes for each env var
+		mov qword [rsp + MYSTRING_SIZE_OFF], 0
+		mov qword [rsp + MYSTRING_POINTER_OFF], 0
+		mov rdi, rsp
+		call _constructor_mystring
+		
+		test rax, rax
+		jl .error_creating_string_object
+
+	.add_env_var_to_string:
+		mov rax, [rel og_envp_stack_array_address]
+		mov rcx, r12
+		shl rcx, 3
+		add rax, rcx
+		mov rax, [rax] 					; the actual adddress of env variable
+
+		mov rdi, rsp
+		mov rsi, rax
+		call _append_string_mystring
+
+		test rax, rax
+		jl .error_appending_to_string
+
+	.set_exported_to_true:
+		mov rax, rsp
+		add rax, ENV_STRUCT_EXPORTED_OFF
+		mov qword [rax], 1
+
+	.add_env_struct_to_array:
+
+		lea rdi, [rel shell_env_array_object]
+		mov rsi, rsp
+		call _dynamic_array_add_element
+
+		test rax, rax
+		jl .error_adding_env_struct
+
+	.remove_string_object_from_stack:
+		add rsp, ENV_STRUCT_SIZE
+
+	.loopback:
+		inc r12
+		jmp .loop_populate_env_struct
+
+	.done_populating:
+		;call _print_env
+		pop r12
+		mov rsp, rbp
+		pop rbp
+		ret
+
+	.error_adding_env_struct:
+	.error_getting_heap_memory:
+	.error_appending_to_string:
+	.error_creating_string_object:
+	.error_creating_array:
+		; TODO: print proper errors
+		mov [rel exit_status_code], rax
+		call _exit_with_status_code
+
+
+
+
+_print_env:
+	push rbp
+	mov rbp, rsp
+
+	push r12
+
+	mov r12, 0
+	mov r8, 1
+
+	.loop_print_env_struct:
+	lea r9, [rel shell_env_array_object]
+
+	cmp r8, [r9 + DYNAMICARRAY_SIZE_OFF]
+	jg .done
+
+	push r8
+	mov r9, [r9 + DYNAMICARRAY_POINTER_OFF]
+
+	mov rax, r12
+	mov rcx, ENV_STRUCT_SIZE
+	mul rcx
+	; rax has the offset for next env struct
+	lea rax, [r9 + rax] 		; now rax points to the next env struct
+	
+	lea rcx, [rax + ENV_STRUCT_STRING_OBJ_OFF]
+
+	mov rax, [rcx + MYSTRING_SIZE_OFF] 				; r14 has string size
+	mov rsi, [rcx + MYSTRING_POINTER_OFF] 			; r13 has the actual string
+	mov rdi, 1
+	call _print_with_new_line
+
+	pop r8
+	inc r12
+	inc r8
+
+	jmp .loop_print_env_struct
+
+	.done:
+	pop r12
+	mov rsp, rbp
+	pop rbp
 	ret
-
-
-
-
-
 
 
 ; rdi: address of the variable to check if it's in env or not

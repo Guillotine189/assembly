@@ -5,6 +5,7 @@ section .text
 global _default_dynamic_array_constructor
 global _default_dynamic_array_destructor
 global _dynamic_array_add_element
+global _dynamic_array_get_element_address
 
 extern _malloc
 extern _free
@@ -33,12 +34,10 @@ DYNAMICARRAY_ELEMENT_SIZE_OFF 	equ 16
 DYNAMICARRAY_POINTER_OFF 		equ 24
 
 
-
-; TODO: recheck myconstructor
-
 ; rdi : address of non-constructed dynamic_array object 
 ; returns rax: 0 on success and -ve nuumber on error
 _default_dynamic_array_constructor:
+	push r12
 	mov rax, [rdi + DYNAMICARRAY_CAPACITY_OFF]
 	mov rcx, [rdi + DYNAMICARRAY_ELEMENT_SIZE_OFF]
 
@@ -48,33 +47,38 @@ _default_dynamic_array_constructor:
 	test rcx, rcx   					; if size of 1 element is 0 or -ve return error
 	jle .error_allocating_memory
 
-	push rdi 							; save the address of the object in stack
-
+	mov r12, rdi 						; address of object in r12
 	; check how much memory to allocate
 	mul rcx 				; rax * rcx -> output is rdx:rax
 
-	test rcx, rcx
+	test rdx, rdx
+	jnz .error_allocating_memory
+
+	test rax, rax
 	je .allocate_size_of_one_element
+	jmp .alocate_asked_size
 
 	.allocate_size_of_one_element:
-		mov rcx, [rdi + DYNAMICARRAY_ELEMENT_SIZE_OFF]
+		mov qword [r12 + DYNAMICARRAY_CAPACITY_OFF], 1
+		mov rax, [r12 + DYNAMICARRAY_ELEMENT_SIZE_OFF]
 
-	mov rdi, rcx
+	.alocate_asked_size:
+	mov rdi, rax
 	call _malloc 			; rax has the pointer to the memory
 
 	test rax, rax
 	jl .error_allocating_memory
 
-	pop rdi 				; resotre the address ob object
 
-	mov [rdi + DYNAMICARRAY_POINTER_OFF], rax 		; store the pointer info
-	mov qword [rdi + DYNAMICARRAY_SIZE_OFF], 0 		; total elements stored is zero
+	mov [r12 + DYNAMICARRAY_POINTER_OFF], rax 		; store the pointer info
+	mov qword [r12 + DYNAMICARRAY_SIZE_OFF], 0 		; total elements stored is zero
 
-
+	pop r12
 	xor rax, rax
 	ret 
 
 	.error_allocating_memory:
+		pop r12
 		mov rax, -1
 		ret
 

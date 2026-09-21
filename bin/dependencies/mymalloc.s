@@ -84,6 +84,11 @@ _malloc:
 
 	mov rbx, rdi 						;store requested size in callee-saved reg rbx
 
+	cmp qword [rel malloc_total_segments], 0
+	je .get_new_brk
+	jmp .use_old_brk
+
+	.get_new_brk:
 	; get the current break address
 	mov rax, 12 								;syscall sys_brk
 	xor rdi, rdi 								; 0 to find current brk address
@@ -91,9 +96,14 @@ _malloc:
 
 	test rax, rax
 	jl .error_getting_old_brk_address_and_ret
+	mov r12, rax 
+	jmp .continue						; save old brk address r12
 
-	mov r12, rax 						; save old brk address r12
+	.use_old_brk:
+	mov r12, [rel malloc_address_last_segment]
+	mov r12, [r12 + MYMALLOC_NEXT_OFF]
 
+	.continue:
 	cmp qword [rel malloc_address_first_segment], 0
 	je .assign_heap_start_address
 	jmp .check_if_old_free_segment_available
@@ -169,18 +179,18 @@ _malloc:
 		mov qword [rcx + MYMALLOC_USED_OFF], 0 						; unoccupied segment
 		mov [rcx+ MYMALLOC_PREV_OFF], r8  						; prev segment						
 		; prev segment for this new segment  is the segment being split
-		mov rdx, [r8+ MYMALLOC_NEXT_OFF]
+		mov rdx, [r8 + MYMALLOC_NEXT_OFF]
 		mov qword [rcx + MYMALLOC_NEXT_OFF], rdx 				; new seg points to old seg's next segment
 
 		mov [r8+ MYMALLOC_NEXT_OFF], rcx 							; old segment points to new segment
 		mov [r8], rbx 							; old segment size has been updated
 
 		; now point the next segment's prev to this new segment
-		mov rdx, [rcx+ MYMALLOC_NEXT_OFF] 				; next segment address
+		mov rdx, [rcx + MYMALLOC_NEXT_OFF] 				; next segment address
 		cmp rdx, r12   					; cmp next segment address with brk
 		je .mark_this_as_last_segment_and_ret  		; if this was last segment, return
 
-		mov [rdx+ MYMALLOC_PREV_OFF], rcx 				; prev of next segment is this new segment created
+		mov [rdx + MYMALLOC_PREV_OFF], rcx 				; prev of next segment is this new segment created
 		jmp .return_this_segment
 
 		.mark_this_as_last_segment_and_ret:
@@ -212,14 +222,11 @@ _malloc:
 	.get_more_heap_space_when_last_seg_included:
 
 		mov r12, [rel malloc_address_last_segment]
-		mov rcx, rbx 				; rbx is original size requested
-		sub rcx, [r12 + MYMALLOC_SIZE_OFF]  	; the size diff of original vs requested
 
 		mov rax, 12
 		mov rdi, r12						; address of last segment
 		add rdi, metadata_size 				; add metadat size
-		add rdi, rbx 						; the original size of segment
-		add rdi, rcx 						; extra size needed
+		add rdi, rbx 						; the final size requested
 		syscall 							; rax has new brk position
 
 		cmp rax, rdi
@@ -261,7 +268,6 @@ _malloc:
 	mov qword [r12 + MYMALLOC_NEXT_OFF], rax 		; add_next_segment = new brk address
 
 	mov [rel malloc_address_last_segment], r12   ; this segment is the last segment now
-
 	jmp .return_old_brk_address
 
 	.return_old_brk_address:
@@ -294,7 +300,7 @@ _free:
 	    
 
 	.mark_this_segment_as_free:
-		mov qword [rbx+ MYMALLOC_USED_OFF], 0 					; mark this segment as free
+		mov qword [rbx + MYMALLOC_USED_OFF], 0 					; mark this segment as free
 		dec qword [rel malloc_occupied_segments]
 		inc qword [rel malloc_empty_segments]
 
@@ -309,11 +315,9 @@ _free:
 		cmp rbx, [rel malloc_address_last_segment]  	; if og segment was last segment
 		je .occupied
 
-
 		mov rax, [rbx + MYMALLOC_NEXT_OFF] 				 ; address of next segment
 
-
-		cmp qword [rax+ MYMALLOC_USED_OFF], 1 				; check if new  segment is occupied or not
+		cmp qword [rax + MYMALLOC_USED_OFF], 1 				; check if new  segment is occupied or not
 		je .occupied
 
 		; merge current segment with next
@@ -437,7 +441,7 @@ _print_malloc_segments_info:
 _print_detailed_malloc:
 	push r12
 	push r13
-
+	push r14
 
 	mov rax, malloc_detailed_info_len
 	mov rdi, 1
@@ -447,7 +451,7 @@ _print_detailed_malloc:
 
 	mov r12, [rel malloc_address_first_segment]
 	xor r13, r13 					; flag to check if last segment was reached
-
+	mov r14, 1 						; number of segments 
 	.loop_and_print_till_last_segment:
 		cmp r12, [rel malloc_address_last_segment]
 		je .last_segment_reached
@@ -466,7 +470,20 @@ _print_detailed_malloc:
 		mov rcx, 1
 		rep movsb
 
-		; copy the word "Size: "
+		push rdi 				; save the next position for insertion
+		;convert segment number into ascii
+		mov rax, r14
+		lea rdi, [rel number_buffer]
+		call itoa
+		pop rdi
+		
+		inc r14
+		; copy the actual size
+		lea rsi, [rel number_buffer]
+		mov rcx, rax
+		rep movsb
+
+		; copy the word "Allocated Size: "
 		lea rsi, [rel word_size]
 		mov rcx, word_size_len
 		rep movsb
@@ -529,6 +546,7 @@ _print_detailed_malloc:
 		lea rsi, [rel malloc_info_buffer]
 		call print
 
+
 		.loopback:
 		test r13, r13
 		jne .print_final_vertical_line
@@ -550,6 +568,7 @@ _print_detailed_malloc:
 
 
 	.return:
+		pop r14
 		pop r13
 		pop r12
 		ret
