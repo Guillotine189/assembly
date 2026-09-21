@@ -1,5 +1,6 @@
 %include "./dep/constants.inc"
 %include "../dependencies/mystring.inc"
+%include "../dependencies/dynamicarray.inc"
 
 global filled_size_input_buffer_len
 global input_interrupted
@@ -11,10 +12,8 @@ global exit_flag
 global error_custom_handler_number
 global address_command
 
-global address_argc_address_array
 global address_envp_address_array
 global og_envp_stack_array_address
-global total_command_aruments
 
 global input_buffer_address
 global filled_size_input_buffer_len
@@ -26,9 +25,7 @@ section .data
 
 
     address_command dq 1
-    address_argc_address_array dq 1
     address_envp_address_array dq 1
-    total_command_aruments dq 1
 
     og_envp_stack_array_address dq 1
 
@@ -92,6 +89,8 @@ section .rodata
     semicolon db ":" , 0
     dollar_sign_with_space db "$ ", 0
     new_line db 0x0a, 0
+    null_qword dq 0
+
 
     colour_len equ 5
     colour_reset_len equ 4
@@ -130,6 +129,7 @@ global old_cwd_len
 global reusable_buffer
 
 global last_command_exit_code_ascii
+global command_argc_dynamic_array_object
 section .bss
     reusable_buffer resb 4096
 
@@ -152,10 +152,12 @@ section .bss
 
     last_command_exit_code_ascii resb 32
 
+    command_argc_dynamic_array_object resb DYNAMICARRAY_OBJECT_SIZE
+
 
 ; variables
 extern error_code
-extern parse_string_object_address
+extern parse_string_object
 
 ; functons
 extern _print
@@ -195,6 +197,16 @@ extern _check_and_execute_if_built_in
 extern _check_if_cmd_is_in_path
 
 extern _initialize_shell_env_array
+
+extern _default_dynamic_array_constructor
+extern _default_dynamic_array_destructor
+extern _dynamic_array_add_element
+
+
+extern _constructor_mystring
+extern _destructor_mystring
+extern _append_string_mystring
+
 
 section .text
 
@@ -535,21 +547,34 @@ _process_tokens:
     ; arg[0] -> command
     ; every other arg is arguments for,entire string is treated as a single line command
 
-    xor rdx, rdx                    ; total tokens processed for a line
-    xor r8, r8                      ; idx for looping
-    mov r9, [rel parse_string_object_address]
-    mov r9, [r9 + 16]               ; 16: string offset for address of string
-    xor r10, r10                   ; len of token
-    xor r11, r11                    ; counts how many args have passed
-    xor r12, r12                    ; checks if last byte was \n
 
+    ; create a dynamically growing array for argc, because i am running a single command
+    ; i will use a pre defined variabe for this
+    lea rax, [rel command_argc_dynamic_array_object]
+    mov qword [rax + DYNAMICARRAY_CAPACITY_OFF], 7    ; expect 7 argument, more then enough
+    mov qword [rax + DYNAMICARRAY_SIZE_OFF], 0
+    mov qword [rax + DYNAMICARRAY_ELEMENT_SIZE_OFF], 8 ; i will be storing pointers to argc
+    mov qword [rax + DYNAMICARRAY_POINTER_OFF], 0
+    mov rdi, rax
+    call _default_dynamic_array_constructor
+
+    test rax, rax
+    jl .error_creating_argc_array
+
+
+    xor r13, r13                      ; idx for looping
+    lea r14, [rel parse_string_object]
+    mov r14, [r14 + MYSTRING_POINTER_OFF]
+    xor r10, r10                   ; len of token
+    xor r12, r12                    ; checks if last byte was \n
+    xor r15, r15                    ; to check which arg is command
     .loop_till_double_new_line:
 
-        cmp byte [r9 + r8], 0x0a      ; this means the token has just ended
+        cmp byte [r14 + r13], 0x0a      ; this means the token has just ended
         je .process_token
 
     .loopback:
-        inc r8                      ; idx for looping
+        inc r13                      ; idx for looping
         inc r10                     ; len of token
         xor r12, r12                ; last byte was not \n
         jmp .loop_till_double_new_line
@@ -557,62 +582,54 @@ _process_tokens:
     .process_token:
         add r12, 1
 
-        mov byte [r9 + r8], 0       ; over write the \n with NULL byte
+        mov byte [r14 + r13], 0       ; over write the \n with NULL byte
 
-        cmp r12, 2
+        cmp r12, 2                  ; if 2 consicutive \n, end of line
         je .all_tokens_processed
 
         ; r10 len of token
-        ; address at r8 - len of token = starting address of token
+        ; address at r13 - len of token = starting address of token
 
+        test r10, r10                           ; len of token
+        jz .token_with_no_len
         
-        mov rdi, r9
-        add rdi, r8
+        mov rdi, r14
+        add rdi, r13
         sub rdi, r10                    ; addres of token
 
-        lea rax, [rel reusable_buffer]
-        mov rcx, rdx
-        shl rcx, 3
-        add rax, rcx                    ; offset for next address, total token*8
-        mov [rax], rdi                      ; move to that address, the addres of token
+        push r10
+        push rdi
+        mov rsi, rsp    ; the address of the value is needed, thats why i gave address of rsp
+        lea rdi, [rel command_argc_dynamic_array_object]
+        call _dynamic_array_add_element
+        test rax, rax
+        jl .error_appending_to_argc
 
-        cmp rdx, 0
+        pop rdi
+        pop r10
+
+        cmp r15, 0
         je .command_expected
 
-        ; else every other token is treated as a argument
-        ; assuming total arguments passed are not more than 4096/8 or 512 args,
-        ; reusable_buffer will be enough_memory
-
-
-        test r10, r10
-        jz .token_with_no_len
-
-        inc rdx                                 ; inc parsed token len
 
         .token_with_no_len:
+        inc r13
         xor r10, r10                            ; reset len of token
-        inc r8
         jmp .loop_till_double_new_line
     .command_expected:
         ; save address of command
         mov [rel address_command], rdi
-        inc rdx                                 ; inc parsed token len
         xor r10, r10                            ; reset len of token
-        inc r8
+        inc r15
+        inc r13
         jmp .loop_till_double_new_line
 
     .all_tokens_processed:
-        ; add a NULL in the argc address arary, [reusable_buffer user here]
-        lea rax, [rel reusable_buffer]
-        mov rcx, rdx                    ; add 1st toke, after 0th token
-        shl rcx, 3
-        add rax, rcx                    ; offset for next address, total token*8
-        mov qword [rax], 0                      ; move to that address the addres of token
+        ; add a NULL in the argc address array, [reusable_buffer user here]
 
-        lea rcx, [rel reusable_buffer]
-        mov [rel address_argc_address_array], rcx
-
-        mov [rel total_command_aruments], rdx
+        lea rsi, [rel null_qword]
+        lea rdi, [rel command_argc_dynamic_array_object]
+        call _dynamic_array_add_element
 
     .build_envp_array:
 
@@ -622,6 +639,17 @@ _process_tokens:
 
     .return:
         ret
+
+
+    .error_appending_to_argc:
+        lea rdi, [rel command_argc_dynamic_array_object]
+        call _default_dynamic_array_constructor
+
+    .error_creating_argc_array:
+        mov rax, -1
+        ret
+
+
 
 
 _execute_process:
@@ -737,7 +765,8 @@ _execute_process:
 
     mov rax, sys_execve
     mov rdi, [rel address_command]
-    mov rsi, [rel address_argc_address_array]
+    lea rsi, [rel command_argc_dynamic_array_object]
+    mov rsi, [rsi + DYNAMICARRAY_POINTER_OFF]
     mov rdx, [rel address_envp_address_array]
     syscall
 
@@ -975,12 +1004,24 @@ _handle_input:
     jl .error_parsing_input
 
     call _process_tokens
+    test rax, rax
+    jl .error_parocessing_token
+
     call _execute_process
 
-    .empty_line:
+
+    ; DEALLOCATE THE command_argc_dynamic_array_object
+    lea rdi, [rel parse_string_object]
+    call _destructor_mystring
+
+    ; DEALLOCATE THE parse_string_object
+    lea rdi, [rel command_argc_dynamic_array_object]  
+    call _default_dynamic_array_destructor
+
     ret
 
-
+    .empty_line:
+    .error_parocessing_token:
     .error_parsing_input:  ; TODO: print error and exit
         ret
     

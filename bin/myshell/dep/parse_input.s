@@ -1,7 +1,5 @@
 %include "../dependencies/mystring.inc"
 
-section .data
-    parse_string_object_address dq 0
 
 
 section .bss
@@ -10,7 +8,7 @@ section .bss
     parse_buffer_capacity equ 2048
     parse_buffer resb parse_buffer_capacity
     number_buffer resb 32
-
+    parse_string_object resb MYSTRING_OBJECT_SIZE
 
 section .text
 
@@ -27,7 +25,7 @@ extern _itoa
 
 extern _find_var_in_env_var
 
-global parse_string_object_address
+global parse_string_object
 
 global _parse_input
 
@@ -71,17 +69,16 @@ _parse_input:
         add rax, 512            ; add to original len 512bytes, safe length
 
     .create_parse_string_object:
-    sub rsp, MYSTRING_OBJECT_SIZE
-    mov qword [rsp + MYSTRING_CAPACITY_OFF], rax
-    mov qword [rsp + MYSTRING_SIZE_OFF], 0
-    mov qword [rsp + MYSTRING_POINTER_OFF], 0
-    mov rdi, rsp
+    lea rcx, [rel parse_string_object]
+    mov qword [rcx + MYSTRING_CAPACITY_OFF], rax
+    mov qword [rcx + MYSTRING_SIZE_OFF], 0
+    mov qword [rcx + MYSTRING_POINTER_OFF], 0
+    mov rdi, rcx
     call _constructor_mystring
 
     test rax, rax
     jl .error_creating_string_for_parsing
 
-    mov [rel parse_string_object_address], rsp
 
 
     lea r13, [rel parse_buffer]         ; always contains the parse buffer
@@ -147,7 +144,7 @@ _parse_input:
                 push r11
                 
                 mov byte [r13 + rsi], 0         ; add 0 so i can add this into my string object
-                mov rdi, [rel parse_string_object_address]
+                lea rdi, [rel parse_string_object]
                 lea rsi, [rel parse_buffer]
                 call _append_string_mystring
 
@@ -381,7 +378,7 @@ _parse_input:
                 test rax, rax
                 jl .pop_and_continue
 
-                mov rdi, [rel parse_string_object_address]
+                lea rdi, [rel parse_string_object]
                 mov rsi, rax
                 call _append_string_mystring
 
@@ -416,7 +413,7 @@ _parse_input:
         jmp .complete_string
 
         .copy_final_data_into_string:
-        mov rdi, [rel parse_string_object_address]
+        lea rdi, [rel parse_string_object]
         lea rsi, [rel parse_buffer]
         call _append_string_mystring
         test rax, rax
@@ -433,7 +430,7 @@ _parse_input:
         inc rsi
 
         mov byte [r13 + rsi], 0                 ; add NULL after \n so i can append into string
-        mov rdi, [rel parse_string_object_address]
+        lea rdi, [rel parse_string_object]
         lea rsi, [rel parse_buffer]
         call _append_string_mystring
         test rax, rax
@@ -444,14 +441,15 @@ _parse_input:
 
     
     .error_appending_to_string:
-        mov rdi, [rel parse_string_object_address]
+        lea rdi, [rel parse_string_object]
         call _destructor_mystring
         mov rax, -1
         jmp .return
 
     .cleanup_and_return:
-        mov rdi, [rel parse_string_object_address]
-        call _destructor_mystring
+        ; DO NOT DEALLOCATE THE STRING RIGHT NOW
+        ; DEALLOCATE IT AFTER EXECUTION
+        ; or dealllocate it just after failure to parse
         mov rax, 0
         jmp .return
     
@@ -460,7 +458,6 @@ _parse_input:
         jmp .return
 
     .return:
-        add rsp, 24
         pop r13
         pop r12
         mov rsp, rbp

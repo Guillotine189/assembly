@@ -1,4 +1,5 @@
 %include "./dep/constants.inc"
+%include "../dependencies/dynamicarray.inc"
 
 section .data
 	error_changing_dir db "MyShell: cd: Error changing directory: ", 0
@@ -59,10 +60,9 @@ extern old_cwd
 extern old_cwd_len
 extern last_command_exit_code_ascii
 
-extern address_argc_address_array
+extern command_argc_dynamic_array_object
 extern address_envp_address_array
 extern address_command
-extern total_command_aruments
 
 extern _print_history
 
@@ -183,12 +183,13 @@ _check_and_execute_if_built_in:
 
     .check_and_execute_cd:
 
-        cmp [rel total_command_aruments], 2             ; cd path parg3 -> not valid
+        lea rdi, [rel command_argc_dynamic_array_object]   ; 2nd argument is the path name
+        ; cd path arg > 2 -> not valid, but There is a NULL as argument in end
+        cmp qword [rdi + DYNAMICARRAY_SIZE_OFF], 3
         jg .error_cd_too_many_args
         jl .move_to_home_dir
 
-        ; TODO: set location of directory
-        mov rdi, [rel address_argc_address_array]   ; 2nd argument is the path name
+        mov rdi, [rdi + DYNAMICARRAY_POINTER_OFF]
         add rdi, 8
         mov rdi, [rdi]
         push rdi
@@ -331,13 +332,15 @@ _builtin_cd:
 		lea rsi, [rel error_changing_dir]
 		call _print
 
-		mov rdi, [rel address_argc_address_array]
+		lea rdi, [rel command_argc_dynamic_array_object]
+		mov rdi, [rdi + DYNAMICARRAY_POINTER_OFF]
 		add rdi, 8
 		mov rdi, [rdi]
 		call _strlen
 
 		mov rdi, 1
-		mov rsi, [rel address_argc_address_array]
+		lea rsi, [rel command_argc_dynamic_array_object]
+		mov rsi, [rdi + DYNAMICARRAY_POINTER_OFF]
 		add rsi, 8
 		mov rsi, [rsi]
 		call _print

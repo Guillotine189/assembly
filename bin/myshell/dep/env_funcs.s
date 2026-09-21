@@ -76,6 +76,12 @@ global _find_var_in_env_var
 
 global shell_env_array_object
 
+
+; shell_env_array [ENV_STUCT, ENV_STRUCT]
+; env_struct -> [string_object / 24bytes][exported or not / 8 bytes]
+; string object -> [capacity / 8bytes][size / 8bytes][pointer / 8bytes]
+; pointer -> The actual env string
+
 ; env_struct
 ; [String object] 24bytes  
 ; [exported or not] 8bytes, 0/1 -> 0: not exported, 1: exported
@@ -247,7 +253,7 @@ _print_env:
 ; rsi: len of the varible
 ; returns rax : address of env path variable if it exists
 ; 		      : -ve number on failure
-; CHECKS the og_envp_stack_array_address weather the env variable exists or not
+; CHECKS the my shell_env weather the env variable exists or not
 
 _find_var_in_env_var:
 	test rsi, rsi
@@ -256,17 +262,22 @@ _find_var_in_env_var:
 	xor r8 ,r8 							; this will store which env var i am checking
 
 	.check_next_env_var:
-		mov rax, [rel og_envp_stack_array_address]
-		mov rdx, r8
-		shl rdx, 3
-		add rax, rdx
-		; rax = [og_envp_stack_array_address + r8*8]
-		
-		mov rcx, [rax]			; rcx now stores the address of env variable
+		lea rax, [rel shell_env_array_object]
 
-		cmp rcx, 0 		  	; if the value is NULL, i have reached the end of envp variba
+		cmp r8, [rax + DYNAMICARRAY_SIZE_OFF]
 		je .path_not_found
 
+		mov r9, [rax + DYNAMICARRAY_POINTER_OFF]
+
+		mov rax, r8
+		mov rcx, ENV_STRUCT_SIZE
+		mul rcx
+		; rax has the offset for next env struct
+		lea rax, [r9 + rax] 		; now rax points to the next env struct
+		
+		lea rcx, [rax + ENV_STRUCT_STRING_OBJ_OFF]
+		mov rcx, [rcx + MYSTRING_POINTER_OFF]  ; rax pointing to the actual string
+		
 		xor r9, r9 				; idx for going over the env var
 	.check_this_address:
 
