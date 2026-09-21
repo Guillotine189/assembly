@@ -68,10 +68,11 @@ extern termios
 extern old_termios
 
 ; funcs
-extern _print_malloc_segments_info
-extern _print_detailed_malloc
 extern _malloc
 extern _free
+extern _print_malloc_segments_info
+extern _print_detailed_malloc
+extern _print_more_malloc_info
 
 extern _mem_copy
 extern _print
@@ -739,6 +740,10 @@ _read_input:
         cmp byte [rel key_buffer], '5'
         je .handle_ctrl_key
 
+
+        cmp byte [rel key_buffer], '3'
+        je .handle_alt_key
+
         jmp .read_key
 
     .handle_ctrl_key:
@@ -750,19 +755,39 @@ _read_input:
         syscall
 
 
-        cmp byte [rel key_buffer], 'A'
-        je .print_malloc_info
-
-        cmp byte [rel key_buffer], 'B'
-        je .print_malloc_detailed_info
-
-        cmp byte [rel key_buffer], 'D'
+        cmp byte [rel key_buffer], 'D'          ; ctrl + left arrow key
         je .cursor_left_space
 
-        cmp byte [rel key_buffer], 'C'
+        cmp byte [rel key_buffer], 'C'          ; ctrl + right arrow key
         je .cursor_right_space
 
         jmp .read_key
+
+
+    .handle_alt_key:
+        ; read which key presses with ctrl
+        mov rax, 0
+        xor rdi, rdi
+        lea rsi, [rel key_buffer]
+        mov rdx, 1
+        syscall
+
+
+        cmp byte [rel key_buffer], 'A'     ; arrow up
+        je .print_malloc_info
+
+        cmp byte [rel key_buffer], 'B'     ; arrow_down   for now nothing
+        je .read_key
+
+        cmp byte [rel key_buffer], 'D'      ; arrow left
+        je .print_more_malloc_info
+
+        cmp byte [rel key_buffer], 'C'      ; arrow right
+        je .print_malloc_detailed_info
+
+        jmp .read_key
+
+
 
     .print_malloc_info:
 
@@ -772,6 +797,27 @@ _read_input:
         call _print
 
         call _print_malloc_segments_info
+
+        call _print_prefix_line
+
+        mov rax, [rel filled_size_input_buffer_len]
+        mov rdi, 1
+        mov rsi, [rel input_buffer_address]
+        call _print
+
+        mov rax, [rel filled_size_input_buffer_len]
+        mov [rel cursor_idx], rax
+        jmp .read_key
+
+    
+    .print_more_malloc_info:
+
+        mov rax, 1
+        mov rdi, 1
+        lea rsi, [rel new_line]
+        call _print
+
+        call _print_more_malloc_info
 
         call _print_prefix_line
 

@@ -1,4 +1,5 @@
 1) Commad execution flow with proper checks when executing a single command.
+1.1) Put argc arguments and argv arguments inside dynamic array.
 2) Better parser, make it handle pipes, redirection etc.
 3) Decide how to store the commands, args, envp for every single command.
 4) Run chained commands (ls | grep "data.txt" > output.txt)

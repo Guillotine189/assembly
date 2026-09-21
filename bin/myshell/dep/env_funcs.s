@@ -104,7 +104,7 @@ _initialize_shell_env_array:
 	push r12
 
 	.get_a_lot_of_heap_memory:
-		mov rdi, 32768  					; 32kb
+		mov rdi, 16384  					; 16kb
 		call _malloc
 
 		test rax, rax
@@ -142,7 +142,7 @@ _initialize_shell_env_array:
 	.create_env_struct_object:
 		sub rsp, ENV_STRUCT_SIZE
 		; create string object
-		mov qword [rsp + MYSTRING_CAPACITY_OFF], 128   ; assign 128bytes for each env var
+		mov qword [rsp + MYSTRING_CAPACITY_OFF], 24   ; assign 24 for each env var
 		mov qword [rsp + MYSTRING_SIZE_OFF], 0
 		mov qword [rsp + MYSTRING_POINTER_OFF], 0
 		mov rdi, rsp

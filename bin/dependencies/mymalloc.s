@@ -5,6 +5,9 @@ section .data
 	malloc_total_segments dq 0
 	malloc_empty_segments dq 0
 	malloc_occupied_segments dq 0
+	malloc_called dq 0
+	free_called dq 0
+
 
 
 section .rodata
@@ -12,16 +15,24 @@ section .rodata
 	malloc_info db "myMalloc info: ", 0
 	malloc_info_len equ $ - malloc_info
 
-	malloc_detailed_info db "myMalloc Detailed info: ", 0
-	malloc_detailed_info_len equ $ - malloc_detailed_info
-
 	info_total_seg db "Total segments: ", 0
 	info_total_seg_len equ $ - info_total_seg
 	info_filled_seg db "Total Occupied segments: ", 0
 	info_filled_seg_len equ $ - info_filled_seg
 	info_empty_seg db "Total Free segments: ", 0
 	info_empty_seg_len equ $ - info_empty_seg
+	times_malloc_called db "Times malloc called: ", 0
+	times_malloc_called_len equ $ - times_malloc_called
+	times_free_called db "Times free called: ", 0
+	times_free_called_len equ $ - times_free_called
+	dash db "-", 0
 
+
+	malloc_more_info db "myMalloc Detailed info: ", 0
+	malloc_more_info_len equ $ - malloc_more_info
+
+	malloc_detailed_info db "myMalloc Detailed info: ", 0
+	malloc_detailed_info_len equ $ - malloc_detailed_info
 	new_line db 10
 	vertial_seperator_line db "------------------------------------------------------------", 0
 	vertial_seperator_line_len equ $ - vertial_seperator_line
@@ -50,8 +61,8 @@ section .text
 global _malloc
 global _free
 global _print_malloc_segments_info
+global _print_more_malloc_info
 global _print_detailed_malloc
-
 
 ; [free_size_of_this_segments] -> 8bytes
 ; [occupied|free]			   -> 8bytes
@@ -78,6 +89,7 @@ MYMALLOC_NEXT_OFF 		equ 24
 ; returns : address of memory where the asked bytes are free to use in rax
 ; 		  : -ve number on error
 _malloc:
+	inc qword [rel malloc_called]
 	push rbx
 	push r12
 	push r13
@@ -292,7 +304,7 @@ _malloc:
 ; TODO: maybe when last segment is freed, unmap them?
 ; rdi : address received from malloc
 _free:
-
+	inc qword [rel free_called]
 	push rbx
 
 	sub rdi, metadata_size
@@ -434,7 +446,235 @@ _print_malloc_segments_info:
 	lea rsi, [rel number_buffer]
 	call print_with_new_line
 
+	mov rax, times_malloc_called_len
+	mov rdi, 1
+	lea rsi, [rel times_malloc_called]
+	call print
+	mov rax, [rel malloc_called]
+	lea rdi, [rel number_buffer]
+	call itoa
+	mov rdi, 1
+	lea rsi, [rel number_buffer]
+	call print_with_new_line
+
+	mov rax, times_free_called_len
+	mov rdi, 1
+	lea rsi, [rel times_free_called]
+	call print
+	mov rax, [rel free_called]
+	lea rdi, [rel number_buffer]
+	call itoa
+	mov rdi, 1
+	lea rsi, [rel number_buffer]
+	call print_with_new_line
+
 	ret
+
+
+
+_print_more_malloc_info:
+	push r12
+	push r13
+	push r14
+	push r15
+
+	mov rax, malloc_more_info_len
+	mov rdi, 1
+	lea rsi, [rel malloc_more_info]
+	call print_with_new_line
+
+
+	mov r12, [rel malloc_address_first_segment]
+	xor r13, r13 			; flag to check if last segment was reached
+	mov r14, 1 				; which segment is begin processed
+
+	xor r15, r15 			; state: weather collecting data on occupied/free segmnet
+	; r15 = 0, free segment state, 1 -> occupied segment sate
+	mov r15, [rel malloc_address_first_segment]
+	mov r15, [r15 + MYMALLOC_USED_OFF] 		; 1 when occupied, 0 when free
+
+	.loop_and_print_till_last_segment:
+		mov r9, r14  			; the starting number of segment for this type
+		xor r8, r8 				; size of segment with same type
+	.loop_till_segment_type_changes:	
+
+		cmp r12, [rel malloc_address_last_segment]
+		je .mark_last_segment_reached
+		jmp .continue
+
+		.mark_last_segment_reached:
+			call .last_segment_reached
+
+		.continue:
+		cmp [r12 + MYMALLOC_USED_OFF], r15  ; type of segment with current type
+		je .add_size_to_current_type
+		jne .print_and_change_segment
+
+		.add_size_to_current_type:
+			add r8, [r12 + MYMALLOC_SIZE_OFF]
+			inc r14
+
+			test r13, r13      ; is this was last segment and same type
+			jne .print_and_change_segment
+
+			mov r12, [r12 + MYMALLOC_NEXT_OFF]
+			jmp .loop_till_segment_type_changes
+
+
+		jmp .loop_till_segment_type_changes
+
+	.print_and_change_segment:
+
+		; copy the vertical line
+		lea rdi, [rel malloc_info_buffer]
+		lea rsi, [rel vertial_seperator_line]
+		mov rcx, vertial_seperator_line_len
+		rep movsb
+
+		; copy new_line
+		lea rsi, [rel new_line]
+		mov rcx, 1
+		rep movsb
+
+		push rdi 				; save the next position for insertion
+		push r8    				; saving the collective size of same segments
+		;convert segment number into ascii
+		mov rax, r9
+		lea rdi, [rel number_buffer]
+		call itoa
+		pop r8
+		pop rdi
+		
+		; the first segment-number for same type
+		lea rsi, [rel number_buffer]
+		mov rcx, rax
+		rep movsb
+
+
+		; copy a dash between the 2 segments
+		lea rsi, [rel dash]
+		mov rcx, rax
+		rep movsb
+
+		push rdi 				; save the next position for insertion
+		push r8
+		;convert last segment number into ascii
+		mov rax, r14
+		dec rax
+		lea rdi, [rel number_buffer]
+		call itoa
+		pop r8
+		pop rdi
+		
+		; the last segment-number for same type
+		lea rsi, [rel number_buffer]
+		mov rcx, rax
+		rep movsb
+
+		; copy the word "Allocated Size: "
+		lea rsi, [rel word_size]
+		mov rcx, word_size_len
+		rep movsb
+
+		push rdi 				; save the next position for insertion
+		;convert size into ascii
+		mov rax, r8
+		lea rdi, [rel number_buffer]
+		call itoa
+		pop rdi
+
+		; copy the actual size
+		lea rsi, [rel number_buffer]
+		mov rcx, rax
+		rep movsb
+
+		lea rsi, [rel word_bytes]
+		mov rcx, word_bytes_len
+		rep movsb
+
+		; the horizontal seperator
+		lea rsi, [rel horizontal_seperator]
+		mov rcx, horizontal_seperator_len
+		rep movsb
+
+		; the word "Type: "
+		lea rsi, [rel word_status]
+		mov rcx, word_status_len
+		rep movsb
+
+		; weather occuped or free
+		mov rax, r15  		; if current type(r15) is 0, it's free
+		test rax, rax
+		jz .segment_is_free
+
+		lea rsi, [rel word_occupied]
+		mov rcx, word_occupied_len
+		rep movsb
+		jmp .add_new_line
+
+		.segment_is_free:
+		lea rsi, [rel word_free]
+		mov rcx, word_free_len
+		rep movsb
+
+		.add_new_line:
+		lea rsi, [rel new_line]
+		mov rcx, 1
+		rep movsb
+
+		; calculate the length
+		; len = address after final byte - address 1st byte
+
+		push r8
+		push r9
+
+		mov rcx, rdi
+		lea r8, [rel malloc_info_buffer]
+		sub rcx, r8
+
+		mov rax, rcx
+		mov rdi, 1
+		lea rsi, [rel malloc_info_buffer]
+		call print
+
+		pop r9
+		pop r8
+
+
+	.loopback:
+		test r13, r13
+		jne .check_if_last_segment_was_same_as_curr_segment
+
+		; change segment type 
+		mov r15, [r12 + MYMALLOC_USED_OFF]
+		jmp .loop_and_print_till_last_segment
+
+	.check_if_last_segment_was_same_as_curr_segment:
+		; if r12 is last segment, that means current segment was included
+		cmp [r12 + MYMALLOC_USED_OFF], r15
+		je .print_final_vertical_line    ; bec it was included in it
+
+		; change segment type 
+		mov r15, [r12 + MYMALLOC_USED_OFF]
+		jmp .loop_and_print_till_last_segment
+
+	.last_segment_reached:
+		mov r13, 1
+		ret
+
+	.print_final_vertical_line:
+		mov rax, vertial_seperator_line_len
+		mov rdi, 1
+		lea rsi, [rel vertial_seperator_line]
+		call print_with_new_line
+
+
+	.return:
+		pop r15
+		pop r14
+		pop r13
+		pop r12
+		ret
 
 
 
@@ -572,7 +812,6 @@ _print_detailed_malloc:
 		pop r13
 		pop r12
 		ret
-
 
 
 

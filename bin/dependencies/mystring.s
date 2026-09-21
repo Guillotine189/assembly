@@ -41,11 +41,11 @@ _constructor_mystring:
 	jmp .allocate
 
 	.zero_cap_given:
-		mov rdi, 128
+		mov rdi, 24
 
 	.allocate:
 	add rdi, 7
-	and rdi, -8 			; make rdi multiple of 8
+	and rdi, -8 			; make rdi multiple of 
 	mov r13, rdi 			; save the new capacity in r13
 
 	call _malloc 			; rax has the pointer to the memory
@@ -126,7 +126,7 @@ _append_string_mystring:
 	; r13 has the len of new string
 	mov r9, [r12 + MYSTRING_SIZE_OFF]
 	add r9, r13                  ; required size
-	add r9, 1024                 ; growth
+	add r9, 64                 ; growth
 	add r9, 7
 	and r9, -8                   ; align with next 8 byte multiple
 
