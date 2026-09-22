@@ -566,7 +566,7 @@ _process_tokens:
     ; go through shell_env_array and add addresses of env that have exported = 1
 
     lea rax, [rel command_argv_dynamic_array_object]
-    mov qword [rax + DYNAMICARRAY_CAPACITY_OFF], 7    ; expect 7 argument, more then enough
+    mov qword [rax + DYNAMICARRAY_CAPACITY_OFF], 50    ; expect 50 argument, more then enough
     mov qword [rax + DYNAMICARRAY_SIZE_OFF], 0
     mov qword [rax + DYNAMICARRAY_ELEMENT_SIZE_OFF], 8 ; i will be storing pointers to argc
     mov qword [rax + DYNAMICARRAY_POINTER_OFF], 0

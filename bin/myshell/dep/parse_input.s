@@ -435,17 +435,20 @@ _parse_input:
             test rax, rax
             jl .no_more_old_commands
             mov r14, rax                    ; save the address of old command
+            call .copy_buffer_into_string
+
+            ; call the parser itsef to parse the old command then append that parsed command
+            ; hack, temporariy point the input buffer to old command address
+
 
             ; copy old data into strign first, this function preserves all registers and reset r12, rsi
-            call .copy_buffer_into_string
 
             ; copy the command into the string
             lea rdi, [rel parse_string_object]
             mov rsi, r14
             call _append_string_mystring
 
-            mov r15, 1
-            
+            mov r15, 1                      ; mark this command to be printed 
             ; start from the beginning 
             xor r12, r12
             xor rsi, rsi 

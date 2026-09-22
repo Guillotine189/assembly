@@ -45,6 +45,7 @@ extern _dynamic_array_add_element
 extern _constructor_mystring
 extern _destructor_mystring
 extern _append_string_mystring
+extern _mystring_clear
 
 extern _malloc
 extern _free
@@ -72,6 +73,7 @@ section .text
 global _initialize_shell_env_array
 global _check_if_cmd_is_in_path
 global _find_var_in_shell_env
+global _update_var_in_shell_env
 
 global shell_env_array_object
 
@@ -248,13 +250,6 @@ _print_shell_env:
 	ret
 
 
-
-; rules for env variables
-; FOO=BAR
-; FOO is of pattern [a-z A-Z _] [a-z A-Z 0-9 _]
-; FOO is of pattern anything but null
-
-
 ; rdi: address of the variable to check if it's in env or not
 ; rsi: len of the varible
 ; returns rax : address of env path variable if it exists
@@ -319,6 +314,220 @@ _find_var_in_shell_env:
 		mov rax, -1
 		ret
 
+
+
+; rules for env variables
+; FOO=BAR
+; FOO is of pattern [a-z A-Z _] [a-z A-Z 0-9 _]
+; BAR is of pattern anything but null
+
+; rdi: address of the variable to check and replace/add
+; returns rax : address of env path variable if it exists
+; 		      : -ve number on failure
+; CHECKS the my shell_env weather the env variable exists or not
+; if it exists, it will copy the path thats in rsi
+; if not, it creates a new env var struct, marks it non exported and copied value from rsi
+
+_update_var_in_shell_env:
+	push rbp
+	mov rbp, rsp
+	push r12
+
+	mov r12, rdi
+
+	mov r10, rdi
+	mov al, [r10]
+
+	cmp al, '_'
+	je .first_key_char_valid
+
+	cmp al, 'A'
+	jb .invaid_key
+
+	cmp al, 'Z'
+	jbe .first_key_char_valid
+
+	cmp al, 'a'
+	jb .invaid_key
+
+	cmp al, 'z'
+	jbe .first_key_char_valid
+
+	
+	jmp .invaid_key
+
+	.first_key_char_valid:
+		; now i have to  check the rest of the key
+		inc r10
+	.loop_check_key:
+
+		mov al, [r10]
+
+		cmp al, '='
+		je .valid_key
+
+		cmp al, '_'
+		je .valid_key_byte
+
+		cmp al, '0'
+		jb .invaid_key
+
+		cmp al, '9'
+		jbe .valid_key_byte
+
+		cmp al, 'A'
+		jb .invaid_key
+
+		cmp al, 'Z'
+		jbe .valid_key_byte
+
+		cmp al, 'a'
+		jb .invaid_key
+
+		cmp al, 'z'
+		jbe .valid_key_byte
+		
+		jmp .invaid_key
+
+		.valid_key_byte:
+			inc r10
+			jmp .loop_check_key
+
+	.valid_key:
+	; r10 points the '='
+	; rdi points to starting of new still
+	mov rsi, r10
+	sub rsi, rdi   						; rsi is len of key
+
+	xor r8 ,r8 							; this will store which env var i am checking
+
+	.check_next_env_var:
+		lea rax, [rel shell_env_array_object]
+
+		cmp r8, [rax + DYNAMICARRAY_SIZE_OFF]
+		je .key_not_found
+
+		mov r9, [rax + DYNAMICARRAY_POINTER_OFF]
+
+		mov rax, r8
+		mov rcx, ENV_STRUCT_SIZE
+		mul rcx
+		; rax has the offset for next env struct
+		lea rax, [r9 + rax] 		; now rax points to the next env struct
+		
+		lea rdx, [rax + ENV_STRUCT_STRING_OBJ_OFF]
+		mov rcx, [rdx + MYSTRING_POINTER_OFF]  ; rax pointing to the actual string
+		
+		xor r9, r9 				; idx for going over the env var
+	.check_this_address:
+
+		cmp r9, rsi    			; r9 is index, rsi is length.
+		je .check_if_env_name_ends_here
+
+		mov al, byte [rcx + r9] 		; "PATH=usr/:"
+		cmp byte [rdi + r9], al    ; compare byte of asking variable with current envp var
+		jne .check_next_var
+
+		inc r9
+		jmp .check_this_address
+
+
+	.check_next_var:
+		inc r8
+		jmp .check_next_env_var
+
+	.check_if_env_name_ends_here:
+		cmp byte [rcx + r9], '=' 		; if the next byte in my og_env_var is '=' 
+		je .key_found
+
+		jmp .check_next_var
+
+
+	.key_found:
+		; rdx points to the string object of the env struct which stores that env string
+		push rdx
+		mov rdi, rdx
+		call _mystring_clear
+		pop rdx
+
+		mov rdi, rdx
+		mov rsi, r12
+		call _append_string_mystring
+
+		test rax, rax
+		jl .error_updating_env_variable
+
+		xor rax, rax
+		jmp .return_success
+
+	.key_not_found:
+		; create a new env struct, add it to array, mark it non exported
+
+		; create a env object -> string object + 8 bytes
+		call _strlen    
+
+		sub rsp, ENV_STRUCT_SIZE
+		lea rcx, [rsp + ENV_STRUCT_STRING_OBJ_OFF]
+		mov qword [rcx + MYSTRING_CAPACITY_OFF], rax   ; capacity = len of env var
+		mov qword [rcx + MYSTRING_SIZE_OFF], 0
+		mov qword [rcx + MYSTRING_POINTER_OFF], 0
+		mov rdi, rcx
+		call _constructor_mystring
+
+		test rax, rax
+		jl .error_creating_string_object
+
+		; add new env variable 
+		lea rdi, [rsp + ENV_STRUCT_STRING_OBJ_OFF]
+		mov rsi, r12
+		call _append_string_mystring
+
+		lea rcx, [rsp + ENV_STRUCT_EXPORTED_OFF]
+		mov qword [rcx], 1 							; marking this as exported
+
+		; add env object to shell_env_array
+
+		lea rdi, [rel shell_env_array_object]
+		mov rsi, rsp
+		call _dynamic_array_add_element
+
+
+		test rax, rax
+		jl .error_adding_env_struct
+
+		; remove object from tsack
+		add rsp, ENV_STRUCT_SIZE
+
+		xor rax, rax
+		jmp .return_success
+
+
+	.error_adding_env_struct:
+		;cleanup up the string object
+		mov rdi, rsp
+		call _destructor_mystring
+
+	.error_creating_string_object:	
+		sub rsp, ENV_STRUCT_SIZE
+
+	.invaid_key:
+	.error_updating_env_variable:
+		jmp .return_failure
+
+
+
+	.return_failure:
+		mov rax, -1
+		pop r12
+		mov rsp, rbp
+		pop rbp
+		ret
+	.return_success:
+		xor rax, rax
+		pop r12
+		mov rsp, rbp
+		pop rbp
+		ret
 
 
 

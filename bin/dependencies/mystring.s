@@ -7,15 +7,29 @@ extern _malloc
 extern _free
 
 ; string object
-; +0 bytes   -> capacity / can be given to constructor, if <= 0 given: it will get 128bytes
+; +0 bytes   -> capacity / can be given to constructor, if <= 0 given: it will get default bytes
 ; +8 bytes   -> size / 0 After constructor
 ; +16 bytes  -> pointer to free space/ Null before constructor
 ; Total object size : 24 bytes
 
 
+; logic: constructor: i asked for 32bytes, it will add 1, so 33bytes
+; 					now 33 is rounded off to 40, and 40 bytes are asked.
+; 					but capacity is stored as 39
+
+; add to string: capacity: 39, size = 38
+; 			need to add a string of len 24
+; 			39 + 24 = 63
+; 			63 + 64 = 127 (64bytes growth for future)
+; 			127 -> 128 rounded off to next 8byte multiple
+; 			new capacity = 127bytes. NOT 128. because 1 byte for null
+
+
+
 global _constructor_mystring
 global _destructor_mystring
 global _append_string_mystring
+global _mystring_clear
 
 ; remember to redefine them in mystring.inc if changed
 MYSTRING_OBJECT_SIZE 		equ 24
@@ -44,6 +58,7 @@ _constructor_mystring:
 		mov rdi, 24
 
 	.allocate:
+	add rdi, 1  			; for null
 	add rdi, 7
 	and rdi, -8 			; make rdi multiple of 
 	mov r13, rdi 			; save the new capacity in r13
@@ -55,6 +70,8 @@ _constructor_mystring:
 
 	mov [r12 + MYSTRING_POINTER_OFF], rax 		; store the pointer info
 	mov qword [r12 + MYSTRING_SIZE_OFF], 0 		; total elements stored is zero
+	; i will not store the capacity of string, i will store capacity -1 so i can add \n after every insertion without problem
+	dec r13
 	mov [r12 + MYSTRING_CAPACITY_OFF], r13 		; maybe capacity was changed
 
 	pop r13
@@ -116,6 +133,8 @@ _append_string_mystring:
 	mov rcx, r13  						; rcx : len of new string
 	rep movsb							; actuallly copy the new string into old
 
+	mov byte [rdi], 0 					; add a null at end of byte
+
 	add [r12 + MYSTRING_SIZE_OFF], r13 			; update the size
 
 	jmp .return
@@ -149,6 +168,7 @@ _append_string_mystring:
 
 	;update capacity
 
+	dec r9
 	mov [r12 + MYSTRING_CAPACITY_OFF], r9
 
 	; save old pointer
@@ -174,6 +194,14 @@ _append_string_mystring:
 		pop r12
 		ret
 
+
+; rdi: address of string object
+_mystring_clear:
+	mov qword [rdi + MYSTRING_SIZE_OFF], 0
+	mov rdi, [rdi + MYSTRING_POINTER_OFF]
+	mov byte [rdi], 0
+	xor rax, rax
+	ret
 
 
 ; rdi: address of string
