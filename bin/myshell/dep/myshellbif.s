@@ -36,6 +36,7 @@ section .rodata
     export_ 		db "export", 0
     unset_  		db "unset", 0
     clear_ 			db "clear", 0
+    env_  			db "env", 0
     exit_ 			db "exit",0
     history_ 		db "history", 0
 
@@ -74,7 +75,7 @@ extern address_command
 extern _find_var_in_shell_env
 extern _update_var_in_shell_env
 extern _unset_var_in_shell_env
-
+extern _print_shell_env
 
 extern _print_history
 
@@ -126,13 +127,20 @@ _check_and_execute_if_built_in:
     test rax, rax
     je .update_shell_env
 
-
     mov rax, [rel address_command]
     lea rdi, [rel unset_]
     call _strcmp
 
     test rax, rax
     je .unset_shel_env
+
+
+    mov rax, [rel address_command]
+    lea rdi, [rel env_]
+    call _strcmp
+
+    test rax, rax
+    je .print_env
 
 
     mov rax, [rel address_command]
@@ -301,7 +309,9 @@ _check_and_execute_if_built_in:
         .done2:
 		jmp .return_built_in
 
-
+	.print_env:
+		call _print_shell_env
+		jmp .return_built_in
 
     .return_built_in:
         mov rax, 0
@@ -451,6 +461,15 @@ _check_and_return_command_if_bic:
     test rax, rax
     je .return_unset
 
+
+    mov rax, r13
+    lea rdi, [rel env_]
+    mov rsi, r12
+    call _cmp_equal_memory
+
+    test rax, rax
+    je .return_env
+
     mov rax, r13
     lea rdi, [rel exit_]
     mov rsi, r12
@@ -485,6 +504,10 @@ _check_and_return_command_if_bic:
 
 	.return_unset:
 		lea rax, [rel unset_]
+		jmp .return
+
+	.return_env:
+		lea rax, [rel env_]
 		jmp .return
 
 	.return_exit:

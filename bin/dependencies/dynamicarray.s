@@ -233,7 +233,7 @@ _dynamic_array_add_element:
 		ret
 
 ; rdi: address of the dynamic array object
-; rsi: the index number for which element to remove
+; rsi: the index number of element to remove
 _dynamic_array_remove_element:
 	mov r10, [rdi + DYNAMICARRAY_SIZE_OFF]
 	cmp rsi, r10  					; if index >= size -> error
@@ -263,24 +263,22 @@ _dynamic_array_remove_element:
 	; rdx has the size of 1 element
 	mov r8, rdi
 
+	mov rax, r10
+	mul rdx
+
+	; rax has total bytes to move
+	mov rdx, rax
+	shr rdx, 3          ; number of 8bytes 
+
 	mov rdi, r11
 	mov rsi, r9
-	cld 						; i know i don't have to but still
-	.loop_shift_elements:
-		test r10, r10
-		je .all_elemets_shifted
+	mov rcx, rdx
+	rep movsq
 
-		mov rcx, rdx
-		rep movsb    				; copy bytes from r9->r11 a total of rdx times
-
-		; now rdi and rsi have moved to next element, repeat this a total of r10 times
-		; rcx is zero
-
-		dec r10
-		jmp .loop_shift_elements
-
-
-	.all_elemets_shifted:
+	mov rcx, rax
+	and rcx, 7          ; remaining single bytes
+	rep movsb
+	
 	dec qword [r8 + DYNAMICARRAY_SIZE_OFF] 		; decrease the size
 	xor rax, rax
 	ret

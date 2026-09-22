@@ -75,7 +75,7 @@ global _check_if_cmd_is_in_path
 global _find_var_in_shell_env
 global _update_var_in_shell_env
 global _unset_var_in_shell_env
-
+global _print_shell_env
 
 global shell_env_array_object
 
