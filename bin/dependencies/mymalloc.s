@@ -28,7 +28,7 @@ section .rodata
 	dash db "-", 0
 
 
-	malloc_more_info db "myMalloc Detailed info: ", 0
+	malloc_more_info db "myMalloc More info: ", 0
 	malloc_more_info_len equ $ - malloc_more_info
 
 	malloc_detailed_info db "myMalloc Detailed info: ", 0

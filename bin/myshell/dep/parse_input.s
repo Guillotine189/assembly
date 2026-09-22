@@ -22,11 +22,16 @@ extern _append_string_mystring
 extern last_command_exit_code_ascii
 
 extern _itoa
+extern _print
 
 extern _find_var_in_env_var
 
-global parse_string_object
+extern _return_address_of_command_from_newest
 
+extern _malloc
+extern _free
+
+global parse_string_object
 global _parse_input
 
 
@@ -43,6 +48,8 @@ _parse_input:
     mov rbp, rsp
     push r12        ; i don't have to save these registers in my program in this function
     push r13
+    push r14
+    push r15
 
     ; PARSER LOGIC FOR
     ; ["./program arg1  arg2 arg3\n"] -> ["./program\nagr1\narg2\n\n"]
@@ -80,9 +87,9 @@ _parse_input:
     jl .error_creating_string_for_parsing
 
 
-
-    lea r13, [rel parse_buffer]         ; always contains the parse buffer
     xor r12, r12                        ; filled space of parse_buffer
+    lea r13, [rel parse_buffer]         ; always contains the parse buffer
+    xor r15, r15                        ; weather to print the parsed command or not
     xor rsi, rsi                        ; index for dst to copy bytes to
     xor r8, r8                          ; index for line traversal
     mov r9, [rel input_buffer_address]
@@ -106,6 +113,8 @@ _parse_input:
         cmp byte [r9 + r8], 0x27            ; for : single quotes ''
         je .handle_sq
 
+        cmp byte [r9 + r8], '!'
+        je .check_and_replace_with_prev_command
 
         cmp byte [r9 + r8], '$'
         je .handle_expansion_variable
@@ -126,6 +135,7 @@ _parse_input:
             inc r8
             xor rdx,  rdx               ; this byte not not \n
             jmp .loop_till_new_line
+
 
         ; if any other char was passed, copy it to dst addr
         .copy_byte_and_loop:
@@ -364,8 +374,6 @@ _parse_input:
                 ; eg: "$PATH?", r8 is index at "?", at the non valid char
                 sub r8, [rsp]       ; r8 is at the index pointing to "P"
 
-                push rdx
-                push rcx
                 push r8
                 push r9
                 push r10
@@ -382,7 +390,6 @@ _parse_input:
                 mov rsi, rax
                 call _append_string_mystring
 
-                
                 .pop_and_continue:
 
                 ; start from the beginning 
@@ -393,13 +400,67 @@ _parse_input:
                 pop r10
                 pop r9
                 pop r8
-                pop rcx
-                pop rdx
+                xor rdx, rdx
+                xor rcx, rcx
 
                 .not_in_env:
                 add r8, [rsp]
                 pop rax
                 jmp .loop_till_new_line
+
+
+        .check_and_replace_with_prev_command:
+
+            xor rdx, rdx        ; last byte not \n
+            xor rcx, rcx        ; last byte not \
+
+            ; i will now check the next byte directly
+            cmp byte [r9 + r8 + 1], '!'      ; i know there is always a next byte available
+            jne .copy_byte_and_loop         ; if only single time !, copy
+
+
+            push r8
+            push r9
+            push r10
+            push r11
+
+            ; else now i have to replace the two with older command
+            ; 1 is prev command (which was overwritten by latest), 2 is prev->prev or actual prev command
+            mov rdi, 2
+            call _return_address_of_command_from_newest
+
+            test rax, rax
+            jl .no_more_old_commands
+            mov r14, rax                    ; save the address of old command
+
+            ; copy old data into strign first, this function preserves all registers and reset r12, rsi
+            call .copy_buffer_into_string
+
+            ; copy the command into the string
+            lea rdi, [rel parse_string_object]
+            mov rsi, r14
+            call _append_string_mystring
+
+            mov r15, 1
+            
+            ; start from the beginning 
+            xor r12, r12
+            xor rsi, rsi 
+
+
+            .no_more_old_commands:
+            pop r11
+            pop r10
+            pop r9
+            pop r8
+
+            ; increase r8 by 2 positions because of double slash in input buffer
+            add r8, 2
+
+            xor rdx, rdx        ; last byte not \n
+            xor rcx, rcx        ; last byte not \
+            jmp .loop_till_new_line
+
 
 
     .buffer_parsed:
@@ -450,6 +511,13 @@ _parse_input:
         ; DO NOT DEALLOCATE THE STRING RIGHT NOW
         ; DEALLOCATE IT AFTER EXECUTION
         ; or dealllocate it just after failure to parse
+
+        test r15, r15
+        jz .no_printing_parsed_command
+
+        call _print_parsed_buffer
+
+        .no_printing_parsed_command:
         mov rax, 0
         jmp .return
     
@@ -458,8 +526,71 @@ _parse_input:
         jmp .return
 
     .return:
+        pop r15
+        pop r14
         pop r13
         pop r12
         mov rsp, rbp
         pop rbp
         ret
+
+
+_print_parsed_buffer:
+    push r12
+
+
+    lea rax, [rel parse_string_object]
+
+    mov rdi, [rax + MYSTRING_SIZE_OFF]
+    call _malloc
+
+    test rax, rax
+    jl .failed_getting_memory
+
+    mov r12, rax                    ; r12: stores the new memory address
+
+    lea r9, [rel parse_string_object]
+    mov r9, [r9 + MYSTRING_POINTER_OFF]
+    xor r8, r8
+    xor r10, r10                ; weather lasst byte was \n
+    ; i literally have to undo my parsers work to print
+    .loop_copy_new_line_as_space:
+
+        cmp byte [r9 + r8], 0x0a
+        je .check_and_replace_with_space
+
+        xor r10, r10            ; mark this byte as not \n
+        mov al, [r9 + r8]
+        mov [r12 + r8], al         ; move the non \n byte into new memory
+        jmp .loopback
+
+        .check_and_replace_with_space:
+            test r10, r10  ; if last byte was also \n, this is the end of parsed string
+            jne .print_command
+
+            mov r10, 1                      ; mark last byte was \n
+            mov byte [r12 + r8], ' '        ; move the \n byte as space into new memory
+
+        .loopback:
+        inc r8
+        jmp .loop_copy_new_line_as_space
+
+    .print_command:
+
+    dec r8              ; make it point to the second last \n
+    mov byte [r12 + r8], 0x0a
+    inc r8
+    mov byte [r12 + r8], 0x0a
+    inc r8
+
+    mov rax, r8
+    mov rdi, 1
+    mov rsi, r12
+    call _print
+
+    mov rdi, r12
+    call _free
+
+    .failed_getting_memory:
+    pop r12
+    ret
