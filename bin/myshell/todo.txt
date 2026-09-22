@@ -1,9 +1,15 @@
-1) Commad execution flow with proper checks when executing a single command.
-1.1) Put argc arguments and argv arguments inside dynamic array.
+BASIC------
+1) Commad execution flow with proper checks when executing a single command.  ✅
+1.1) Put argc arguments and argv arguments inside dynamic array. ✅
 2) Better parser, make it handle pipes, redirection etc.
 3) Decide how to store the commands, args, envp for every single command.
 4) Run chained commands (ls | grep "data.txt" > output.txt)
 5) Add auto complete for installed command name only (like ls, grep etc).
-6) change malloc to find free segment faster
-7) change error handling library, instead of if else  comparision, make it switch style
-8) Complete all the todos scattered in programs
+
+EFFICIENCY------
+6) change malloc to find free segment faster, try idea of free list
+7) Too many malloc/free calls for a command. Reduce them -> reuse some variables like argc_array, argv_array
+8) change error handling library, instead of if else  comparision, make it switch style
+
+CLOSEUP--------
+9) Complete all the todos scattered in programs

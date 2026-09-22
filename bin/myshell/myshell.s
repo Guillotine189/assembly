@@ -651,16 +651,9 @@ _process_tokens:
         ; build array for envp
         ; go through shell_env_array and add addresses of env that have exported = 1
 
-
-    DYNAMICARRAY_OBJECT_SIZE        equ 32
-    DYNAMICARRAY_CAPACITY_OFF       equ 0
-    DYNAMICARRAY_SIZE_OFF           equ 8
-    DYNAMICARRAY_ELEMENT_SIZE_OFF   equ 16
-    DYNAMICARRAY_POINTER_OFF        equ 24
-
-    ENV_STRUCT_STRING_OBJ_OFF equ 0
-    ENV_STRUCT_EXPORTED_OFF equ MYSTRING_OBJECT_SIZE
-    ENV_STRUCT_SIZE equ MYSTRING_OBJECT_SIZE + 8
+        ENV_STRUCT_STRING_OBJ_OFF equ 0
+        ENV_STRUCT_EXPORTED_OFF equ MYSTRING_OBJECT_SIZE
+        ENV_STRUCT_SIZE equ MYSTRING_OBJECT_SIZE + 8
 
         xor r12, r12                              ; which env struct am i checking
         lea r13, [rel shell_env_array_object]      ; r13 is the shell array object
@@ -1095,7 +1088,7 @@ _handle_input:
     call _default_dynamic_array_destructor
 
     ; DEALLOCATE THE command_argv_dynamic_array_object
-    lea rdi, [rel command_argc_dynamic_array_object]
+    lea rdi, [rel command_argv_dynamic_array_object]
     call _default_dynamic_array_destructor
 
     ret
