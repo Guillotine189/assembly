@@ -24,7 +24,7 @@ extern last_command_exit_code_ascii
 extern _itoa
 extern _print
 
-extern _find_var_in_env_var
+extern _find_var_in_shell_env
 
 extern _return_address_of_command_from_newest
 
@@ -383,7 +383,7 @@ _parse_input:
                 
                 lea rdi, [r9 + r8]          ; address of starting of var
                 mov rsi, [rsp + 48]              ; len of variable, just added 6qword into stack
-                call _find_var_in_env_var
+                call _find_var_in_shell_env
 
                 test rax, rax
                 jl .pop_and_continue

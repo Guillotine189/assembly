@@ -12,7 +12,6 @@ global exit_flag
 global error_custom_handler_number
 global address_command
 
-global address_envp_address_array
 global og_envp_stack_array_address
 
 global input_buffer_address
@@ -25,7 +24,6 @@ section .data
 
 
     address_command dq 1
-    address_envp_address_array dq 1
 
     og_envp_stack_array_address dq 1
 
@@ -153,11 +151,13 @@ section .bss
     last_command_exit_code_ascii resb 32
 
     command_argc_dynamic_array_object resb DYNAMICARRAY_OBJECT_SIZE
-
+    command_argv_dynamic_array_object resb DYNAMICARRAY_OBJECT_SIZE
 
 ; variables
 extern error_code
 extern parse_string_object
+extern shell_env_array_object
+
 
 ; functons
 extern _print
@@ -562,6 +562,21 @@ _process_tokens:
     jl .error_creating_argc_array
 
 
+    ; build array for envp
+    ; go through shell_env_array and add addresses of env that have exported = 1
+
+    lea rax, [rel command_argv_dynamic_array_object]
+    mov qword [rax + DYNAMICARRAY_CAPACITY_OFF], 7    ; expect 7 argument, more then enough
+    mov qword [rax + DYNAMICARRAY_SIZE_OFF], 0
+    mov qword [rax + DYNAMICARRAY_ELEMENT_SIZE_OFF], 8 ; i will be storing pointers to argc
+    mov qword [rax + DYNAMICARRAY_POINTER_OFF], 0
+    mov rdi, rax
+    call _default_dynamic_array_constructor
+
+    test rax, rax
+    jl .error_creating_argv_array
+
+
     xor r13, r13                      ; idx for looping
     lea r14, [rel parse_string_object]
     mov r14, [r14 + MYSTRING_POINTER_OFF]
@@ -633,17 +648,77 @@ _process_tokens:
 
     .build_envp_array:
 
-        ; right now i am sending og envp
-        mov rax, [rel og_envp_stack_array_address]
-        mov [rel address_envp_address_array], rax
+        ; build array for envp
+        ; go through shell_env_array and add addresses of env that have exported = 1
+
+
+    DYNAMICARRAY_OBJECT_SIZE        equ 32
+    DYNAMICARRAY_CAPACITY_OFF       equ 0
+    DYNAMICARRAY_SIZE_OFF           equ 8
+    DYNAMICARRAY_ELEMENT_SIZE_OFF   equ 16
+    DYNAMICARRAY_POINTER_OFF        equ 24
+
+    ENV_STRUCT_STRING_OBJ_OFF equ 0
+    ENV_STRUCT_EXPORTED_OFF equ MYSTRING_OBJECT_SIZE
+    ENV_STRUCT_SIZE equ MYSTRING_OBJECT_SIZE + 8
+
+        xor r12, r12                              ; which env struct am i checking
+        lea r13, [rel shell_env_array_object]      ; r13 is the shell array object
+        mov r14, [r13 + DYNAMICARRAY_POINTER_OFF]  ; r14 now points to env structs array
+        .loop_shell_env_array:
+
+        cmp r12, [r13 + DYNAMICARRAY_SIZE_OFF]
+        je .done_adding_shell_env_var
+
+
+        mov rax, r12
+        mov rcx, ENV_STRUCT_SIZE
+        mul rcx
+
+        ; dont care about the buffer overflow, probably will never happen
+        ; rax now has the offset for which env struct to check
+
+        mov rcx, [r13 + DYNAMICARRAY_POINTER_OFF]
+        lea rsi, [rcx + rax]   ; rsi now points to the env stuct
+        
+        mov rdx, [rsi + ENV_STRUCT_EXPORTED_OFF]
+        test rdx, rdx
+        jz .not_exported
+
+        lea rsi, [rsi + ENV_STRUCT_STRING_OBJ_OFF]
+        lea rsi, [rsi + MYSTRING_POINTER_OFF]
+        ; rsi has the address which points to the address of string
+        ; i want tocopy the address of string inside array. so i need to give the address of address of string
+        lea rdi, [rel command_argv_dynamic_array_object]
+        call _dynamic_array_add_element
+
+        test rax, rax
+        jl .error_appending_to_argv
+
+        .not_exported:
+        inc r12
+        jmp .loop_shell_env_array
+
+
+
+
+
+    .done_adding_shell_env_var:
+
 
     .return:
         ret
 
+    .error_appending_to_argv:
+        lea rdi, [rel command_argv_dynamic_array_object]
+        call _default_dynamic_array_destructor
+
+    .error_creating_argv_array:
+        ; Destroy argc array and exit 
 
     .error_appending_to_argc:
         lea rdi, [rel command_argc_dynamic_array_object]
-        call _default_dynamic_array_constructor
+        call _default_dynamic_array_destructor
 
     .error_creating_argc_array:
         mov rax, -1
@@ -767,7 +842,8 @@ _execute_process:
     mov rdi, [rel address_command]
     lea rsi, [rel command_argc_dynamic_array_object]
     mov rsi, [rsi + DYNAMICARRAY_POINTER_OFF]
-    mov rdx, [rel address_envp_address_array]
+    lea rdx, [rel command_argv_dynamic_array_object]
+    mov rdx, [rdx + DYNAMICARRAY_POINTER_OFF]
     syscall
 
     ; this part only executes when execve failed
@@ -1010,12 +1086,16 @@ _handle_input:
     call _execute_process
 
 
-    ; DEALLOCATE THE command_argc_dynamic_array_object
+    ; DEALLOCATE THE parse_string_object
     lea rdi, [rel parse_string_object]
     call _destructor_mystring
 
-    ; DEALLOCATE THE parse_string_object
+    ; DEALLOCATE THE command_argc_dynamic_array_object
     lea rdi, [rel command_argc_dynamic_array_object]  
+    call _default_dynamic_array_destructor
+
+    ; DEALLOCATE THE command_argv_dynamic_array_object
+    lea rdi, [rel command_argc_dynamic_array_object]
     call _default_dynamic_array_destructor
 
     ret

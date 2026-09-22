@@ -18,7 +18,7 @@ section .rodata
 	path_env_var db "PATH", 0
 
 
-
+global shell_env_array_object
 section .bss
 	reusable_buffer_path resb 4096
 	struct_for_stat resb 144
@@ -60,7 +60,6 @@ extern old_cwd
 extern old_cwd_len
 
 extern address_argc_address_array
-extern address_envp_address_array
 extern address_command
 extern total_command_aruments
 
@@ -72,7 +71,7 @@ section .text
 
 global _initialize_shell_env_array
 global _check_if_cmd_is_in_path
-global _find_var_in_env_var
+global _find_var_in_shell_env
 
 global shell_env_array_object
 
@@ -205,7 +204,7 @@ _initialize_shell_env_array:
 
 
 
-_print_env:
+_print_shell_env:
 	push rbp
 	mov rbp, rsp
 
@@ -249,13 +248,20 @@ _print_env:
 	ret
 
 
+
+; rules for env variables
+; FOO=BAR
+; FOO is of pattern [a-z A-Z _] [a-z A-Z 0-9 _]
+; FOO is of pattern anything but null
+
+
 ; rdi: address of the variable to check if it's in env or not
 ; rsi: len of the varible
 ; returns rax : address of env path variable if it exists
 ; 		      : -ve number on failure
 ; CHECKS the my shell_env weather the env variable exists or not
 
-_find_var_in_env_var:
+_find_var_in_shell_env:
 	test rsi, rsi
 	je .path_not_found
 
@@ -325,7 +331,7 @@ _check_if_cmd_is_in_path:
 
 	lea rdi, [rel path_env_var]
 	mov rsi, 4
-	call _find_var_in_env_var
+	call _find_var_in_shell_env
 
 	test rax, rax
 	jl .error_path_env_not_found
