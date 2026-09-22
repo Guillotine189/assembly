@@ -305,6 +305,8 @@ _find_var_in_env_var:
 
 	.path_found:
 		mov rax, rcx
+		add rax, rsi
+		inc rax   ; if "PATH" was searched, i return "/bin/usr", not "PATH=/bin/usr"
 		ret
 
 	.path_not_found:

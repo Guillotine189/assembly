@@ -374,6 +374,8 @@ _parse_input:
                 ; eg: "$PATH?", r8 is index at "?", at the non valid char
                 sub r8, [rsp]       ; r8 is at the index pointing to "P"
 
+                push rdx
+                push rcx
                 push r8
                 push r9
                 push r10
@@ -400,8 +402,8 @@ _parse_input:
                 pop r10
                 pop r9
                 pop r8
-                xor rdx, rdx
-                xor rcx, rcx
+                pop rcx
+                pop rdx
 
                 .not_in_env:
                 add r8, [rsp]
@@ -418,7 +420,8 @@ _parse_input:
             cmp byte [r9 + r8 + 1], '!'      ; i know there is always a next byte available
             jne .copy_byte_and_loop         ; if only single time !, copy
 
-
+            push rdx
+            push rcx
             push r8
             push r9
             push r10
@@ -453,6 +456,8 @@ _parse_input:
             pop r10
             pop r9
             pop r8
+            pop rcx
+            pop rdx
 
             ; increase r8 by 2 positions because of double slash in input buffer
             add r8, 2
