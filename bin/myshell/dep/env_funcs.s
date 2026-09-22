@@ -40,7 +40,7 @@ extern _itoa
 extern _default_dynamic_array_constructor
 extern _default_dynamic_array_destructor
 extern _dynamic_array_add_element
-
+extern _dynamic_array_remove_element
 
 extern _constructor_mystring
 extern _destructor_mystring
@@ -74,6 +74,8 @@ global _initialize_shell_env_array
 global _check_if_cmd_is_in_path
 global _find_var_in_shell_env
 global _update_var_in_shell_env
+global _unset_var_in_shell_env
+
 
 global shell_env_array_object
 
@@ -527,6 +529,131 @@ _update_var_in_shell_env:
 		pop r12
 		mov rsp, rbp
 		pop rbp
+		ret
+
+
+; rdi: address of the key part of variable
+_unset_var_in_shell_env:
+
+	mov r10, rdi
+	mov al, [r10]
+
+	cmp al, '_'
+	je .first_key_char_valid
+
+	cmp al, 'A'
+	jb .invaid_key
+
+	cmp al, 'Z'
+	jbe .first_key_char_valid
+
+	cmp al, 'a'
+	jb .invaid_key
+
+	cmp al, 'z'
+	jbe .first_key_char_valid
+
+	
+	jmp .invaid_key
+
+	.first_key_char_valid:
+		; now i have to  check the rest of the key
+		inc r10
+	.loop_check_key:
+
+		mov al, [r10]
+
+		cmp al, '_'
+		je .valid_key_byte
+
+		cmp al, '0'
+		jb .check_key
+
+		cmp al, '9'
+		jbe .valid_key_byte
+
+		cmp al, 'A'
+		jb .check_key
+
+		cmp al, 'Z'
+		jbe .valid_key_byte
+
+		cmp al, 'a'
+		jb .check_key
+
+		cmp al, 'z'
+		jbe .valid_key_byte
+		
+		jmp .check_key
+
+		.valid_key_byte:
+			inc r10
+			jmp .loop_check_key
+
+	.check_key:
+	; r10 points the '='
+	; rdi points to starting of new still
+	mov rsi, r10
+	sub rsi, rdi   						; rsi is len of key
+
+	xor r8 ,r8 							; this will store which env var i am checking
+
+	.check_next_env_var:
+		lea rax, [rel shell_env_array_object]
+
+		cmp r8, [rax + DYNAMICARRAY_SIZE_OFF]
+		je .key_not_found
+
+		mov r9, [rax + DYNAMICARRAY_POINTER_OFF]
+
+		mov rax, r8
+		mov rcx, ENV_STRUCT_SIZE
+		mul rcx
+		; rax has the offset for next env struct
+		lea rax, [r9 + rax] 		; now rax points to the next env struct
+		
+		lea rdx, [rax + ENV_STRUCT_STRING_OBJ_OFF]
+		mov rcx, [rdx + MYSTRING_POINTER_OFF]  ; rax pointing to the actual string
+		
+		xor r9, r9 				; idx for going over the env var
+	.check_this_address:
+
+		cmp r9, rsi    			; r9 is index, rsi is length.
+		je .check_if_env_name_ends_here
+
+		mov al, byte [rcx + r9] 		; "PATH=usr/:"
+		cmp byte [rdi + r9], al    ; compare byte of asking variable with current envp var
+		jne .check_next_var
+
+		inc r9
+		jmp .check_this_address
+
+
+	.check_next_var:
+		inc r8
+		jmp .check_next_env_var
+
+	.check_if_env_name_ends_here:
+		cmp byte [rcx + r9], '=' 		; if the next byte in my og_env_var is '=' 
+		je .key_found
+
+		jmp .check_next_var
+
+
+	.key_found:
+		; rdx points to the string object element
+		push r8        ; r8 stores the index which needs to be removed in array
+
+		mov rdi, rdx
+		call _destructor_mystring
+
+		; now move the structs right to the current one to 
+		lea rdi, [rel shell_env_array_object]
+		pop rsi   						; the index of which element i want removed
+		call _dynamic_array_remove_element
+
+	.key_not_found:
+	.invaid_key:
 		ret
 
 

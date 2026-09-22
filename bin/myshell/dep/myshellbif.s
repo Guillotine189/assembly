@@ -34,9 +34,11 @@ section .rodata
     cd_ 			db "cd",0
     pwd_ 			db "pwd",0
     export_ 		db "export", 0
+    unset_  		db "unset", 0
     clear_ 			db "clear", 0
     exit_ 			db "exit",0
     history_ 		db "history", 0
+
 
 section .bss
 	reusable_buffer_bif resb 4096
@@ -71,6 +73,8 @@ extern address_command
 
 extern _find_var_in_shell_env
 extern _update_var_in_shell_env
+extern _unset_var_in_shell_env
+
 
 extern _print_history
 
@@ -121,6 +125,14 @@ _check_and_execute_if_built_in:
 
     test rax, rax
     je .update_shell_env
+
+
+    mov rax, [rel address_command]
+    lea rdi, [rel unset_]
+    call _strcmp
+
+    test rax, rax
+    je .unset_shel_env
 
 
     mov rax, [rel address_command]
@@ -266,6 +278,31 @@ _check_and_execute_if_built_in:
 
 			jmp .loopback
 
+	.unset_shel_env:
+
+		; the array conains a NULL as an argument
+		lea r13, [rel command_argc_dynamic_array_object]   ; 2nd argument is the path name
+        mov r13, [r13 + DYNAMICARRAY_POINTER_OFF]
+
+        ; 0th argument is command name, last argument is NULL
+     	mov r14, 1
+		.loop_unset_env_vars:
+	        mov r12, [r13 + r14*8] 					; read the actual argument address
+			cmp r12, 0  				; if i have reached the null arg
+			je .done2
+
+			mov rdi, r12
+			call _unset_var_in_shell_env
+
+			inc r14
+			jmp .loop_unset_env_vars
+
+
+        .done2:
+		jmp .return_built_in
+
+
+
     .return_built_in:
         mov rax, 0
         ret
@@ -405,6 +442,15 @@ _check_and_return_command_if_bic:
     test rax, rax
     je .return_export
 
+
+    mov rax, r13
+    lea rdi, [rel unset_]
+    mov rsi, r12
+    call _cmp_equal_memory
+
+    test rax, rax
+    je .return_unset
+
     mov rax, r13
     lea rdi, [rel exit_]
     mov rsi, r12
@@ -435,6 +481,10 @@ _check_and_return_command_if_bic:
 
 	.return_export:
 		lea rax, [rel export_]
+		jmp .return
+
+	.return_unset:
+		lea rax, [rel unset_]
 		jmp .return
 
 	.return_exit:

@@ -5,6 +5,7 @@ section .text
 global _default_dynamic_array_constructor
 global _default_dynamic_array_destructor
 global _dynamic_array_add_element
+global _dynamic_array_remove_element
 global _dynamic_array_get_element_address
 
 extern _malloc
@@ -231,7 +232,62 @@ _dynamic_array_add_element:
 		xor rax, rax
 		ret
 
+; rdi: address of the dynamic array object
+; rsi: the index number for which element to remove
+_dynamic_array_remove_element:
+	mov r10, [rdi + DYNAMICARRAY_SIZE_OFF]
+	cmp rsi, r10  					; if index >= size -> error
+	jge .error_out_of_index
 
+	mov r9, rsi
+	sub r10, r9 			; size:4, index:3, -> r10 = 1
+	dec r10 				; r10=0 shows how many elements to shift
+
+	mov r11, [rdi + DYNAMICARRAY_POINTER_OFF]
+
+	mov rax, rsi
+	mov r8, [rdi + DYNAMICARRAY_ELEMENT_SIZE_OFF]
+	mul r8
+	; dont care about overflow, probably won't happen
+	; now rax has index*size_of_1_element, so offset
+
+	add r11, rax 			; r11 now points to the element the needs to be removed
+	mov r9, r11
+	add r9, [rdi + DYNAMICARRAY_ELEMENT_SIZE_OFF]
+
+	mov rdx, [rdi + DYNAMICARRAY_ELEMENT_SIZE_OFF]
+
+	; r11 is at the element that needs to be removed
+	; r9 is at next segment
+	; r10 has how many elements to shift left
+	; rdx has the size of 1 element
+	mov r8, rdi
+
+	mov rdi, r11
+	mov rsi, r9
+	cld 						; i know i don't have to but still
+	.loop_shift_elements:
+		test r10, r10
+		je .all_elemets_shifted
+
+		mov rcx, rdx
+		rep movsb    				; copy bytes from r9->r11 a total of rdx times
+
+		; now rdi and rsi have moved to next element, repeat this a total of r10 times
+		; rcx is zero
+
+		dec r10
+		jmp .loop_shift_elements
+
+
+	.all_elemets_shifted:
+	dec qword [r8 + DYNAMICARRAY_SIZE_OFF] 		; decrease the size
+	xor rax, rax
+	ret
+
+	.error_out_of_index:
+	mov rax, -1
+	ret
 
 
 ; rdi: address of dynamic_array object 
