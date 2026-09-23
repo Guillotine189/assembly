@@ -80,24 +80,12 @@ global _print_shell_env
 global shell_env_array_object
 
 
-; shell_env_array [ENV_STUCT, ENV_STRUCT]
-; env_struct -> [string_object / 24bytes][exported or not / 8 bytes]
+; shell_env_array [[string_object][string_object][string_object]]
 ; string object -> [capacity / 8bytes][size / 8bytes][pointer / 8bytes]
 ; pointer -> The actual env string
 
-; env_struct
-; [String object] 24bytes  
-; [exported or not] 8bytes, 0/1 -> 0: not exported, 1: exported
-; total = 32bytes
-; i will add env_struct to 
-
-ENV_STRUCT_STRING_OBJ_OFF equ 0
-ENV_STRUCT_EXPORTED_OFF equ MYSTRING_OBJECT_SIZE
-ENV_STRUCT_SIZE equ MYSTRING_OBJECT_SIZE + 8
-
-
-; REMEMBER: the array does not own the ENV_STRUCT
-; so if you have to delete a ENV_STRUCT, make sure to free the string
+; REMEMBER: the array does not own the string
+; so if you have to delete a array, make sure to free the string
 
 
 ; at start, og_envp_stack_array_address was initialized.
@@ -123,7 +111,7 @@ _initialize_shell_env_array:
 		lea rax, [rel shell_env_array_object]
 		mov qword [rax + DYNAMICARRAY_CAPACITY_OFF], 40
 		mov qword [rax + DYNAMICARRAY_SIZE_OFF], 0
-		mov qword [rax + DYNAMICARRAY_ELEMENT_SIZE_OFF], ENV_STRUCT_SIZE
+		mov qword [rax + DYNAMICARRAY_ELEMENT_SIZE_OFF], MYSTRING_OBJECT_SIZE
 		mov qword [rax + DYNAMICARRAY_POINTER_OFF], 0
 		mov rdi, rax
 		call _default_dynamic_array_constructor
@@ -133,7 +121,7 @@ _initialize_shell_env_array:
 
 	xor r12, r12 					; index fow which env var to copy
 
-	.loop_populate_env_struct:
+	.loop_populate_env_array:
 
 		mov rax, [rel og_envp_stack_array_address]
 		mov rcx, r12
@@ -142,9 +130,9 @@ _initialize_shell_env_array:
 		cmp qword [rax], 0
 		je .done_populating
 
-	.create_env_struct_object:
-		sub rsp, ENV_STRUCT_SIZE
-		; create string object
+	.create_string_object:
+
+		sub rsp, MYSTRING_OBJECT_SIZE
 		mov qword [rsp + MYSTRING_CAPACITY_OFF], 24   ; assign 24 for each env var
 		mov qword [rsp + MYSTRING_SIZE_OFF], 0
 		mov qword [rsp + MYSTRING_POINTER_OFF], 0
@@ -168,12 +156,8 @@ _initialize_shell_env_array:
 		test rax, rax
 		jl .error_appending_to_string
 
-	.set_exported_to_true:
-		mov rax, rsp
-		add rax, ENV_STRUCT_EXPORTED_OFF
-		mov qword [rax], 1
 
-	.add_env_struct_to_array:
+	.add_string_to_array:
 
 		lea rdi, [rel shell_env_array_object]
 		mov rsi, rsp
@@ -183,11 +167,11 @@ _initialize_shell_env_array:
 		jl .error_adding_env_struct
 
 	.remove_string_object_from_stack:
-		add rsp, ENV_STRUCT_SIZE
+		add rsp, MYSTRING_OBJECT_SIZE
 
 	.loopback:
 		inc r12
-		jmp .loop_populate_env_struct
+		jmp .loop_populate_env_array
 
 	.done_populating:
 		;call _print_env
@@ -217,7 +201,7 @@ _print_shell_env:
 	mov r12, 0
 	mov r8, 1
 
-	.loop_print_env_struct:
+	.loop_print_string:
 	lea r9, [rel shell_env_array_object]
 
 	cmp r8, [r9 + DYNAMICARRAY_SIZE_OFF]
@@ -227,12 +211,12 @@ _print_shell_env:
 	mov r9, [r9 + DYNAMICARRAY_POINTER_OFF]
 
 	mov rax, r12
-	mov rcx, ENV_STRUCT_SIZE
+	mov rcx, MYSTRING_OBJECT_SIZE
 	mul rcx
-	; rax has the offset for next env struct
-	lea rax, [r9 + rax] 		; now rax points to the next env struct
+	; rax has the offset for next string
+	lea rax, [r9 + rax] 		; now rax points to the next string
 	
-	lea rcx, [rax + ENV_STRUCT_STRING_OBJ_OFF]
+	mov rcx, rax
 
 	mov rax, [rcx + MYSTRING_SIZE_OFF] 				; r14 has string size
 	mov rsi, [rcx + MYSTRING_POINTER_OFF] 			; r13 has the actual string
@@ -243,7 +227,7 @@ _print_shell_env:
 	inc r12
 	inc r8
 
-	jmp .loop_print_env_struct
+	jmp .loop_print_string
 
 	.done:
 	pop r12
@@ -273,13 +257,12 @@ _find_var_in_shell_env:
 		mov r9, [rax + DYNAMICARRAY_POINTER_OFF]
 
 		mov rax, r8
-		mov rcx, ENV_STRUCT_SIZE
+		mov rcx, MYSTRING_OBJECT_SIZE
 		mul rcx
-		; rax has the offset for next env struct
-		lea rax, [r9 + rax] 		; now rax points to the next env struct
+		; rax has the offset for next string object
+		lea rax, [r9 + rax] 		; now rax points to the next string object
 		
-		lea rcx, [rax + ENV_STRUCT_STRING_OBJ_OFF]
-		mov rcx, [rcx + MYSTRING_POINTER_OFF]  ; rax pointing to the actual string
+		mov rcx, [rax + MYSTRING_POINTER_OFF]  ; rcx pointing to the actual string
 		
 		xor r9, r9 				; idx for going over the env var
 	.check_this_address:
@@ -412,12 +395,12 @@ _update_var_in_shell_env:
 		mov r9, [rax + DYNAMICARRAY_POINTER_OFF]
 
 		mov rax, r8
-		mov rcx, ENV_STRUCT_SIZE
+		mov rcx, MYSTRING_OBJECT_SIZE
 		mul rcx
-		; rax has the offset for next env struct
-		lea rax, [r9 + rax] 		; now rax points to the next env struct
+		; rax has the offset for next string object
+		lea rax, [r9 + rax] 		; now rax points to the next string object
 		
-		lea rdx, [rax + ENV_STRUCT_STRING_OBJ_OFF]
+		mov rdx, rax  				; rdx = string object
 		mov rcx, [rdx + MYSTRING_POINTER_OFF]  ; rax pointing to the actual string
 		
 		xor r9, r9 				; idx for going over the env var
@@ -446,7 +429,7 @@ _update_var_in_shell_env:
 
 
 	.key_found:
-		; rdx points to the string object of the env struct which stores that env string
+		; rdx points to the string object of the string object which stores that env string
 		push rdx
 		mov rdi, rdx
 		call _mystring_clear
@@ -463,54 +446,49 @@ _update_var_in_shell_env:
 		jmp .return_success
 
 	.key_not_found:
-		; create a new env struct, add it to array, mark it non exported
+		; create a new string object , add it to array
 
-		; create a env object -> string object + 8 bytes
+		; rdi already has the new path variable address
 		call _strlen    
 
-		sub rsp, ENV_STRUCT_SIZE
-		lea rcx, [rsp + ENV_STRUCT_STRING_OBJ_OFF]
-		mov qword [rcx + MYSTRING_CAPACITY_OFF], rax   ; capacity = len of env var
-		mov qword [rcx + MYSTRING_SIZE_OFF], 0
-		mov qword [rcx + MYSTRING_POINTER_OFF], 0
-		mov rdi, rcx
+		sub rsp, MYSTRING_OBJECT_SIZE
+		mov qword [rsp + MYSTRING_CAPACITY_OFF], rax   ; capacity = len of env var
+		mov qword [rsp + MYSTRING_SIZE_OFF], 0
+		mov qword [rsp + MYSTRING_POINTER_OFF], 0
+		mov rdi, rsp
 		call _constructor_mystring
 
 		test rax, rax
 		jl .error_creating_string_object
 
 		; add new env variable 
-		lea rdi, [rsp + ENV_STRUCT_STRING_OBJ_OFF]
+		mov rdi, rsp
 		mov rsi, r12
 		call _append_string_mystring
 
-		lea rcx, [rsp + ENV_STRUCT_EXPORTED_OFF]
-		mov qword [rcx], 1 							; marking this as exported
-
-		; add env object to shell_env_array
-
+		; add string to shell_env_array
 		lea rdi, [rel shell_env_array_object]
 		mov rsi, rsp
 		call _dynamic_array_add_element
 
 
 		test rax, rax
-		jl .error_adding_env_struct
+		jl .error_adding_string_object
 
 		; remove object from tsack
-		add rsp, ENV_STRUCT_SIZE
+		add rsp, MYSTRING_OBJECT_SIZE
 
 		xor rax, rax
 		jmp .return_success
 
 
-	.error_adding_env_struct:
+	.error_adding_string_object:
 		;cleanup up the string object
 		mov rdi, rsp
 		call _destructor_mystring
 
 	.error_creating_string_object:	
-		sub rsp, ENV_STRUCT_SIZE
+		sub rsp, MYSTRING_OBJECT_SIZE
 
 	.invaid_key:
 	.error_updating_env_variable:
@@ -607,12 +585,12 @@ _unset_var_in_shell_env:
 		mov r9, [rax + DYNAMICARRAY_POINTER_OFF]
 
 		mov rax, r8
-		mov rcx, ENV_STRUCT_SIZE
+		mov rcx, MYSTRING_OBJECT_SIZE
 		mul rcx
-		; rax has the offset for next env struct
-		lea rax, [r9 + rax] 		; now rax points to the next env struct
+		; rax has the offset for next string object
+		lea rax, [r9 + rax] 		; now rax points to the next string object
 		
-		lea rdx, [rax + ENV_STRUCT_STRING_OBJ_OFF]
+		mov rdx, rax
 		mov rcx, [rdx + MYSTRING_POINTER_OFF]  ; rax pointing to the actual string
 		
 		xor r9, r9 				; idx for going over the env var

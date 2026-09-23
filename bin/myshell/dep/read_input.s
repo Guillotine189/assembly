@@ -809,7 +809,7 @@ _read_input:
         mov [rel cursor_idx], rax
         jmp .read_key
 
-    
+
     .print_more_malloc_info:
 
         mov rax, 1
@@ -988,10 +988,10 @@ _read_input:
             cmp byte [r9 + r8], '/'
             je .back_slash_enc
 
+        .loopback22:
             cmp r8, 0
             je .first_byte_reached
 
-        .loopback22:
             dec r8
             jmp .loop_last_word_written
 
@@ -1020,7 +1020,7 @@ _read_input:
         mov r14, r10
 
         sub rsp, MYSTRING_OBJECT_SIZE
-        mov qword [rsp + MYSTRING_CAPACITY_OFF], 64   ; asking for 64 bytes is enough
+        mov qword [rsp + MYSTRING_CAPACITY_OFF], 1024
         mov qword [rsp + MYSTRING_SIZE_OFF], 0
         mov qword [rsp + MYSTRING_POINTER_OFF], 0
         mov rdi, rsp

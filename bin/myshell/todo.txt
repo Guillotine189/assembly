@@ -8,6 +8,8 @@ BASIC------
 
 5.1) '!!' is replaced by the old command, but the old command is not processed. So it just goes in as 1 big argument. Fix that
 
+6) see how many times a operations are calling malloc and free. Like double tab.
+
 
 EFFICIENCY------
 6) change malloc to find free segment faster, try idea of free list

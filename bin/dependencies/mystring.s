@@ -145,7 +145,7 @@ _append_string_mystring:
 	; r13 has the len of new string
 	mov r9, [r12 + MYSTRING_SIZE_OFF]
 	add r9, r13                  ; required size
-	add r9, 64                 ; growth
+	add r9, 128                 ; growth
 	add r9, 7
 	and r9, -8                   ; align with next 8 byte multiple
 

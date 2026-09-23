@@ -566,7 +566,7 @@ _process_tokens:
     ; go through shell_env_array and add addresses of env that have exported = 1
 
     lea rax, [rel command_argv_dynamic_array_object]
-    mov qword [rax + DYNAMICARRAY_CAPACITY_OFF], 50    ; expect 50 argument, more then enough
+    mov qword [rax + DYNAMICARRAY_CAPACITY_OFF], 80    ; expect 80 env variables
     mov qword [rax + DYNAMICARRAY_SIZE_OFF], 0
     mov qword [rax + DYNAMICARRAY_ELEMENT_SIZE_OFF], 8 ; i will be storing pointers to argc
     mov qword [rax + DYNAMICARRAY_POINTER_OFF], 0
@@ -617,11 +617,11 @@ _process_tokens:
         mov rsi, rsp    ; the address of the value is needed, thats why i gave address of rsp
         lea rdi, [rel command_argc_dynamic_array_object]
         call _dynamic_array_add_element
+        pop rdi
+        pop r10
         test rax, rax
         jl .error_appending_to_argc
 
-        pop rdi
-        pop r10
 
         cmp r15, 0
         je .command_expected
@@ -651,13 +651,9 @@ _process_tokens:
         ; build array for envp
         ; go through shell_env_array and add addresses of env that have exported = 1
 
-        ENV_STRUCT_STRING_OBJ_OFF equ 0
-        ENV_STRUCT_EXPORTED_OFF equ MYSTRING_OBJECT_SIZE
-        ENV_STRUCT_SIZE equ MYSTRING_OBJECT_SIZE + 8
-
         xor r12, r12                              ; which env struct am i checking
         lea r13, [rel shell_env_array_object]      ; r13 is the shell array object
-        mov r14, [r13 + DYNAMICARRAY_POINTER_OFF]  ; r14 now points to env structs array
+        mov r14, [r13 + DYNAMICARRAY_POINTER_OFF]  ; r14 now points to string object array
         .loop_shell_env_array:
 
         cmp r12, [r13 + DYNAMICARRAY_SIZE_OFF]
@@ -665,39 +661,35 @@ _process_tokens:
 
 
         mov rax, r12
-        mov rcx, ENV_STRUCT_SIZE
+        mov rcx, MYSTRING_OBJECT_SIZE
         mul rcx
 
         ; dont care about the buffer overflow, probably will never happen
-        ; rax now has the offset for which env struct to check
+        ; rax now has the offset for which string object to check
 
         mov rcx, [r13 + DYNAMICARRAY_POINTER_OFF]
-        lea rsi, [rcx + rax]   ; rsi now points to the env stuct
+        lea rsi, [rcx + rax]   ; rsi now points to the string object
         
-        mov rdx, [rsi + ENV_STRUCT_EXPORTED_OFF]
-        test rdx, rdx
-        jz .not_exported
-
-        lea rsi, [rsi + ENV_STRUCT_STRING_OBJ_OFF]
         lea rsi, [rsi + MYSTRING_POINTER_OFF]
         ; rsi has the address which points to the address of string
-        ; i want tocopy the address of string inside array. so i need to give the address of address of string
+        ; i want to copy the address of string inside array. so i need to give the address of address of string
         lea rdi, [rel command_argv_dynamic_array_object]
         call _dynamic_array_add_element
 
         test rax, rax
         jl .error_appending_to_argv
 
-        .not_exported:
+        
         inc r12
         jmp .loop_shell_env_array
 
 
-
-
-
     .done_adding_shell_env_var:
-
+    ; add a null address after them
+    ; r13 is shell_env_array_object
+    lea rdi, [rel command_argv_dynamic_array_object]
+    lea rsi, [rel null_qword]
+    call _dynamic_array_add_element
 
     .return:
         ret
