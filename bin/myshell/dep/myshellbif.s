@@ -376,13 +376,13 @@ _builtin_cd:
 
 		lea rdi, [rel command_argc_dynamic_array_object]
 		mov rdi, [rdi + DYNAMICARRAY_POINTER_OFF]
-		add rdi, 8
+		add rdi, 8    				; offset of arg1 address
 		mov rdi, [rdi]
 		call _strlen
 
 		mov rdi, 1
 		lea rsi, [rel command_argc_dynamic_array_object]
-		mov rsi, [rdi + DYNAMICARRAY_POINTER_OFF]
+		mov rsi, [rsi + DYNAMICARRAY_POINTER_OFF]
 		add rsi, 8
 		mov rsi, [rsi]
 		call _print

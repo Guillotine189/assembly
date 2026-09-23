@@ -9,6 +9,7 @@ nasm -f elf64 ./dep/env_funcs.s  -o ./dep/env_funcs.o
 nasm -f elf64 ./dep/history.s -o ./dep/history.o
 nasm -f elf64 ./dep/proper_print.s -o ./dep/proper_print.o
 nasm -f elf64 ./dep/parse_input.s -o ./dep/parse_input.o
+nasm -f elf64 ./dep/process_tokens.s -o ./dep/process_tokens.o
 
 # only temporary
 #nasm -f elf64 ../dependencies/errorHandling.s -o ../dependencies/errorHandling.o 
@@ -20,6 +21,7 @@ nasm -f elf64 ../dependencies/dynamicarray.s -o ../dependencies/dynamicarray.o
 ld   myshell.o \
     ./dep/read_input.o \
     ./dep/parse_input.o \
+    ./dep/process_tokens.o \
     ./dep/custom_errors.o \
 	./dep/myshelldep.o \
     ./dep/myshellbif.o \
@@ -35,6 +37,7 @@ ld   myshell.o \
 rm   myshell.o \
     ./dep/read_input.o \
     ./dep/parse_input.o \
+    ./dep/process_tokens.o \
     ./dep/custom_errors.o \
     ./dep/myshelldep.o \
     ./dep/myshellbif.o \

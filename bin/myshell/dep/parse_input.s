@@ -1,7 +1,5 @@
 %include "../dependencies/mystring.inc"
 
-
-
 section .bss
     ; DO not make this less than 32 bytes, i copy that many bytes as exit code status
     ; directly into the buffer without checking and expanding

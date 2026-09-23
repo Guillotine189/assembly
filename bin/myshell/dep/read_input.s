@@ -25,8 +25,8 @@ section .rodata
     clear_to_right db 27, "[K"
     erase_everything_after_cursor_including_cursor db 27, "[0K", 0
 
-    cursor_scroll_screen_up db 27, "[2J", 27, "[H", 0
-    cursor_scroll_screen_up_len equ $ - cursor_scroll_screen_up
+    cursor_form_feed_new_page db 27, "[2J", 27, "[H", 0
+    cursor_form_feed_new_page_len equ $ - cursor_form_feed_new_page
     ; ESC [ 2 J    -> clear entire screen
     ; ESC [ H      -> move cursor [1,1]
 
@@ -152,7 +152,7 @@ _read_input:
 
 
         cmp byte [rel key_buffer], 12           ; ctrl + L special case, new line free
-        je .scroll_screen_up
+        je .form_feed_new_page
 
         ; this is for ctrl + keys, right now i just ignore them except 
         cmp byte [rel key_buffer], 31                ; last char before usable chars
@@ -772,12 +772,12 @@ _read_input:
 
         jmp .read_key
 
-    .scroll_screen_up:
+    .form_feed_new_page:
 
         mov rax, sys_write
         mov rdi, 1              ; fd 1
-        lea rsi, [rel cursor_scroll_screen_up]
-        mov rdx, cursor_scroll_screen_up_len
+        lea rsi, [rel cursor_form_feed_new_page]
+        mov rdx, cursor_form_feed_new_page_len
         syscall
 
         call _print_prefix_line
