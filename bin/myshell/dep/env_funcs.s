@@ -95,7 +95,7 @@ _initialize_shell_env_array:
 	push r12
 
 	.get_a_lot_of_heap_memory:
-		mov rdi, 16384  					; 16kb
+		mov rdi, 12000  					; 
 		call _malloc
 
 		test rax, rax

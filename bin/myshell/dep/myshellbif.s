@@ -17,10 +17,11 @@ section .data
 
 section .rodata
 	
-	cursor_clear_screen db 27, "[2J", 27, "[H", 0
+	cursor_clear_screen db 27, "[2J", 27, "[3J", 27, "[H", 0
 	cursor_clear_screen_len equ $ - cursor_clear_screen
-	; ESC [ 2 J    -> clear entire screen
-	; ESC [ H      -> move cursor [1,1]
+	; ESC[2J     erase entire visible screen
+	; ESC[3J     erase scrollback buffer
+	; ESC[H      move cursor to home
 
 
 	dot db ".",0

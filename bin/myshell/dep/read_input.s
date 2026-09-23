@@ -25,6 +25,11 @@ section .rodata
     clear_to_right db 27, "[K"
     erase_everything_after_cursor_including_cursor db 27, "[0K", 0
 
+    cursor_scroll_screen_up db 27, "[2J", 27, "[H", 0
+    cursor_scroll_screen_up_len equ $ - cursor_scroll_screen_up
+    ; ESC [ 2 J    -> clear entire screen
+    ; ESC [ H      -> move cursor [1,1]
+
     cursor_save    db 27, "[s", 0
     cursor_restore db 27, "[u", 0
 
@@ -134,7 +139,6 @@ _read_input:
 
         cmp byte [rel key_buffer], 0x09         ; TODO: move cursor to end of line before exit
         je .handle_tab
-
         mov qword [rel tabs_times_pressed], 0
 
         cmp byte [rel key_buffer], 27 
@@ -146,7 +150,11 @@ _read_input:
         cmp byte [rel key_buffer], 0x0a         ; TODO: move cursor to end of line before exit
         je .return
 
-        ; this si for ctrl + keys, right now i just ignore them except 
+
+        cmp byte [rel key_buffer], 12           ; ctrl + L special case, new line free
+        je .scroll_screen_up
+
+        ; this is for ctrl + keys, right now i just ignore them except 
         cmp byte [rel key_buffer], 31                ; last char before usable chars
         jle .check_if_new_line
 
@@ -761,8 +769,27 @@ _read_input:
         cmp byte [rel key_buffer], 'C'          ; ctrl + right arrow key
         je .cursor_right_space
 
+
         jmp .read_key
 
+    .scroll_screen_up:
+
+        mov rax, sys_write
+        mov rdi, 1              ; fd 1
+        lea rsi, [rel cursor_scroll_screen_up]
+        mov rdx, cursor_scroll_screen_up_len
+        syscall
+
+        call _print_prefix_line
+
+        mov rax, [rel filled_size_input_buffer_len]
+        mov rdi, 1
+        mov rsi, [rel input_buffer_address]
+        call _print
+
+        mov rax, [rel filled_size_input_buffer_len]
+        mov [rel cursor_idx], rax
+        jmp .read_key
 
     .handle_alt_key:
         ; read which key presses with ctrl
