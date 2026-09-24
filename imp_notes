@@ -796,3 +796,62 @@ execve
                          v
                   restore shell
                     termios
+
+Pipeline
+│
+├── Command 0
+│   command = "echo"
+│   argv = ["echo", "hello", NULL]
+│   stdin = DEFAULT
+│   stdout = PIPE
+│
+├── Command 1
+│   command = "grep"
+│   argv = ["grep", "hello", NULL]
+│   stdin = PIPE
+│   stdout = PIPE
+│
+└── Command 2
+    command = "wc"
+    argv = ["wc", "-l", NULL]
+    stdin = PIPE
+    stdout = DEFAULT
+
+
+Pipeline
+│
+├── Command 0
+│
+│   command = "echo"
+│
+│   argc = 2
+│
+│   argv:
+│       [0] = "echo"
+│       [1] = "hello"
+│       [2] = NULL
+│
+│   temp_env:
+│       [0] = "FOO=bar"
+│       [1] = NULL
+│
+│   redirects:
+│       stdout → "output.txt"
+│
+│
+└── Command 1
+    │
+    command = "grep"
+    
+    argc = 2
+    
+    argv:
+        [0] = "grep"
+        [1] = "hello"
+        [2] = NULL
+
+    temp_env:
+        NULL
+
+    redirects:
+        stdout → "result.txt"

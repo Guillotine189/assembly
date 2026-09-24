@@ -56,7 +56,7 @@ _get_and_set_mem_for_history_array:
 		jmp _exit_with_status_code
 
 
-
+; The command i get looks like "ls -la", 0
 ; rdi: address of command
 _add_cmd_into_history:
 	; get new space for command
@@ -64,12 +64,9 @@ _add_cmd_into_history:
 
 	call _strlen 						; rax has len of command
 	push rax 								; original len saved in stack
-	; round up len to next 8byte multiple
-	; no reason to do this, i just wanted to
+
 	mov rdi, rax
 	inc rdi 								; include the \0
-	add rdi, 7
-	and rdi, -8
 	call _malloc
     
 	test rax, rax

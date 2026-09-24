@@ -6,7 +6,9 @@ section .bss
     parse_buffer_capacity equ 2048
     parse_buffer resb parse_buffer_capacity
     number_buffer resb 32
-    parse_string_object resb MYSTRING_OBJECT_SIZE
+    input_buffer_string_object resb MYSTRING_OBJECT_SIZE
+    parsed_string_object resb MYSTRING_OBJECT_SIZE
+
 
 section .text
 
@@ -29,14 +31,165 @@ extern _return_address_of_command_from_newest
 extern _malloc
 extern _free
 
-global parse_string_object
+global parsed_string_object
 global _parse_input
 
 
-; i have a parse_string_object that stores the final parsed string
+; i have a parsed_string_object that stores the final parsed string
 ; i have a parse_buffer where i add bytes
-; when that parse_buffer is full, i copy the contents into the parse_string_object,
-; the parse_string_object grows dynamically
+; when that parse_buffer is full, i copy the contents into the parsed_string_object,
+; the parsed_string_object grows dynamically
+
+
+
+
+
+
+; i can use r12-15 freely here
+_expand_double_exclaimation:
+        
+    xor r15, r15                            ; mark this command as no printing
+
+    ; create a string object because i didn't make the input buffer a string
+    lea rcx, [rel input_buffer_string_object]
+    mov rax, [rel filled_size_input_buffer_len]
+    mov qword [rcx + MYSTRING_CAPACITY_OFF], rax
+    mov qword [rcx + MYSTRING_SIZE_OFF], 0
+    mov qword [rcx + MYSTRING_POINTER_OFF], 0
+    mov rdi, rcx
+    call _constructor_mystring
+
+    test rax, rax
+    jl .error_creating_string_for_input_buffer
+
+    xor rcx, rcx                                    ; weather \n was seen or not
+    xor rsi, rsi                                    ; idx for traversal in parse_buffer
+    xor r8, r8                                      ; idx for traversal in input buffer
+    mov r9, [rel input_buffer_address] 
+    xor r12, r12                                        ; len of parse buffer
+    lea r13, [rel parse_buffer]
+    .loop_till_new_line:
+        test rcx, rcx                               ; if \n was seen(and copied), exit
+        jg .done 
+
+        cmp byte [r9 + r8], '!'
+        je .check_and_replace_with_prev_command
+
+        cmp byte [r9 + r8], 0x0a
+        je .mark_end_of_line
+
+        jmp .copy_byte_and_loop
+
+    .mark_end_of_line:
+        mov rcx, 1
+
+    .copy_byte_and_loop:
+
+        cmp r12, parse_buffer_capacity - 1   ; always leave 1 byte for null in the end
+        je .call_copy_buffer_into_string
+        jmp .copy_byte_to_buffer
+
+
+        .copy_buffer_into_string:
+            push rcx
+            push r9
+            push r8
+            
+            mov byte [r13 + rsi], 0         ; add 0 so i can add this into my string object
+            lea rdi, [rel input_buffer_string_object]
+            lea rsi, [rel parse_buffer]
+            call _append_string_mystring
+
+            xor r12, r12                        ; len of parse buffer is zero
+            xor rsi, rsi         ; move the index of writing byte in parse buffer to beginning
+
+            pop r8
+            pop r9
+            pop rcx
+
+            ret
+
+        .call_copy_buffer_into_string:
+            call .copy_buffer_into_string
+            test rax, rax
+            jl .error_appending_to_string  ; if error when adding, just exit parsing
+
+
+        .copy_byte_to_buffer:
+        mov al, [r9 + r8]
+        mov [r13 + rsi], al
+        inc r8
+        inc rsi
+        inc r12                               ; increase the size of parse buffer
+        jmp .loop_till_new_line
+
+    .check_and_replace_with_prev_command:
+
+        cmp byte [r9 + r8 + 1], '!'      ; i know there is always a next byte available
+        jne .copy_byte_and_loop         ; if only single time !, copy
+
+        push rcx
+        push rdx
+        push r8
+        push r9
+
+        ; else now i have to replace the two with older command
+        ; 1 is prev command (which was overwritten by latest), 2 is prev->prev or actual prev command
+        mov rdi, 2
+        call _return_address_of_command_from_newest
+
+        test rax, rax
+        jl .no_more_old_commands
+        mov r14, rax                    ; save the address of old command
+
+        ; copy old data into string first, this function preserves all registers and reset r12, rsi
+        call .copy_buffer_into_string
+
+        ; copy the command into the string
+        lea rdi, [rel input_buffer_string_object]
+        mov rsi, r14
+        call _append_string_mystring
+
+        ; start from the beginning 
+        xor r12, r12                    ; parse_buffer len = 0
+        xor rsi, rsi                    ; idx for writing in parse_buffer = 0
+
+
+        .no_more_old_commands:
+        mov r15, 1                  ; still have to mark this command as somethign that needs to be printed
+        pop r9
+        pop r8
+        pop rdx
+        pop rcx
+
+        ; increase r8 by 2 positions because of double slash in input buffer
+        add r8, 2
+        jmp .loop_till_new_line
+
+
+    .done:
+        ; right now i have just copied the \n into the buffer
+        ; i need to add a null byte ahead of it to copy that into the string
+
+        mov byte [r13 + rsi], 0    ; i know i have atleast 1 space left
+
+        call .copy_buffer_into_string
+        test rax, rax
+        jl .error_appending_to_string
+
+        xor rax, rax
+        ret
+
+    .error_appending_to_string:
+        ; for now i am deallocating this string object, but maybe in future don't do that to avoid malloc and free repeatedly
+        ; maybe simply call 'clear' on this string
+        lea rdi, [rel input_buffer_string_object]
+        call _destructor_mystring
+
+    .error_creating_string_for_input_buffer:
+        mov rax, -1 
+        ret
+
 
 
 ; TODO: "", empty argumets are ignored
@@ -48,6 +201,13 @@ _parse_input:
     push r13
     push r14
     push r15
+
+    ; this function will also mark r15, weather to print the command or not
+    call _expand_double_exclaimation
+    test rax, rax
+    jl .error_expanding_old_command    ; TODO: change give proper error
+
+
 
     ; PARSER LOGIC FOR
     ; ["./program arg1  arg2 arg3\n"] -> ["./program\nagr1\narg2\n\n"]
@@ -63,18 +223,11 @@ _parse_input:
 
 
     ; construct the string object
-    mov rax, [rel filled_size_input_buffer_len]
-    cmp rax, 1024
-    jg .more_than_1024
 
-    mov rax, 1024                   ; if original size is < 1024, allocate 1024
-    jmp .create_parse_string_object
-
-    .more_than_1024:
-        add rax, 512            ; add to original len 512bytes, safe length
-
-    .create_parse_string_object:
-    lea rcx, [rel parse_string_object]
+    lea rax, [rel input_buffer_string_object]
+    mov rax, [rax + MYSTRING_SIZE_OFF]
+    .create_parsed_string_object:
+    lea rcx, [rel parsed_string_object]
     mov qword [rcx + MYSTRING_CAPACITY_OFF], rax
     mov qword [rcx + MYSTRING_SIZE_OFF], 0
     mov qword [rcx + MYSTRING_POINTER_OFF], 0
@@ -85,12 +238,13 @@ _parse_input:
     jl .error_creating_string_for_parsing
 
 
+    ;xor r15, r15                        ; weather to print the parsed command or not
     xor r12, r12                        ; filled space of parse_buffer
     lea r13, [rel parse_buffer]         ; always contains the parse buffer
-    xor r15, r15                        ; weather to print the parsed command or not
     xor rsi, rsi                        ; index for dst to copy bytes to
     xor r8, r8                          ; index for line traversal
-    mov r9, [rel input_buffer_address]
+    lea r9, [rel input_buffer_string_object]
+    mov r9, [r9 + MYSTRING_POINTER_OFF]
     xor r10, r10                        ; weather inside double quotes or not
     xor r11, r11                        ; weather inside single quotes or not
     xor rcx, rcx                        ; weater last byte was '\' or not
@@ -110,9 +264,6 @@ _parse_input:
         
         cmp byte [r9 + r8], 0x27            ; for : single quotes ''
         je .handle_sq
-
-        cmp byte [r9 + r8], '!'
-        je .check_and_replace_with_prev_command
 
         cmp byte [r9 + r8], '$'
         je .handle_expansion_variable
@@ -152,7 +303,7 @@ _parse_input:
                 push r11
                 
                 mov byte [r13 + rsi], 0         ; add 0 so i can add this into my string object
-                lea rdi, [rel parse_string_object]
+                lea rdi, [rel parsed_string_object]
                 lea rsi, [rel parse_buffer]
                 call _append_string_mystring
 
@@ -236,12 +387,9 @@ _parse_input:
 
         .handle_space:
             test r10, r10
-            jz .check_if_inside_single_quotes   ; if not inside DQ, cehck if inside SQ
-            ; if inside DQ, just let this whitespace be
-            jmp .copy_byte_and_loop
+            jnz .copy_byte_and_loop   ; if inside dq, just append this pace
             
-
-        .check_if_inside_single_quotes:
+            ; else check_if_inside_single_quotes
             test r11, r11
             jnz  .copy_byte_and_loop ; i am inside single quote
             
@@ -251,7 +399,7 @@ _parse_input:
             test rcx, rcx
             jnz .last_byte_was_front_slash_allow_this_space
 
-            test rdx, rdx
+            test rdx, rdx                       ; if last byte was also a space/replaced with new line, dont copy another space
             jnz .last_copied_byte_was_new_line
 
             ; TODO: maybe i don't have enough space for addition
@@ -386,7 +534,7 @@ _parse_input:
                 test rax, rax
                 jl .pop_and_continue
 
-                lea rdi, [rel parse_string_object]
+                lea rdi, [rel parsed_string_object]
                 mov rsi, rax
                 call _append_string_mystring
 
@@ -409,66 +557,6 @@ _parse_input:
                 jmp .loop_till_new_line
 
 
-        .check_and_replace_with_prev_command:
-
-            xor rdx, rdx        ; last byte not \n
-            xor rcx, rcx        ; last byte not \
-
-            ; i will now check the next byte directly
-            cmp byte [r9 + r8 + 1], '!'      ; i know there is always a next byte available
-            jne .copy_byte_and_loop         ; if only single time !, copy
-
-            push rdx
-            push rcx
-            push r8
-            push r9
-            push r10
-            push r11
-
-            ; else now i have to replace the two with older command
-            ; 1 is prev command (which was overwritten by latest), 2 is prev->prev or actual prev command
-            mov rdi, 2
-            call _return_address_of_command_from_newest
-
-            test rax, rax
-            jl .no_more_old_commands
-            mov r14, rax                    ; save the address of old command
-            call .copy_buffer_into_string
-
-            ; call the parser itsef to parse the old command then append that parsed command
-            ; hack, temporariy point the input buffer to old command address
-
-
-            ; copy old data into strign first, this function preserves all registers and reset r12, rsi
-
-            ; copy the command into the string
-            lea rdi, [rel parse_string_object]
-            mov rsi, r14
-            call _append_string_mystring
-
-            mov r15, 1                      ; mark this command to be printed 
-            ; start from the beginning 
-            xor r12, r12
-            xor rsi, rsi 
-
-
-            .no_more_old_commands:
-            pop r11
-            pop r10
-            pop r9
-            pop r8
-            pop rcx
-            pop rdx
-
-            ; increase r8 by 2 positions because of double slash in input buffer
-            add r8, 2
-
-            xor rdx, rdx        ; last byte not \n
-            xor rcx, rcx        ; last byte not \
-            jmp .loop_till_new_line
-
-
-
     .buffer_parsed:
         ; the latest byte comapred was \n, i have to add a null char to copy my bufffer into string
         ; i made sure to have 1 byte left in the end always for this case
@@ -480,7 +568,7 @@ _parse_input:
         jmp .complete_string
 
         .copy_final_data_into_string:
-        lea rdi, [rel parse_string_object]
+        lea rdi, [rel parsed_string_object]
         lea rsi, [rel parse_buffer]
         call _append_string_mystring
         test rax, rax
@@ -497,7 +585,7 @@ _parse_input:
         inc rsi
 
         mov byte [r13 + rsi], 0                 ; add NULL after \n so i can append into string
-        lea rdi, [rel parse_string_object]
+        lea rdi, [rel parsed_string_object]
         lea rsi, [rel parse_buffer]
         call _append_string_mystring
         test rax, rax
@@ -508,12 +596,18 @@ _parse_input:
 
     
     .error_appending_to_string:
-        lea rdi, [rel parse_string_object]
+
+        lea rdi, [rel parsed_string_object]
         call _destructor_mystring
         mov rax, -1
         jmp .return
 
     .cleanup_and_return:
+        ; for now i am deallocating this string object, but maybe in future don't do that to avoid malloc and free repeatedly
+        ; maybe simply call 'clear' on this string, and reuse the same malloc space
+        lea rdi, [rel input_buffer_string_object]
+        call _destructor_mystring
+
         ; DO NOT DEALLOCATE THE STRING RIGHT NOW
         ; DEALLOCATE IT AFTER EXECUTION
         ; or dealllocate it just after failure to parse
@@ -526,7 +620,8 @@ _parse_input:
         .no_printing_parsed_command:
         mov rax, 0
         jmp .return
-    
+
+    .error_expanding_old_command:
     .error_creating_string_for_parsing:
         mov rax, -1
         jmp .return
@@ -544,8 +639,7 @@ _parse_input:
 _print_parsed_buffer:
     push r12
 
-
-    lea rax, [rel parse_string_object]
+    lea rax, [rel parsed_string_object]
 
     mov rdi, [rax + MYSTRING_SIZE_OFF]
     call _malloc
@@ -555,7 +649,7 @@ _print_parsed_buffer:
 
     mov r12, rax                    ; r12: stores the new memory address
 
-    lea r9, [rel parse_string_object]
+    lea r9, [rel parsed_string_object]
     mov r9, [r9 + MYSTRING_POINTER_OFF]
     xor r8, r8
     xor r10, r10                ; weather lasst byte was \n

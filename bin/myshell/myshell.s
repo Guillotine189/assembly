@@ -156,7 +156,7 @@ section .bss
 
 ; variables
 extern error_code
-extern parse_string_object
+extern parsed_string_object
 extern shell_env_array_object
 
 
@@ -901,8 +901,8 @@ _handle_input:
     call _execute_process
 
 
-    ; DEALLOCATE THE parse_string_object
-    lea rdi, [rel parse_string_object]
+    ; DEALLOCATE THE parsed_string_object
+    lea rdi, [rel parsed_string_object]
     call _destructor_mystring
 
     ; DEALLOCATE THE command_argc_dynamic_array_object

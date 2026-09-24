@@ -17,12 +17,28 @@ extern _default_dynamic_array_constructor
 extern _default_dynamic_array_destructor
 extern _dynamic_array_add_element
 
-extern parse_string_object
+extern parsed_string_object
 extern address_command
-
 extern shell_env_array_object
 
+
 global _process_tokens
+
+
+
+
+
+; end             0
+; word            1
+; pipe            2
+; redirect_write  3
+; env_assignment  4
+
+
+
+
+
+
 
 _process_tokens:
     ; expects ["./program\nagr1\narg2\n\n"]
@@ -47,8 +63,6 @@ _process_tokens:
 
 
     ; build array for envp
-    ; go through shell_env_array and add addresses of env that have exported = 1
-
     lea rax, [rel command_argv_dynamic_array_object]
     mov qword [rax + DYNAMICARRAY_CAPACITY_OFF], 80    ; expect 80 env variables
     mov qword [rax + DYNAMICARRAY_SIZE_OFF], 0
@@ -62,7 +76,7 @@ _process_tokens:
 
 
     xor r13, r13                      ; idx for looping
-    lea r14, [rel parse_string_object]
+    lea r14, [rel parsed_string_object]
     mov r14, [r14 + MYSTRING_POINTER_OFF]
     xor r10, r10                   ; len of token
     xor r12, r12                    ; checks if last byte was \n
