@@ -78,9 +78,17 @@ _expand_double_exclaimation:
     xor rsi, rsi                                    ; idx for traversal in parse_buffer
     xor r8, r8                                      ; idx for traversal in input buffer
     mov r9, [rel input_buffer_address] 
+    xor r10, r10                                    ; weather i am inside DQ
+    xor r11, r11                                    ; weather i am inside SQ
     xor r12, r12                                        ; len of parse buffer
     lea r13, [rel parse_buffer]
     .loop_till_new_line:
+
+       cmp byte [r9 + r8], 0x22            ; for : double quotes ""
+        je .handle_dq
+        
+        cmp byte [r9 + r8], 0x27            ; for : single quotes ''
+        je .handle_sq
 
         cmp byte [r9 + r8], '!'
         je .check_and_replace_with_prev_command
@@ -99,6 +107,8 @@ _expand_double_exclaimation:
 
 
         .copy_buffer_into_string:
+            push r11
+            push r10
             push r9
             push r8
             
@@ -112,7 +122,8 @@ _expand_double_exclaimation:
 
             pop r8
             pop r9
-
+            pop r10
+            pop r11
             ret
 
         .call_copy_buffer_into_string:
@@ -129,7 +140,51 @@ _expand_double_exclaimation:
         inc r12                               ; increase the size of parse buffer
         jmp .loop_till_new_line
 
+    .handle_dq:
+        
+        ; if i am inside dq already, mark it as not inside dq
+        test r10, r10
+        jg .i_was_inside_dq_not_anymore
+        jmp .check_if_i_am_now_inside_sq
+
+        .i_was_inside_dq_not_anymore:
+            
+            xor r10, r10
+            jmp .copy_byte_and_loop
+
+        .check_if_i_am_now_inside_sq:
+        ; if i am inside SQ, dont mark this as inside DQ
+        test r11, r11
+        jnz .copy_byte_and_loop ; i am inside SQ , let DQ be as it is
+        
+        ; since i was not inside dq or sq, i am now inside DQ
+        ; dont copy anything
+        mov r10, 1
+        jmp .copy_byte_and_loop
+
+
+    .handle_sq:
+        ; if i am inside sq already, mark it as not inside sq
+        test r11, r11
+        jnz .i_was_inside_sq
+        jmp .check_if_i_am_now_inside_dq
+
+        .i_was_inside_sq:
+            
+            xor r11, r11            ; not inside SQ anymore
+            jmp .copy_byte_and_loop
+
+        .check_if_i_am_now_inside_dq:
+        ; if i am inside SQ, dont mark this as inside SQ
+        test r10, r10
+        jnz .copy_byte_and_loop ; i am inside DQ , let SQ be as it is
+        
+        mov r11, 1                      ; i am now inside sq
+        jmp .copy_byte_and_loop
+
     .check_and_replace_with_prev_command:
+        test r11, r11                   ; if inside single quotes treat this as a normal char
+        jne .copy_byte_and_loop         ; if only single time !, copy
 
         cmp byte [r9 + r8 + 1], '!'      ; i know there is always a next byte available
         jne .copy_byte_and_loop         ; if only single time !, copy
@@ -137,6 +192,8 @@ _expand_double_exclaimation:
         push rdx
         push r8
         push r9
+        push r10
+        push r11
 
         ; else now i have to replace the two with older command
         ; 1 is prev command
@@ -162,6 +219,8 @@ _expand_double_exclaimation:
 
         .no_more_old_commands:
         mov r15, 1                  ; still have to mark this command as somethign that needs to be printed
+        pop r11
+        pop r10
         pop r9
         pop r8
         pop rdx
