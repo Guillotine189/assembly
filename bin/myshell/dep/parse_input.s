@@ -1,5 +1,10 @@
 %include "../dependencies/mystring.inc"
 
+
+section .rodata
+    new_line db 0x0a, 0
+
+
 section .bss
     ; DO not make this less than 32 bytes, i copy that many bytes as exit code status
     ; directly into the buffer without checking and expanding
@@ -30,6 +35,8 @@ extern _return_address_of_command_from_newest
 
 extern _malloc
 extern _free
+
+extern _add_cmd_into_history
 
 global parsed_string_object
 global _parse_input
@@ -62,26 +69,21 @@ _expand_double_exclaimation:
     test rax, rax
     jl .error_creating_string_for_input_buffer
 
-    xor rcx, rcx                                    ; weather \n was seen or not
     xor rsi, rsi                                    ; idx for traversal in parse_buffer
     xor r8, r8                                      ; idx for traversal in input buffer
     mov r9, [rel input_buffer_address] 
     xor r12, r12                                        ; len of parse buffer
     lea r13, [rel parse_buffer]
     .loop_till_new_line:
-        test rcx, rcx                               ; if \n was seen(and copied), exit
-        jg .done 
 
         cmp byte [r9 + r8], '!'
         je .check_and_replace_with_prev_command
 
         cmp byte [r9 + r8], 0x0a
-        je .mark_end_of_line
+        je .done
 
         jmp .copy_byte_and_loop
 
-    .mark_end_of_line:
-        mov rcx, 1
 
     .copy_byte_and_loop:
 
@@ -91,7 +93,6 @@ _expand_double_exclaimation:
 
 
         .copy_buffer_into_string:
-            push rcx
             push r9
             push r8
             
@@ -105,7 +106,6 @@ _expand_double_exclaimation:
 
             pop r8
             pop r9
-            pop rcx
 
             ret
 
@@ -128,14 +128,13 @@ _expand_double_exclaimation:
         cmp byte [r9 + r8 + 1], '!'      ; i know there is always a next byte available
         jne .copy_byte_and_loop         ; if only single time !, copy
 
-        push rcx
         push rdx
         push r8
         push r9
 
         ; else now i have to replace the two with older command
-        ; 1 is prev command (which was overwritten by latest), 2 is prev->prev or actual prev command
-        mov rdi, 2
+        ; 1 is prev command
+        mov rdi, 1
         call _return_address_of_command_from_newest
 
         test rax, rax
@@ -160,7 +159,6 @@ _expand_double_exclaimation:
         pop r9
         pop r8
         pop rdx
-        pop rcx
 
         ; increase r8 by 2 positions because of double slash in input buffer
         add r8, 2
@@ -168,14 +166,23 @@ _expand_double_exclaimation:
 
 
     .done:
-        ; right now i have just copied the \n into the buffer
-        ; i need to add a null byte ahead of it to copy that into the string
+        ; i did not copy the \n, so currently i have scattered data in buffer and string object
 
         mov byte [r13 + rsi], 0    ; i know i have atleast 1 space left
-
         call .copy_buffer_into_string
         test rax, rax
         jl .error_appending_to_string
+        ; current : i have moved "ls-la",0 into the input string object
+
+        lea rdi, [rel input_buffer_string_object]
+        mov rdi, [rdi + MYSTRING_POINTER_OFF]
+        call _add_cmd_into_history
+
+        ; i have to make string look like  : "ls -la\n", 0
+
+        lea rdi, [rel input_buffer_string_object]
+        lea rsi, [rel new_line]
+        call _append_string_mystring
 
         xor rax, rax
         ret

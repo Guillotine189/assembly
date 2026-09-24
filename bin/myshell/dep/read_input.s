@@ -87,7 +87,6 @@ extern _memcpy_with_end_char
 extern _print
 extern _print_with_new_line
 extern _print_with_tabs
-extern _add_cmd_into_history
 extern _return_address_of_command_from_newest
 extern _string_copy_including_null
 extern _cmp_equal_memory
@@ -1650,19 +1649,10 @@ _read_input:
         ; i have atleast 8 bytes of free memory
         ; add char at end of input_buffer
 
-        mov rax, [rel input_buffer_address]
-        add rax, [rel filled_size_input_buffer_len]
-        mov byte [rax], 0                        ; add a 0
-
-        mov rdi, [rel input_buffer_address]      ; old command should not have \n in end
-        call _add_cmd_into_history
-
 
         mov rax, [rel input_buffer_address]
         add rax, [rel filled_size_input_buffer_len]
-        mov byte [rax], 0x0a                        ; replace the \n with 0
-
-        inc qword [rel filled_size_input_buffer_len]
+        mov byte [rax], 0x0a                        ; replace the 0 with \n
         inc rax
         mov byte [rax], 0                           ; add a NULL
 
