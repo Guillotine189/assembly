@@ -31,9 +31,9 @@ global _process_tokens
 ; end             0
 ; word            1
 ; pipe            2
+; redirect_in     r14
 ; redirect_write  3
-; env_assignment  4
-
+; env_assignment  5
 
 
 
@@ -41,6 +41,10 @@ global _process_tokens
 
 
 _process_tokens:
+    mov rax,  -1
+    ret
+
+
     ; expects ["./program\nagr1\narg2\n\n"]
     ; ["./programNULLagr1NULLarg2NULL\n"]
     ; RN -> 

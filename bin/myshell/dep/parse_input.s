@@ -1,9 +1,8 @@
 %include "../dependencies/mystring.inc"
-
+%include "../dependencies/dynamicarray.inc"
 
 section .rodata
     new_line db 0x0a, 0
-
 
 section .bss
     ; DO not make this less than 32 bytes, i copy that many bytes as exit code status
@@ -13,6 +12,7 @@ section .bss
     number_buffer resb 32
     input_buffer_string_object resb MYSTRING_OBJECT_SIZE
     parsed_string_object resb MYSTRING_OBJECT_SIZE
+    token_array resb DYNAMICARRAY_OBJECT_SIZE
 
 
 section .text
@@ -20,11 +20,17 @@ section .text
 extern input_buffer_address
 extern filled_size_input_buffer_len
 
+extern last_command_exit_code_ascii
+
 extern _constructor_mystring
 extern _destructor_mystring
 extern _append_string_mystring
+extern _append_bytes_mystring
 
-extern last_command_exit_code_ascii
+
+extern _default_dynamic_array_constructor
+extern _default_dynamic_array_destructor
+extern _dynamic_array_add_element
 
 extern _itoa
 extern _print
@@ -184,16 +190,13 @@ _expand_double_exclaimation:
         lea rsi, [rel new_line]
         call _append_string_mystring
 
+    .return_success:
         xor rax, rax
         ret
 
     .error_appending_to_string:
-        ; for now i am deallocating this string object, but maybe in future don't do that to avoid malloc and free repeatedly
-        ; maybe simply call 'clear' on this string
-        lea rdi, [rel input_buffer_string_object]
-        call _destructor_mystring
-
     .error_creating_string_for_input_buffer:
+    .return_failure:
         mov rax, -1 
         ret
 
@@ -217,20 +220,19 @@ _parse_input:
 
 
     ; PARSER LOGIC FOR
-    ; ["./program arg1  arg2 arg3\n"] -> ["./program\nagr1\narg2\n\n"]
+    ; ["./program arg1  arg2 arg3\n"] -> ["./programNULLagr1NULLarg2NULL\n\n"]
     ; copy <space> as '\n'
     ; if '\' before ' ', copy this space instead of '\'
     ; double/single quotes: "Hello" -> Hello, "'hello'" -> 'hello'
     ; in dq/sq, '$' still expands the path var
     ; '$' followed by keywords
-    ;           : '$?' -> resolbe into the exit status code of last command
+    ;           : '$?' -> resolve into the exit status code of last command
+    ;           : "$SHELL" -> expanded
     ; '\' -> ignored, '\\' -> '\' and so on
     ; do not copy "", ''
     ; RN -> one command followed by everything as arguments
 
-
     ; construct the string object
-
     lea rax, [rel input_buffer_string_object]
     mov rax, [rax + MYSTRING_SIZE_OFF]
     .create_parsed_string_object:
@@ -246,7 +248,7 @@ _parse_input:
 
 
     ;xor r15, r15                        ; weather to print the parsed command or not
-    xor r12, r12                        ; filled space of parse_buffer
+    xor r12, r12                        ; length of parse_buffer
     lea r13, [rel parse_buffer]         ; always contains the parse buffer
     xor rsi, rsi                        ; index for dst to copy bytes to
     xor r8, r8                          ; index for line traversal
@@ -310,9 +312,10 @@ _parse_input:
                 push r11
                 
                 mov byte [r13 + rsi], 0         ; add 0 so i can add this into my string object
+                mov rdx, rsi
                 lea rdi, [rel parsed_string_object]
                 lea rsi, [rel parse_buffer]
-                call _append_string_mystring
+                call _append_bytes_mystring
 
                 xor r12, r12                        ; len of buffer is zero
                 xor rsi, rsi         ; move the index to starting address
@@ -412,15 +415,15 @@ _parse_input:
             ; TODO: maybe i don't have enough space for addition
             cmp r12, parse_buffer_capacity - 1   ; always leave 1 byte for null in the end
             je .get_more_size_capacity
-            jmp .replace_space_with_new_line
+            jmp .replace_space_with_null
 
             .get_more_size_capacity:
                 call .copy_buffer_into_string
                 test rax, rax
                 jl .error_appending_to_string  ; if error when adding, just exit parsing
 
-            .replace_space_with_new_line:
-            mov byte [r13 + rsi], 0x0a
+            .replace_space_with_null:
+            mov byte [r13 + rsi], 0
             inc rsi
             inc r8
             inc r12
@@ -442,6 +445,11 @@ _parse_input:
 
 
         .handle_expansion_variable:
+
+                ; if $ is inside single quotes, i do not expland
+                test r11, r11
+                jnz .copy_byte_and_loop
+                ; if not inside sq -> expand
 
                 xor rdx, rdx        ; last line was not \n
                 xor rcx, rcx        ; last line was not \
@@ -490,6 +498,7 @@ _parse_input:
                 ; check the next byte
                 jmp .check_if_exit_status
 
+
             .check_if_exit_status:
                 cmp byte [r9 + r8], '?'
                 je .replace_with_last_command_exit_code_status  
@@ -508,8 +517,8 @@ _parse_input:
                 ; the string will only append until NULL is found
                 lea rdi, [rel parse_buffer]
                 lea rsi, [rel last_command_exit_code_ascii]
-                mov rcx, 32
-                rep movsb
+                mov rcx, 4                  ; 8*4=32bytes
+                rep movsq
 
                 mov rsi, 31         ; copy buffer into string adds a null terminator at rs
                 ; copy exit code from buffer into string, and now buffer is reset
@@ -570,14 +579,13 @@ _parse_input:
         ; so now i can add a null byte without worry
         ; copy the remaining 
         mov byte [r13 + rsi], 0                 ; add NULL so i can copy into string
-        test r12, r12
-        jnz .copy_final_data_into_string
-        jmp .complete_string
+        inc rsi
 
         .copy_final_data_into_string:
+        mov rdx, rsi
         lea rdi, [rel parsed_string_object]
         lea rsi, [rel parse_buffer]
-        call _append_string_mystring
+        call _append_bytes_mystring
         test rax, rax
         jl .error_appending_to_string  ; if error when adding, just exit parsing
         
@@ -592,9 +600,10 @@ _parse_input:
         inc rsi
 
         mov byte [r13 + rsi], 0                 ; add NULL after \n so i can append into string
+        mov rdx, rsi
         lea rdi, [rel parsed_string_object]
         lea rsi, [rel parse_buffer]
-        call _append_string_mystring
+        call _append_bytes_mystring
         test rax, rax
         jl .error_appending_to_string  ; if error when adding, just exit parsing
         
@@ -602,102 +611,131 @@ _parse_input:
         jmp .cleanup_and_return
 
     
-    .error_appending_to_string:
-
-        lea rdi, [rel parsed_string_object]
-        call _destructor_mystring
-        mov rax, -1
-        jmp .return
-
     .cleanup_and_return:
-        ; for now i am deallocating this string object, but maybe in future don't do that to avoid malloc and free repeatedly
-        ; maybe simply call 'clear' on this string, and reuse the same malloc space
-        lea rdi, [rel input_buffer_string_object]
-        call _destructor_mystring
 
         ; DO NOT DEALLOCATE THE STRING RIGHT NOW
         ; DEALLOCATE IT AFTER EXECUTION
         ; or dealllocate it just after failure to parse
-
         test r15, r15
         jz .no_printing_parsed_command
-
-        call _print_parsed_buffer
+        call _print_line_before_parsing
 
         .no_printing_parsed_command:
+        ; for now i am deallocating this string object, but maybe in future don't do that to avoid calling malloc and free repeatedly
+        ; maybe simply call 'clear' on this string, and reuse the same malloc space
+        call _free_input_buffer_string_object
         mov rax, 0
-        jmp .return
+        jmp .return_success
+
+
 
     .error_expanding_old_command:
-    .error_creating_string_for_parsing:
-        mov rax, -1
-        jmp .return
+        call _free_input_buffer_string_object
+        jmp .return_failure
 
-    .return:
+    .error_creating_string_for_parsing:
+        call _free_input_buffer_string_object
+        jmp .return_failure
+
+
+    .error_appending_to_string:
+        call _free_input_buffer_string_object
+        call _free_parsed_buffer_string_object
+        jmp .return_failure
+
+    .return_success:
         pop r15
         pop r14
         pop r13
         pop r12
+        xor rax, rax
         mov rsp, rbp
         pop rbp
         ret
 
 
-_print_parsed_buffer:
-    push r12
+    .return_failure:
+        pop r15
+        pop r14
+        pop r13
+        pop r12
+        mov rax, -1
+        mov rsp, rbp
+        pop rbp
+        ret
 
-    lea rax, [rel parsed_string_object]
+_print_line_before_parsing:
+    lea rcx, [rel input_buffer_string_object]
+    mov rax, [rcx + MYSTRING_SIZE_OFF]
+    mov rdi, 1
+    mov rsi, [rcx + MYSTRING_POINTER_OFF]
+    call _print
+    ret
 
-    mov rdi, [rax + MYSTRING_SIZE_OFF]
-    call _malloc
+
+
+
+
+; The parsed_string 
+; for input "echo PATH=$SHELL !! | grep hello", where older command is "ls -la"
+;"echo,NULL,PATH=/usr/bash/,NULL,ls,NULL,-la,NULL,|,NULL,grep,NULL,hello,NULL,\n\n,NULL"
+_lexer:
+    ; type enum
+    TYPE_END                    equ 0
+    TYPE_WORD                   equ 1
+    TYPE_PIPE                   equ 2
+    TYPE_REDIRECT_OUT           equ 3
+    TYPE_REDIRECT_IN            equ 4
+    TYPE_ENV_EXPANSION          equ 5
+    TYPE_ENV_ASSSIGNMENT_KEY    equ 6
+    TYPE_ENV_ASSSIGNMENT_VALUE  equ 6
+
+    ; token array - > [ ([type][address]), ([type][address]) ]
+    ; type is 1 byte, address is 8bytes
+    ; if type is END, address is NULL
+
+    lea rax, [rel token_array]
+    mov qword [rax + DYNAMICARRAY_CAPACITY_OFF], 10
+    mov qword [rax + DYNAMICARRAY_SIZE_OFF], 0
+    mov qword [rax + DYNAMICARRAY_ELEMENT_SIZE_OFF], 9 ; 1byte for type, 8bytes for address
+    mov qword [rax + DYNAMICARRAY_POINTER_OFF], 0
+    mov rdi, rax
+    call _default_dynamic_array_constructor
 
     test rax, rax
-    jl .failed_getting_memory
+    jl .error_initializing_token_array
 
-    mov r12, rax                    ; r12: stores the new memory address
+    ; seperate all tokens with a null balue
+    ; identify what type of token it is, and append it's type and address to array
 
-    lea r9, [rel parsed_string_object]
-    mov r9, [r9 + MYSTRING_POINTER_OFF]
-    xor r8, r8
-    xor r10, r10                ; weather lasst byte was \n
-    ; i literally have to undo my parsers work to print
-    .loop_copy_new_line_as_space:
 
-        cmp byte [r9 + r8], 0x0a
-        je .check_and_replace_with_space
 
-        xor r10, r10            ; mark this byte as not \n
-        mov al, [r9 + r8]
-        mov [r12 + r8], al         ; move the non \n byte into new memory
-        jmp .loopback
+    .error_initializing_token_array:
+        jmp .return_failure
 
-        .check_and_replace_with_space:
-            test r10, r10  ; if last byte was also \n, this is the end of parsed string
-            jne .print_command
 
-            mov r10, 1                      ; mark last byte was \n
-            mov byte [r12 + r8], ' '        ; move the \n byte as space into new memory
+    .return_failure:
+        mov rax, -1
+        ret
 
-        .loopback:
-        inc r8
-        jmp .loop_copy_new_line_as_space
+    .return_success:
+        xor rax, rax
+        ret
 
-    .print_command:
 
-    dec r8              ; make it point to the second last \n
-    mov byte [r12 + r8], 0x0a
-    inc r8
-    mov byte [r12 + r8], 0x0a
-    inc r8
 
-    mov rax, r8
-    mov rdi, 1
-    mov rsi, r12
-    call _print
 
-    mov rdi, r12
-    call _free
+_free_input_buffer_string_object:
+    lea rdi, [rel input_buffer_string_object]
+    call _destructor_mystring
+    ret
 
-    .failed_getting_memory:
-    pop r12
+_free_parsed_buffer_string_object:
+    lea rdi, [rel parsed_string_object]
+    call _default_dynamic_array_destructor
+    ret
+
+_free_token_array:
+    lea rdi, [rel token_array]
+    call _default_dynamic_array_destructor
     ret
