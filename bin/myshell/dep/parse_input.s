@@ -336,6 +336,15 @@ _parse_input:
         cmp byte [r9 + r8], '$'
         je .handle_expansion_variable
 
+        cmp byte [r9 + r8], '|'
+        je .handle_pipe
+
+        cmp byte [r9 + r8], '>'
+        je .handle_redirect_out
+
+        cmp byte [r9 + r8], '<'
+        je .handle_redirect_in
+
         xor rcx, rcx                        ; last byte was not '\'
 
         jmp .copy_byte_and_loop
@@ -370,7 +379,6 @@ _parse_input:
                 push r10
                 push r11
                 
-                mov byte [r13 + rsi], 0         ; add 0 so i can add this into my string object
                 mov rdx, rsi
                 lea rdi, [rel parsed_string_object]
                 lea rsi, [rel parse_buffer]
@@ -631,6 +639,45 @@ _parse_input:
                 pop rax
                 jmp .loop_till_new_line
 
+        .handle_redirect_out:
+        .handle_redirect_in:
+        .handle_pipe:
+
+            ; check if i am inside sq or dq
+            test r10, r10               ; for dq
+            jne .copy_byte_and_loop
+
+            test r11, r11               ; for sq
+            jne .copy_byte_and_loop
+
+            ; now i have to copy the "|", ">", "<" with a null before and after it
+            call .copy_buffer_into_string
+
+            test rdx, rdx               ; if last byte copied was NULL, i can copy '|' directly
+            jnz .copy_byte_and_null
+
+            .copy_null_before_byte:
+                ; add null
+                mov byte [r13 + rsi], 0
+                inc rsi
+                inc r12
+
+                
+            .copy_byte_and_null:
+                ; add the byte
+                mov al, [r9 + r8]
+                mov byte [r13 + rsi], al
+                
+                inc r12
+                inc rsi
+                ; add a null after
+                mov byte [r13 + rsi], 0
+                inc r8
+                inc r12
+                mov rdx, 1              ; last byte copied was null
+                xor rcx, rcx            ; last byte clpied was not '\'
+                jmp .loop_till_new_line
+            
 
     .buffer_parsed:
         ; the latest byte comapred was \n, i have to add a null char to copy my bufffer into string

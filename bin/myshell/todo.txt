@@ -8,6 +8,7 @@ BASIC------
 
 5.1) '!!' is replaced by the old command, but the old command is not processed. So it just goes in as 1 big argument. Fix that. ✅
 
+5.1.1) give error when SQ/DQ is remains open after pressing enter
 5.2) In auto complete, if a bic is there, it skips other possible outcomes. Fix that.
 
 6) see how many times a operations are calling malloc and free. Like double tab.
