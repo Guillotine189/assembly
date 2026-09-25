@@ -57,6 +57,41 @@ global _generate_and_classify_tokens
 
 
 
+_generate_and_classify_tokens:
+
+    ; this function will also mark r15, weather to print the command or not
+    call _expand_double_exclaimation
+    test rax, rax
+    jl .error_expanding_old_command    ; TODO: change give proper error
+
+    call _parse_expanded_string
+    test rax, rax
+    jl .error_parsing_string
+
+    call _token_classification
+    test rax, rax
+    jl .error_classifying_tokens
+
+    jmp .return_success
+
+    .error_expanding_old_command:
+        jmp .return_failure
+    .error_parsing_string:
+        call _free_input_buffer_string_object
+        jmp .return_failure
+    .error_classifying_tokens:
+        call _free_input_buffer_string_object
+        call _free_parsed_buffer_string_object
+        jmp .return_failure
+
+
+    .return_failure:
+        mov rax, -1
+        ret
+
+    .return_success:
+        xor rax, rax
+        ret
 
 
 
@@ -266,19 +301,12 @@ _expand_double_exclaimation:
 
 ; TODO: "", empty argumets are ignored
 ; because its basically NULL followed by NULL in parser
-_generate_and_classify_tokens:
+_parse_expanded_string:
     push rbp
     mov rbp, rsp
     push r12        ; i don't have to save these registers in my program in this function
     push r13
     push r14
-    push r15
-
-    ; this function will also mark r15, weather to print the command or not
-    call _expand_double_exclaimation
-    test rax, rax
-    jl .error_expanding_old_command    ; TODO: change give proper error
-
 
 
     ; PARSER LOGIC FOR
@@ -716,41 +744,19 @@ _generate_and_classify_tokens:
         ; DEALLOCATE IT AFTER EXECUTION
         ; or dealllocate it just after failure to parse
         test r15, r15
-        jz .no_printing_parsed_command
+        jz .return_success          ; no need to print the command
         call _print_line_before_parsing
-
-        .no_printing_parsed_command:
-        ; for now i am deallocating this string object, but maybe in future don't do that to avoid calling malloc and free repeatedly
-        ; maybe simply call 'clear' on this string, and reuse the same malloc space
-        call _free_input_buffer_string_object
-        mov rax, 0
-
-
-    .classify_tokens:
-
-        call _token_classification
-        test rax, rax
-        jl .error_classifying_tokens
-
         jmp .return_success
 
-
-
-    .error_expanding_old_command:
-        jmp .return_failure
-
     .error_creating_string_for_parsing:
-        call _free_input_buffer_string_object
         jmp .return_failure
 
     .error_classifying_tokens:
     .error_appending_to_string:
-        call _free_input_buffer_string_object
         call _free_parsed_buffer_string_object
         jmp .return_failure
 
     .return_success:
-        pop r15
         pop r14
         pop r13
         pop r12
@@ -761,7 +767,6 @@ _generate_and_classify_tokens:
 
 
     .return_failure:
-        pop r15
         pop r14
         pop r13
         pop r12
