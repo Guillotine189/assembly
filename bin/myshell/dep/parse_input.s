@@ -279,8 +279,8 @@ _parse_input:
 
 
     ; PARSER LOGIC FOR
-    ; ["./program arg1  arg2 arg3\n"] -> ["./programNULLagr1NULLarg2NULL\n\n"]
-    ; copy <space> as '\n'
+    ; ["./program arg1  arg2 arg3\n"] -> ["./programNULLagr1NULLarg2NULL"]
+    ; copy <space> as 'NULL'
     ; if '\' before ' ', copy this space instead of '\'
     ; double/single quotes: "Hello" -> Hello, "'hello'" -> 'hello'
     ; in dq/sq, '$' still expands the path var
@@ -316,7 +316,7 @@ _parse_input:
     xor r10, r10                        ; weather inside double quotes or not
     xor r11, r11                        ; weather inside single quotes or not
     xor rcx, rcx                        ; weater last byte was '\' or not
-    xor rdx, rdx                        ; weather last byte copied was \n or not
+    xor rdx, rdx                        ; weather last byte copied was NULL or not
     .loop_till_new_line:
         cmp byte [r9 + r8], 0x0a            ; if the byte is \n
         je .buffer_parsed
@@ -674,6 +674,7 @@ _parse_input:
                 mov byte [r13 + rsi], 0
                 inc r8
                 inc r12
+                inc rsi
                 mov rdx, 1              ; last byte copied was null
                 xor rcx, rcx            ; last byte clpied was not '\'
                 jmp .loop_till_new_line
@@ -684,6 +685,10 @@ _parse_input:
         ; i made sure to have 1 byte left in the end always for this case
         ; so now i can add a null byte without worry
         ; copy the remaining 
+
+        test rdx, rdx                       ; if last byte copied was a null dont add null
+        jnz .copy_final_data_into_string
+
         mov byte [r13 + rsi], 0                 ; add NULL so i can copy into string
         inc rsi
 
@@ -695,24 +700,9 @@ _parse_input:
         test rax, rax
         jl .error_appending_to_string  ; if error when adding, just exit parsing
         
-
-        .complete_string:
-        ; i still need to add a \n
-        xor rsi, rsi       ; next byte will copy from beginning from start in parse buffer
-        mov byte [r13 + rsi], 0x0a                 ; copy the \n in to beginning of buffer
-        inc rsi
-
-        mov byte [r13 + rsi], 0x0a                 ; copy another the \n 
-        inc rsi
-
-        mov byte [r13 + rsi], 0                 ; add NULL after \n so i can append into string
-        mov rdx, rsi
-        lea rdi, [rel parsed_string_object]
-        lea rsi, [rel parse_buffer]
-        call _append_bytes_mystring
-        test rax, rax
-        jl .error_appending_to_string  ; if error when adding, just exit parsing
-        
+        ; now my went from 
+        ; ls -la | grep hello.txt\n
+        ; lsNULL-laNULL|NULLgrepNULLhello.txtNULL
 
         jmp .cleanup_and_return
 
@@ -754,6 +744,9 @@ _parse_input:
         pop r14
         pop r13
         pop r12
+
+        call _token_classification
+
         xor rax, rax
         mov rsp, rbp
         pop rbp
@@ -778,23 +771,43 @@ _print_line_before_parsing:
     call _print
     ret
 
+; Stage 2 PARSER guarantees
+; 1. Words are NULL terminated.
+; 2. operators(|, >, <) are also NULL terminated.
+; 3. operators are separated from adjacent words.
+; 4. quotes have already been handled.  Problem with '=' check next peragraph
+; 5. $variable expansion have already been expanded.
+; 6. tokens are terminated with NULL, everything before it is part of token.
 
 
-
+; 'foo=bar' env -> will produce error in bash
+; mine will simply resolve single quotes, and foo=bar will be treated as TYPE_ENV_ASSSIGNMENT
+; so in my shell equivelant will be "'foo=bar'"
+; to fix that, add a flag for '=', in 2nd stage. If '='' was inside a quote, mark that flag as 1
+; when classifying token, if '=' is encountered, check weather that was inside a quote or not
+; if it was inside quotes, then check next, else this is a TYPE_ENV_ASSSIGNMENT
 
 ; The parsed_string 
-; for input "echo PATH=$SHELL !! | grep hello", where older command is "ls -la"
-;"echo,NULL,PATH=/usr/bash/,NULL,ls,NULL,-la,NULL,|,NULL,grep,NULL,hello,NULL,\n\n,NULL"
-_lexer:
+; for input[ echo PATH=$SHELL !! | grep hello\n ], where older command is[ ls -la ]
+; [ echo,NULL,PATH=/usr/bash/,NULL,ls,NULL,-la,NULL,|,NULL,grep,NULL,hello,NULL ]
+_token_classification:
+
+    ; i can freely use r12-15 here without saving them
+    push rbp
+    mov rbp, rsp
+
     ; type enum
     TYPE_END                    equ 0
     TYPE_WORD                   equ 1
     TYPE_PIPE                   equ 2
     TYPE_REDIRECT_OUT           equ 3
     TYPE_REDIRECT_IN            equ 4
-    TYPE_ENV_EXPANSION          equ 5
-    TYPE_ENV_ASSSIGNMENT_KEY    equ 6
-    TYPE_ENV_ASSSIGNMENT_VALUE  equ 6
+    TYPE_ENV_ASSSIGNMENT        equ 5
+
+    ; 8 bytes for type, 8 bytes for address, total 16 bytes
+    TOKEN_STRUCT_OBJECT_SIZE    equ 16
+    TOKEN_STRUCT_TYPE_OFF       equ 0
+    TOKEN_STRUCT_ADDRESS_OFF    equ 8
 
     ; token array - > [ ([type][address]), ([type][address]) ]
     ; type is 1 byte, address is 8bytes
@@ -803,7 +816,7 @@ _lexer:
     lea rax, [rel token_array]
     mov qword [rax + DYNAMICARRAY_CAPACITY_OFF], 10
     mov qword [rax + DYNAMICARRAY_SIZE_OFF], 0
-    mov qword [rax + DYNAMICARRAY_ELEMENT_SIZE_OFF], 9 ; 1byte for type, 8bytes for address
+    mov qword [rax + DYNAMICARRAY_ELEMENT_SIZE_OFF], TOKEN_STRUCT_OBJECT_SIZE
     mov qword [rax + DYNAMICARRAY_POINTER_OFF], 0
     mov rdi, rax
     call _default_dynamic_array_constructor
@@ -814,21 +827,368 @@ _lexer:
     ; seperate all tokens with a null balue
     ; identify what type of token it is, and append it's type and address to array
 
+    xor r8, r8                          ; index for line traversal
+    lea r9, [rel parsed_string_object]
+    mov r12, [r9 + MYSTRING_SIZE_OFF]    ; r12 has total size of string "ls\n\n" -> 4
+    mov r9, [r9 + MYSTRING_POINTER_OFF]
+    xor r10, r10                        ; start index of token
+    xor r13, r13                        ; total tokens
+    .loop_till_double_new_line:
+        cmp r8, r12
+        jge .all_tokens_classified
 
+        cmp byte [r9 + r8], 0            ; i reached a null byte without any identifiers, ie word
+        je .add_word_token
+
+        cmp byte [r9 + r8], "|"
+        je .check_pipe
+
+        cmp byte [r9 + r8], ">"
+        je .check_redirect_out
+
+        cmp byte [r9 + r8], "<"
+        je .check_redirect_in
+
+        cmp byte [r9 + r8], "="
+        je .check_env_assignment
+
+    .loopback:
+        xor r15, r15                    ; not new line char
+        inc r8
+        jmp .loop_till_double_new_line
+
+
+    .token_ended:
+        inc r13                         ; total tokens ++
+
+        inc r8                          ; expects r8 to point to NULL
+        mov r10, r8                     ; index of neginning of next token 
+
+        dec r8                          ; because loopback will increase r8 again
+
+        jmp .loopback
+
+
+    .add_word_token:
+        ; r8 already at null, no need to incease it
+        ; create a token struct
+        push r8
+        push r9
+        push r10
+
+        ; token_struct : [type][address of token]
+        sub rsp, TOKEN_STRUCT_OBJECT_SIZE
+
+        lea rcx, [rsp + TOKEN_STRUCT_TYPE_OFF]
+        mov qword [rcx], TYPE_WORD
+        lea rcx, [rsp + TOKEN_STRUCT_ADDRESS_OFF]
+        lea rax, [r9 + r10]             ; address of parsed_string + offset for this token beginning index
+        mov [rcx], rax
+
+        ; add token struct to array
+        ; r13 has the index in which this token is supposed to go
+
+        lea rdi, [rel token_array]
+        mov rsi, rsp
+        call _dynamic_array_add_element
+
+        ; remove object from stack
+        add rsp, TOKEN_STRUCT_OBJECT_SIZE
+
+        pop r10
+        pop r9
+        pop r8
+
+        ; check if error in appending token
+        test rax, rax
+        jl .error_appending_to_token
+
+        jmp .token_ended
+
+    .check_env_assignment:
+        lea rcx, [r9 + r10]          ; the address of the start of token for "PATH=somehign"
+
+        mov al, [rcx]
+
+        cmp al, '_'
+        je .first_key_char_valid
+
+        cmp al, 'A'
+        jb .error_invalid_key_for_TYPE_ENV_ASSSIGNMENT
+
+        cmp al, 'Z'
+        jbe .first_key_char_valid
+
+        cmp al, 'a'
+        jb .error_invalid_key_for_TYPE_ENV_ASSSIGNMENT
+
+        cmp al, 'z'
+        jbe .first_key_char_valid
+
+        
+        jmp .error_invalid_key_for_TYPE_ENV_ASSSIGNMENT
+
+        .first_key_char_valid:
+            ; now i have to  check the rest of the key
+            inc rcx
+        .loop_check_key:
+
+            mov al, [rcx]
+
+            cmp al, '='
+            je .valid_key
+
+            cmp al, '_'
+            je .valid_key_byte
+
+            cmp al, '0'
+            jb .error_invalid_key_for_TYPE_ENV_ASSSIGNMENT
+
+            cmp al, '9'
+            jbe .valid_key_byte
+
+            cmp al, 'A'
+            jb .error_invalid_key_for_TYPE_ENV_ASSSIGNMENT
+
+            cmp al, 'Z'
+            jbe .valid_key_byte
+
+            cmp al, 'a'
+            jb .error_invalid_key_for_TYPE_ENV_ASSSIGNMENT
+
+            cmp al, 'z'
+            jbe .valid_key_byte
+            
+            jmp .error_invalid_key_for_TYPE_ENV_ASSSIGNMENT
+
+        .valid_key_byte:
+                inc rcx
+                jmp .loop_check_key
+
+        .valid_key:
+
+        push r8
+        push r9
+        push r10
+        ; create a token struct
+        ; token_struct : [type][address of token]
+        sub rsp, TOKEN_STRUCT_OBJECT_SIZE
+
+        lea rcx, [rsp + TOKEN_STRUCT_TYPE_OFF]
+        mov qword [rcx], TYPE_ENV_ASSSIGNMENT
+        lea rcx, [rsp + TOKEN_STRUCT_ADDRESS_OFF]
+        mov rax, [r9 + r13]
+        mov [rcx], rax
+
+        ; add token struct to array
+        ; r13 has the index in which this token is supposed to go
+        lea rdi, [rel token_array]
+        mov rsi, rsp
+        call _dynamic_array_add_element
+
+        ; remove object from stack
+        add rsp, TOKEN_STRUCT_OBJECT_SIZE
+
+        pop r10
+        pop r9
+        pop r8
+
+
+        ; check if error in appending token
+        test rax, rax
+        jl .error_appending_to_token
+
+        ; move r8 to the end byte of the env variable
+        .loop_move_r8:
+            cmp byte [r9 + r8], 0
+            je .reduce_by_one
+
+            inc r8
+            jmp .loop_move_r8
+
+        .reduce_by_one:
+            dec r8
+
+        jmp .token_ended
+
+
+    .check_pipe:
+        cmp byte [r9 + r8 + 1], 0
+        je .add_pipe_token
+        jmp .loopback
+
+
+    .check_redirect_out:
+        cmp byte [r9 + r8 + 1], 0
+        je .add_redirect_out_token
+        jmp .loopback
+
+
+    .check_redirect_in:
+        cmp byte [r9 + r8 + 1], 0
+        je .add_redirect_in_token
+        jmp .loopback
+
+    .add_pipe_token:
+        inc r8                  ; move r8 to point to NULL
+        push r8
+        push r9
+        push r10
+
+        ; create a token struct
+
+        ; token_struct : [type][address of token]
+        sub rsp, TOKEN_STRUCT_OBJECT_SIZE
+
+        lea rcx, [rsp + TOKEN_STRUCT_TYPE_OFF]
+        mov qword [rcx], TYPE_PIPE
+        lea rcx, [rsp + TOKEN_STRUCT_ADDRESS_OFF]
+        mov qword [rcx], 0          ; for pipe, no address
+
+        ; add token struct to array
+        ; r13 has the index in which this token is supposed to go
+        lea rdi, [rel token_array]
+        mov rsi, rsp
+        call _dynamic_array_add_element
+
+        ; remove object from stack
+        add rsp, TOKEN_STRUCT_OBJECT_SIZE
+
+        pop r10
+        pop r9
+        pop r8
+
+
+        ; check if error in appending token
+        test rax, rax
+        jl .error_appending_to_token
+
+        jmp .token_ended
+
+
+    .add_redirect_out_token:
+        inc r8                  ; move r8 to point to NULL
+        push r8
+        push r9
+        push r10
+
+        ; token_struct : [type][address of token]
+        sub rsp, TOKEN_STRUCT_OBJECT_SIZE
+
+        lea rcx, [rsp + TOKEN_STRUCT_TYPE_OFF]
+        mov qword [rcx], TYPE_REDIRECT_OUT
+        lea rcx, [rsp + TOKEN_STRUCT_ADDRESS_OFF]
+        mov qword [rcx], 0          ; for >, no address
+
+        ; add token struct to array
+        ; r13 has the index in which this token is supposed to go
+
+        lea rdi, [rel token_array]
+        mov rsi, rsp
+        call _dynamic_array_add_element
+
+        ; remove object from stack
+        add rsp, TOKEN_STRUCT_OBJECT_SIZE
+
+        pop r10
+        pop r9
+        pop r8
+
+        ; check if error in appending token
+        test rax, rax
+        jl .error_appending_to_token
+
+        jmp .token_ended
+
+    .add_redirect_in_token:
+        inc r8                  ; move r8 to point to NULL
+        push r8
+        push r9
+        push r10
+
+        ; token_struct : [type][address of token]
+        sub rsp, TOKEN_STRUCT_OBJECT_SIZE
+
+        lea rcx, [rsp + TOKEN_STRUCT_TYPE_OFF]
+        mov qword [rcx], TYPE_REDIRECT_IN
+        lea rcx, [rsp + TOKEN_STRUCT_ADDRESS_OFF]
+        mov qword [rcx], 0          ; for <, no address
+
+        ; add token struct to array
+        ; r13 has the index in which this token is supposed to go
+        lea rdi, [rel token_array]
+        mov rsi, rsp
+        call _dynamic_array_add_element
+
+        ; remove object from stack
+        add rsp, TOKEN_STRUCT_OBJECT_SIZE
+
+        pop r10
+        pop r9
+        pop r8
+
+        ; check if error in appending token
+        test rax, rax
+        jl .error_appending_to_token
+
+        jmp .token_ended
+
+
+
+    .all_tokens_classified:
+
+        ; add a END token
+        sub rsp,  TOKEN_STRUCT_OBJECT_SIZE
+
+        lea rcx, [rsp + TOKEN_STRUCT_TYPE_OFF]
+        mov qword [rcx], TYPE_END
+        lea rcx, [rsp + TOKEN_STRUCT_ADDRESS_OFF]
+        mov qword [rcx], 0          ; for <, no address
+
+        lea rdi, [rel token_array]
+        mov rsi, rsp
+        call _dynamic_array_add_element
+
+        ; remove object from stack
+        add rsp, TOKEN_STRUCT_OBJECT_SIZE
+
+        ; check if error in appending token
+        test rax, rax
+        jl .error_appending_to_token
+
+        jmp .return_success
 
     .error_initializing_token_array:
+        call .cleanup_before_token_classifier
         jmp .return_failure
+
+    .error_appending_to_token:
+        call .cleanup_before_token_classifier
+        call _free_token_array
+        jmp .return_failure
+
+    .error_invalid_key_for_TYPE_ENV_ASSSIGNMENT:
+        call .cleanup_before_token_classifier
+        call _free_token_array
+        jmp .return_failure        
 
 
     .return_failure:
+        mov rsp, rbp
+        pop rbp
         mov rax, -1
         ret
 
     .return_success:
+        mov rsp, rbp
+        pop rbp
         xor rax, rax
         ret
 
-
+    .cleanup_before_token_classifier:
+        call _free_input_buffer_string_object
+        call _free_parsed_buffer_string_object
+        ret
 
 
 _free_input_buffer_string_object:

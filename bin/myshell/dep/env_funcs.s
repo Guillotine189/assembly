@@ -327,19 +327,19 @@ _update_var_in_shell_env:
 	je .first_key_char_valid
 
 	cmp al, 'A'
-	jb .invaid_key
+	jb .invalid_key
 
 	cmp al, 'Z'
 	jbe .first_key_char_valid
 
 	cmp al, 'a'
-	jb .invaid_key
+	jb .invalid_key
 
 	cmp al, 'z'
 	jbe .first_key_char_valid
 
 	
-	jmp .invaid_key
+	jmp .invalid_key
 
 	.first_key_char_valid:
 		; now i have to  check the rest of the key
@@ -355,24 +355,24 @@ _update_var_in_shell_env:
 		je .valid_key_byte
 
 		cmp al, '0'
-		jb .invaid_key
+		jb .invalid_key
 
 		cmp al, '9'
 		jbe .valid_key_byte
 
 		cmp al, 'A'
-		jb .invaid_key
+		jb .invalid_key
 
 		cmp al, 'Z'
 		jbe .valid_key_byte
 
 		cmp al, 'a'
-		jb .invaid_key
+		jb .invalid_key
 
 		cmp al, 'z'
 		jbe .valid_key_byte
 		
-		jmp .invaid_key
+		jmp .invalid_key
 
 		.valid_key_byte:
 			inc r10
@@ -490,7 +490,7 @@ _update_var_in_shell_env:
 	.error_creating_string_object:	
 		sub rsp, MYSTRING_OBJECT_SIZE
 
-	.invaid_key:
+	.invalid_key:
 	.error_updating_env_variable:
 		jmp .return_failure
 
@@ -520,19 +520,19 @@ _unset_var_in_shell_env:
 	je .first_key_char_valid
 
 	cmp al, 'A'
-	jb .invaid_key
+	jb .invalid_key
 
 	cmp al, 'Z'
 	jbe .first_key_char_valid
 
 	cmp al, 'a'
-	jb .invaid_key
+	jb .invalid_key
 
 	cmp al, 'z'
 	jbe .first_key_char_valid
 
 	
-	jmp .invaid_key
+	jmp .invalid_key
 
 	.first_key_char_valid:
 		; now i have to  check the rest of the key
@@ -631,7 +631,7 @@ _unset_var_in_shell_env:
 		call _dynamic_array_remove_element
 
 	.key_not_found:
-	.invaid_key:
+	.invalid_key:
 		ret
 
 
