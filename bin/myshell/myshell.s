@@ -192,7 +192,7 @@ extern parent_print_error_closing_write_pipe
 extern _get_and_set_mem_for_history_array
 extern _read_input
 
-extern _generate_and_classify_tokens
+extern _generate_tokens
 extern _process_tokens
 
 extern _check_and_execute_if_built_in
@@ -890,7 +890,7 @@ _handle_input:
     cmp rax, 1             ; when enter was presses. "\n" was written in buffer
     je .empty_line
 
-    call _generate_and_classify_tokens
+    call _generate_tokens
     test rax, rax
     jl .error_parsing_input
 

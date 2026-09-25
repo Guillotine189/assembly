@@ -46,8 +46,7 @@ extern _free
 
 extern _add_cmd_into_history
 
-global parsed_string_object
-global _generate_and_classify_tokens
+global _generate_tokens
 
 
 ; i have a parsed_string_object that stores the final parsed string
@@ -57,10 +56,10 @@ global _generate_and_classify_tokens
 
 
 
-_generate_and_classify_tokens:
+_generate_tokens:
 
     ; this function will also mark r15, weather to print the command or not
-    call _expand_double_exclaimation
+    call _expand_double_exclaimation_and_add_to_history
     test rax, rax
     jl .error_expanding_old_command    ; TODO: change give proper error
 
@@ -68,7 +67,10 @@ _generate_and_classify_tokens:
     test rax, rax
     jl .error_parsing_string
 
-    call _token_classification
+    ; after parsing the string, i no longer need it
+    call _free_input_buffer_string_object
+
+    call _classify_and_generate_tokens
     test rax, rax
     jl .error_classifying_tokens
 
@@ -80,7 +82,6 @@ _generate_and_classify_tokens:
         call _free_input_buffer_string_object
         jmp .return_failure
     .error_classifying_tokens:
-        call _free_input_buffer_string_object
         call _free_parsed_buffer_string_object
         jmp .return_failure
 
@@ -96,7 +97,7 @@ _generate_and_classify_tokens:
 
 
 ; i can use r12-15 freely here
-_expand_double_exclaimation:
+_expand_double_exclaimation_and_add_to_history:
         
     xor r15, r15                            ; mark this command as no printing
 
@@ -805,7 +806,7 @@ _print_line_before_parsing:
 ; The parsed_string 
 ; for input[ echo PATH=$SHELL !! | grep hello\n ], where older command is[ ls -la ]
 ; [ echo,NULL,PATH=/usr/bash/,NULL,ls,NULL,-la,NULL,|,NULL,grep,NULL,hello,NULL ]
-_token_classification:
+_classify_and_generate_tokens:
 
     ; i can freely use r12-15 here without saving them
     push rbp
@@ -1177,7 +1178,7 @@ _token_classification:
 
     .error_invalid_key_for_TYPE_ENV_ASSSIGNMENT:
         call _free_token_array
-        jmp .return_failure        
+        jmp .return_failure
 
 
     .return_failure:

@@ -5,6 +5,7 @@ BASIC------
 3) Decide how to store the commands, args, envp for every single command.
 4) Run chained commands (ls | grep "data.txt" > output.txt)
 5) Add auto complete for installed command name only (like ls, grep etc).
+5.0) make cursor blink
 
 5.1) '!!' is replaced by the old command, but the old command is not processed. So it just goes in as 1 big argument. Fix that. ✅
 
