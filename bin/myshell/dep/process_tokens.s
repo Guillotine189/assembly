@@ -21,19 +21,24 @@ extern parsed_string_object
 extern address_command
 extern shell_env_array_object
 
+extern token_array
 
 global _process_tokens
 
 
 
+; type enum
+TYPE_END                    equ 0
+TYPE_WORD                   equ 1
+TYPE_PIPE                   equ 2
+TYPE_REDIRECT_OUT           equ 3
+TYPE_REDIRECT_IN            equ 4
+TYPE_ENV_ASSSIGNMENT        equ 5
 
-
-; end             0
-; word            1
-; pipe            2
-; redirect_in     r14
-; redirect_write  3
-; env_assignment  5
+; 8 bytes for type, 8 bytes for address, total 16 bytes
+TOKEN_STRUCT_OBJECT_SIZE    equ 16
+TOKEN_STRUCT_TYPE_OFF       equ 0
+TOKEN_STRUCT_ADDRESS_OFF    equ 8
 
 
 

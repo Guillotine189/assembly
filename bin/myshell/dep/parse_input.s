@@ -4,6 +4,8 @@
 section .rodata
     new_line db 0x0a, 0
 
+global token_array
+
 section .bss
     ; DO not make this less than 32 bytes, i copy that many bytes as exit code status
     ; directly into the buffer without checking and expanding
@@ -45,7 +47,7 @@ extern _free
 extern _add_cmd_into_history
 
 global parsed_string_object
-global _parse_input
+global _generate_and_classify_tokens
 
 
 ; i have a parsed_string_object that stores the final parsed string
@@ -256,6 +258,7 @@ _expand_double_exclaimation:
     .error_appending_to_string:
     .error_creating_string_for_input_buffer:
     .return_failure:
+        call _free_input_buffer_string_object
         mov rax, -1 
         ret
 
@@ -263,7 +266,7 @@ _expand_double_exclaimation:
 
 ; TODO: "", empty argumets are ignored
 ; because its basically NULL followed by NULL in parser
-_parse_input:
+_generate_and_classify_tokens:
     push rbp
     mov rbp, rsp
     push r12        ; i don't have to save these registers in my program in this function
@@ -721,19 +724,26 @@ _parse_input:
         ; maybe simply call 'clear' on this string, and reuse the same malloc space
         call _free_input_buffer_string_object
         mov rax, 0
+
+
+    .classify_tokens:
+
+        call _token_classification
+        test rax, rax
+        jl .error_classifying_tokens
+
         jmp .return_success
 
 
 
     .error_expanding_old_command:
-        call _free_input_buffer_string_object
         jmp .return_failure
 
     .error_creating_string_for_parsing:
         call _free_input_buffer_string_object
         jmp .return_failure
 
-
+    .error_classifying_tokens:
     .error_appending_to_string:
         call _free_input_buffer_string_object
         call _free_parsed_buffer_string_object
@@ -744,9 +754,6 @@ _parse_input:
         pop r14
         pop r13
         pop r12
-
-        call _token_classification
-
         xor rax, rax
         mov rsp, rbp
         pop rbp
@@ -762,6 +769,9 @@ _parse_input:
         mov rsp, rbp
         pop rbp
         ret
+
+
+
 
 _print_line_before_parsing:
     lea rcx, [rel input_buffer_string_object]
@@ -962,8 +972,8 @@ _token_classification:
             jmp .error_invalid_key_for_TYPE_ENV_ASSSIGNMENT
 
         .valid_key_byte:
-                inc rcx
-                jmp .loop_check_key
+            inc rcx
+            jmp .loop_check_key
 
         .valid_key:
 
@@ -977,7 +987,7 @@ _token_classification:
         lea rcx, [rsp + TOKEN_STRUCT_TYPE_OFF]
         mov qword [rcx], TYPE_ENV_ASSSIGNMENT
         lea rcx, [rsp + TOKEN_STRUCT_ADDRESS_OFF]
-        mov rax, [r9 + r13]
+        lea rax, [r9 + r13]
         mov [rcx], rax
 
         ; add token struct to array
@@ -1001,15 +1011,10 @@ _token_classification:
         ; move r8 to the end byte of the env variable
         .loop_move_r8:
             cmp byte [r9 + r8], 0
-            je .reduce_by_one
+            je .token_ended
 
             inc r8
             jmp .loop_move_r8
-
-        .reduce_by_one:
-            dec r8
-
-        jmp .token_ended
 
 
     .check_pipe:
@@ -1159,16 +1164,13 @@ _token_classification:
         jmp .return_success
 
     .error_initializing_token_array:
-        call .cleanup_before_token_classifier
         jmp .return_failure
 
     .error_appending_to_token:
-        call .cleanup_before_token_classifier
         call _free_token_array
         jmp .return_failure
 
     .error_invalid_key_for_TYPE_ENV_ASSSIGNMENT:
-        call .cleanup_before_token_classifier
         call _free_token_array
         jmp .return_failure        
 
@@ -1183,11 +1185,6 @@ _token_classification:
         mov rsp, rbp
         pop rbp
         xor rax, rax
-        ret
-
-    .cleanup_before_token_classifier:
-        call _free_input_buffer_string_object
-        call _free_parsed_buffer_string_object
         ret
 
 

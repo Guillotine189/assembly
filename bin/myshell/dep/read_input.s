@@ -908,7 +908,7 @@ _read_input:
         .skip_word_left:
             test rax, rax
             jz .set_cursor_left_space
-
+            
             cmp byte [r9 + rax - 1], ' '
             je .set_cursor_left_space
 
