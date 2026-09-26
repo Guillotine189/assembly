@@ -58,6 +58,8 @@ section .rodata
 	closing_bracket db ']', 0
 	arrow db " -> ", 0
 	arrow_len equ $ - arrow
+	null db "NULL", 0
+	null_len equ $ - null
 
 section .bss
 
@@ -176,27 +178,28 @@ _malloc:
 
 	test rax, rax 									; or -1 if cannot find a free chunk
 	js .check_if_last_segment_is_free
+
+	; the function returned the segment header address not the free size address
+	; add the metadata size to the segment returned then return the address
+
+	add rax, METADATA_SIZE
 	jmp .return
 
 
 	.check_if_last_segment_is_free:
 		mov rax, [rel malloc_address_last_segment]
+		mov r13, [rax + MYMALLOC_PREV_OFF]
 		cmp qword [rax + MYMALLOC_USED_OFF], 0
 		jne .get_more_heap_space 	; if last segment not empty, just get more space
 
-		jmp .get_more_heap_space_when_last_seg_included
+		jmp .get_more_heap_space_when_last_seg_reused
 
-		; i know the asked space is bigger than empty space of this last segment
-		; in this case, when asking for new address i
+		; i know the required space is bigger than empty space of the last segment
 
-	.get_more_heap_space_when_last_seg_included:
-		; remove the last segment from free list
+	.get_more_heap_space_when_last_seg_reused:
 
 		mov r12, [rel malloc_address_last_segment]
 		
-		mov rdi, r12
-		call _remove_from_free_list
-
 		; get more size for this size segment
 
 		mov rax, 12
@@ -208,8 +211,14 @@ _malloc:
 		cmp rax, rdi
 		jne .error_moving_brk_up_and_ret
 
+		mov r13, rax
+		; remove the last segment from free list
+		mov rdi, r12
+		call _remove_from_free_list
+		mov rax, r13
+
 		; Existing last segment is now the requested size.
-	    mov [r12], rbx
+	    mov [r12 + MYMALLOC_SIZE_OFF], rbx
 	    mov qword [r12 + MYMALLOC_USED_OFF], 1
 	    mov [r12 + MYMALLOC_NEXT_OFF], rax
 
@@ -238,10 +247,10 @@ _malloc:
 
 	;fill_metadata
 
-	mov qword [r12], rbx 			; 1st 8 bytes: size of free space in this segment
+	mov [r12 + MYMALLOC_SIZE_OFF], rbx 			; 1st 8 bytes: size of free space in this segment
 	mov qword [r12 + MYMALLOC_USED_OFF], 1 			; 0 -> free, 1 -> occupied
-	mov qword [r12 + MYMALLOC_PREV_OFF], r13 		; add_prev_segment
-	mov qword [r12 + MYMALLOC_NEXT_OFF], rax 		; add_next_segment = new brk address
+	mov [r12 + MYMALLOC_PREV_OFF], r13 		; add_prev_segment
+	mov [r12 + MYMALLOC_NEXT_OFF], rax 		; add_next_segment = new brk address
 	mov qword [r12 + MYMALLOC_NEXT_FREE_OFF], 0 	; not a part of any free list
 	mov [rel malloc_address_last_segment], r12   ; this segment is the last segment now
 	jmp .return_old_brk_address
@@ -482,9 +491,6 @@ _find_chunk:
 	; if the list is empty, head is NULL
 	mov rcx, [rsi]
 
-	test rcx, rcx   							; if list is empty
-	jz .return_failure
-
 	mov r12, rsi  								; r12 addres off variable that stores head ll
 	xor r9, r9 									; address of prev segment
 
@@ -514,7 +520,7 @@ _find_chunk:
 		cmp rdx, METADATA_SIZE + MIN_FREE_SPACE_SIZE  	; if remaining size >= minimum chunk size
 		jge .split_this_free_segment
 
-		; if this segment doesn't need to be split, correct linked list
+		; if this segment doesn't need to be split, remove this from free list and mark it as not free
 
 		mov rdi, rcx
 		call _remove_from_free_list
@@ -522,6 +528,7 @@ _find_chunk:
 		; update total segment info
 		dec qword [rel malloc_free_segments]
 		inc qword [rel malloc_occupied_segments]
+		mov [r12 + MYMALLOC_USED_OFF], 1 			; mark as used
 
 		mov rax, r12 					; move to rax the address of the segment
 		jmp .return_address
@@ -570,8 +577,6 @@ _find_chunk:
 		; remove the curr segment from free list
 		mov rdi, r13
 		call _remove_from_free_list
-
-	    ; free_list_node_removed:
 
 		mov [rcx + MYMALLOC_SIZE_OFF], r14       ; update size of curr chunk
 		mov qword [rcx + MYMALLOC_USED_OFF], 1   ; mark it as occupied
@@ -1210,14 +1215,13 @@ _print_free_list_info:
 	call print
 
 	test r12, r12
-	jz .print_new_line
-
+	jz .print_null
 
 	xor r13, r13 					; flag to check if last segment was reached
 	mov r14, 1 						; number of segments 
 	.loop_and_print_till_last_segment:
 		cmp r12, 0
-		je .print_new_line
+		je .print_arrow_and_null
 
 		lea rdi, [rel malloc_info_buffer]
 
@@ -1271,11 +1275,17 @@ _print_free_list_info:
 		jmp .loop_and_print_till_last_segment
 
 
-	.print_new_line:
-		mov rax, 1
+	.print_arrow_and_null:
+		mov rax, arrow_len
 		mov rdi, 1
-		lea rsi, [rel new_line]
+		lea rsi, [rel arrow]
 		call print
+
+	.print_null:
+		mov rax, null_len
+		mov rdi, 1
+		lea rsi, [rel null]
+		call print_with_new_line
 		ret
 
 
