@@ -174,7 +174,6 @@ _initialize_shell_env_array:
 		jmp .loop_populate_env_array
 
 	.done_populating:
-		;call _print_env
 		pop r12
 		mov rsp, rbp
 		pop rbp

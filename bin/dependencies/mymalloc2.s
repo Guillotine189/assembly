@@ -83,6 +83,22 @@ global _print_free_list_info
 ; TOTAL size of segemnt: Requested size + 32bytes 
 
 
+; allocated segment:
+;     USED = 1
+;     not present in any free list
+
+; free segment:
+;     USED = 0
+;     present exactly once in exactly one free list
+
+; last_segment->NEXT = current_brk
+
+; first_segment->PREV = 0
+
+; for every segment:
+;     next->prev == current
+
+
 METADATA_SIZE equ 40
 MIN_FREE_SPACE_SIZE equ 8
 
@@ -153,6 +169,8 @@ _malloc:
 
 	.check_if_old_free_segment_available:
 
+	mov r13, [rel malloc_address_last_segment]
+
 	mov rdi, rbx
 	call _find_and_allocate_free_chunk 				; this returns address of free chunk
 
@@ -218,7 +236,7 @@ _malloc:
 	inc qword [rel malloc_total_segments]
 	inc qword [rel malloc_occupied_segments]
 
-	.fill_metadata:
+	;fill_metadata
 
 	mov qword [r12], rbx 			; 1st 8 bytes: size of free space in this segment
 	mov qword [r12 + MYMALLOC_USED_OFF], 1 			; 0 -> free, 1 -> occupied
@@ -234,9 +252,11 @@ _malloc:
 		jmp .return
 
 	.error_moving_brk_up_and_ret:
+		mov rax, -1
 		jmp .return 						; error no still in rax 
 
 	.error_getting_old_brk_address_and_ret:
+		mov rax, -1
 		jmp .return 							; error no still in rax 
 
 	.return:
@@ -249,19 +269,22 @@ _malloc:
 
 ; TODO: maybe when last segment is freed, unmap them?
 ; rdi : address received from malloc
+
+; REMEMBER: i DO NOT Get the address of segment, i get the address which malloc gave the user
+; thats why subtract metadata size before doing anything
 _free:
-	inc qword [rel free_called]
-	test rdi, rdi
-	jz .invalid_pointer
-
-	cmp qword [rdi + MYMALLOC_USED_OFF], 1
-	jne .invalid_pointer
-
 	push rbx
 	push r12
 
 	sub rdi, METADATA_SIZE
-	mov rbx, rdi 								;store the address of og segment
+	mov rbx, rdi  					;store the address of og segment
+
+	inc qword [rel free_called]
+	test rbx, rbx
+	jz .invalid_pointer
+
+	cmp qword [rbx + MYMALLOC_USED_OFF], 1
+	jne .invalid_pointer
 	    
 
 	; the idea for freeing a segmenet
@@ -276,7 +299,7 @@ _free:
 		mov qword [rbx + MYMALLOC_USED_OFF], 0 					; mark this segment as free
 		dec qword [rel malloc_occupied_segments]
 		inc qword [rel malloc_free_segments]
-		mov r12, rdi
+		mov r12, rbx
 
 	call .check_and_update_if_next_segment_is_free
 	call .check_if_prev_segment_is_free
@@ -305,12 +328,12 @@ _free:
 
 		; merge current segment with next
 		mov rax, [rbx + MYMALLOC_NEXT_OFF] 				 ; address of next segment
-		mov rcx, [rax] 					; free space of next segment in rcx
-		add rcx, METADATA_SIZE 			; total size of next segment in rcx
-		add [rbx], rcx 					; the og segment size been increased
+		mov rcx, [rax + MYMALLOC_SIZE_OFF] 		; free space of next segment in rcx
+		add rcx, METADATA_SIZE 					; total size of next segment in rcx
+		add [rbx + MYMALLOC_SIZE_OFF], rcx 		; the og segment size been increased
 
 		mov rdi, [rax + MYMALLOC_NEXT_OFF]
-		mov [rbx+ MYMALLOC_NEXT_OFF], rdi 				; og->next = curr->next
+		mov [rbx + MYMALLOC_NEXT_OFF], rdi 				; og->next = curr->next
 
 		; check if segment consumed was the last segment 
 		cmp rax, [rel malloc_address_last_segment]
@@ -352,9 +375,9 @@ _free:
 		mov r12, rax 	; the final segment address after the operation will be this prev segment
 
 		; merge current segment with previous
-		mov rcx, [rbx] 					; free space of og
-		add rcx, METADATA_SIZE 			; total size of next segment in rcx
-		add [rax], rcx 					; siz of prev += size of og
+		mov rcx, [rbx + MYMALLOC_SIZE_OFF] 					; free space of og
+		add rcx, METADATA_SIZE 					; total size of next segment in rcx
+		add [rax + MYMALLOC_SIZE_OFF], rcx 			; siz of prev += size of og
 
 		mov rdi, [rbx+ MYMALLOC_NEXT_OFF]
 		mov [rax+ MYMALLOC_NEXT_OFF], rdi 				; prev->next = og->next
@@ -384,6 +407,8 @@ _free:
 
 
 	.invalid_pointer:
+		pop r12
+		pop rbx
 		mov rax, -1
 		ret
 
@@ -393,44 +418,51 @@ _free:
 ; rdi: the size of chunk needed
 ; returns: response from '_find_chunk'
 _find_and_allocate_free_chunk:
+	push r12
+	mov r12, rdi
 
-	cmp rdi, 128
+	cmp r12, 128
 	jle .find_chunks_in_small_segment_list
 
-	cmp rdi, 512
+	cmp r12, 512
 	jle .find_chunks_in_medium_segment_list
 
 	; else find it in the large segment list
 	.find_chunks_in_large_segment_list:
+	mov rdi, r12
 	lea rsi, [rel free_list_large_segment_head_address]
 	call _find_chunk
 
 	test rax, rax
 	jl .no_chunk_found
 
-	.return:
+	.return_address:
+		pop r12
 		ret
 	.no_chunk_found:
+		pop r12
 		mov rax, -1
 		ret
 
 
 	.find_chunks_in_small_segment_list:
+		mov rdi, r12
 		lea rsi, [rel free_list_small_segment_head_address]
 		call _find_chunk
 
 		test rax, rax   ; i find a space, good else search in bigger list
-		jg .return
+		jg .return_address
 
 		jmp .find_chunks_in_medium_segment_list
 
 
 	.find_chunks_in_medium_segment_list:
+		mov rdi, r12
 		lea rsi, [rel free_list_medium_segment_head_address]
 		call _find_chunk
 		; TODO: if no space available in medium, check large
 		test rax, rax
-		jg .return
+		jg .return_address
 
 		jmp .find_chunks_in_large_segment_list
 
@@ -445,24 +477,27 @@ _find_and_allocate_free_chunk:
 ; if chunk is not available : -1
 _find_chunk:
 	push r12
+	push r13
+	push r14
 	; if the list is empty, head is NULL
 	mov rcx, [rsi]
 
-	test rcx, rcx
+	test rcx, rcx   							; if list is empty
 	jz .return_failure
 
 	mov r12, rsi  								; r12 addres off variable that stores head ll
 	xor r9, r9 									; address of prev segment
 
 	.loop:
+
+	    test rcx, rcx
+	    jz .return_failure
+
 	    cmp [rcx + MYMALLOC_SIZE_OFF], rdi
 	    jge .found_a_chunk
 
 	    mov r9, rcx
 	    mov rcx, [rcx + MYMALLOC_NEXT_FREE_OFF]
-
-	    test rcx, rcx
-	    jz .return_failure
 
 	    jmp .loop
 
@@ -471,6 +506,7 @@ _find_chunk:
 		; rcx = current segment big enough
 
 		; check if this chunk needs to ve split
+		mov r12, rcx
 
 		mov rdx, [rcx + MYMALLOC_SIZE_OFF]
 		sub rdx, rdi 					; free size of segment - size requested
@@ -480,28 +516,14 @@ _find_chunk:
 
 		; if this segment doesn't need to be split, correct linked list
 
-		test r9, r9
-		jz .head_was_free_remove_it
-
-		mov rax, [rcx + MYMALLOC_NEXT_FREE_OFF]
-		mov [r9 + MYMALLOC_NEXT_FREE_OFF], rax  		; prev->next = curr->next
-		jmp .continue
-
-		.head_was_free_remove_it:
-			mov rax, [rcx + MYMALLOC_NEXT_FREE_OFF]   
-			mov [r12], rax 							  ; new_head = curr->next_free
-
-		.continue:
-		; mark this segment as occupied
-		mov qword [rcx + MYMALLOC_USED_OFF], 1
-		;clear the free pointer
-		mov qword [rcx + MYMALLOC_NEXT_FREE_OFF], 0
+		mov rdi, rcx
+		call _remove_from_free_list
 
 		; update total segment info
 		dec qword [rel malloc_free_segments]
 		inc qword [rel malloc_occupied_segments]
 
-		mov rax, rcx 					; move to rax the address of the segment
+		mov rax, r12 					; move to rax the address of the segment
 		jmp .return_address
 
 	.split_this_free_segment:
@@ -511,16 +533,14 @@ _find_chunk:
 
 
 		; first split the segment and update the normal malloc double ll
-		mov r10, rcx
-		mov r8, [rcx + MYMALLOC_SIZE_OFF]
-		add r8, METADATA_SIZE
+		mov r8, [rcx + MYMALLOC_SIZE_OFF]   ; old free size
 
-		add r10, r8 						; r10 at the address of new chunk
-		sub r8, rdi  						; r8 has the TOTAL size of new chunk
-		sub r8, METADATA_SIZE 				; r8 has the size of free space in new chunk
+		; address of new segment
+		lea r10, [rcx + METADATA_SIZE + rdi]
 
-		mov [rcx + MYMALLOC_SIZE_OFF], rdi       ; update size of curr chunk
-		mov qword [rcx + MYMALLOC_USED_OFF], 1   ; mark it as occupied
+		; calculate remaining free payload
+		sub r8, rdi
+		sub r8, METADATA_SIZE
 
 		mov qword [r10 + MYMALLOC_SIZE_OFF], r8  		; free size of this new segment
 		mov qword [r10 + MYMALLOC_USED_OFF], 0 			; mark this new segment as free
@@ -530,8 +550,7 @@ _find_chunk:
 		mov [r10 + MYMALLOC_NEXT_FREE_OFF], 0 			; mark next free segment as null for now
 
 		mov rdx, [rel malloc_address_last_segment]
-		mov rdx, [rdx + MYMALLOC_NEXT_OFF] 				; rdx is brk
-		cmp rax, rdx 									; cmp next segment and brk
+		cmp rcx, rdx 									; cmp curr segment and last segment
 		je .mark_this_as_last_segment
 
 		; else the next segment -> prev = new_seg
@@ -544,38 +563,39 @@ _find_chunk:
 	.cont:
 		mov [rcx + MYMALLOC_NEXT_OFF], r10 			; curr->next = new_seg
 
+		mov r13, rcx 								; save the segment to be returned
+		mov r12, r10 								; save the new segment address
+		mov r14, rdi 								; save the original size requested
 
 		; remove the curr segment from free list
-		test r9, r9
-		jz .head_was_free
+		mov rdi, r13
+		call _remove_from_free_list
 
-		mov rax, [rcx + MYMALLOC_NEXT_FREE_OFF]
-		mov [r9 + MYMALLOC_NEXT_FREE_OFF], rax     ; if not head: prev->next = curr->next
-		jmp .free_list_node_removed
+	    ; free_list_node_removed:
 
-	.head_was_free:
-	    mov rax, [rcx + MYMALLOC_NEXT_FREE_OFF]
-	    mov [r12], rax
-
-	.free_list_node_removed:
-	    mov qword [rcx + MYMALLOC_NEXT_FREE_OFF], 0
+		mov [rcx + MYMALLOC_SIZE_OFF], r14       ; update size of curr chunk
+		mov qword [rcx + MYMALLOC_USED_OFF], 1   ; mark it as occupied
 
 	    inc qword [rel malloc_total_segments]
 	    inc qword [rel malloc_occupied_segments]
 
 	    ; now add this newly created segment into free list
-	    mov rdi, r10
+	    mov rdi, r12
 	    call _add_to_free_list
 
-	    mov rax, rcx
+	    mov rax, r13
 	    jmp .return_address
 
 	.return_failure:
+		pop r14
+		pop r13
 		pop r12
 		mov rax, -1
 		ret
 
 	.return_address:
+		pop r14
+		pop r13
 		pop r12
 		ret
 
@@ -616,6 +636,9 @@ _add_to_specific_free_list:
 	mov r8, [rdi + MYMALLOC_SIZE_OFF] 			; r8 : size of segment that needs to be added
 	xor r9, r9 			 						; r9 : prev free segment address
 	.loop_find_position:
+	
+		test rcx, rcx
+		jz .insert_at_end
 		
 		cmp [rcx + MYMALLOC_SIZE_OFF], r8 		; comparing current segment size and size of new segment
 		jge .insert_at_position
@@ -623,8 +646,6 @@ _add_to_specific_free_list:
 		mov r9, rcx
 		mov rcx, [rcx + MYMALLOC_NEXT_FREE_OFF]
 
-		test rcx, rcx
-		jz .insert_at_end
 
 		jmp .loop_find_position
 
@@ -1155,7 +1176,6 @@ _print_free_list_info:
 	lea rsi, [rel malloc_free_list_info]
 	call print_with_new_line
 
-
 	mov r12, [rel free_list_small_segment_head_address]
 	call .print
 
@@ -1165,21 +1185,16 @@ _print_free_list_info:
 	mov r12, [rel free_list_large_segment_head_address]
 	call .print
 
-	jmp .print_final_vertical_line
+	jmp .return
 
 
 	.print:
-
-	test r12, r12
-	jz .print_new_line
-
 	; copy the vertical line
 	lea rdi, [rel malloc_info_buffer]
 	lea rsi, [rel vertial_seperator_line]
 	mov rcx, vertial_seperator_line_len
 	rep movsb
 
-	; copy new_line
 	lea rsi, [rel new_line]
 	mov rcx, 1
 	rep movsb
@@ -1193,6 +1208,9 @@ _print_free_list_info:
 	mov rdi, 1
 	lea rsi, [rel malloc_info_buffer]
 	call print
+
+	test r12, r12
+	jz .print_new_line
 
 
 	xor r13, r13 					; flag to check if last segment was reached
@@ -1245,6 +1263,7 @@ _print_free_list_info:
 		lea rsi, [rel malloc_info_buffer]
 		call print
 
+		inc r14
 
 		.loopback:
 		; move segment to next
@@ -1258,13 +1277,6 @@ _print_free_list_info:
 		lea rsi, [rel new_line]
 		call print
 		ret
-
-
-	.print_final_vertical_line:
-		mov rax, vertial_seperator_line_len
-		mov rdi, 1
-		lea rsi, [rel vertial_seperator_line]
-		call print_with_new_line
 
 
 	.return:

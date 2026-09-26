@@ -41,9 +41,7 @@ TOKEN_STRUCT_ADDRESS_OFF    equ 8
 
 
 
-
-
-
+; process token_array and build pipeline
 _process_tokens:
     mov rax,  -1
     ret

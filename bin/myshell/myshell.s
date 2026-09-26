@@ -229,8 +229,8 @@ _init:
     call _set_prefix_line
     call _get_and_set_memory_for_input_buffer
     call _set_last_command_exit_code
-    call _initialize_shell_env_array
     .two:
+    call _initialize_shell_env_array
     ret
 
 
