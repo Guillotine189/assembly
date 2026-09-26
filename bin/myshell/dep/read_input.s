@@ -78,6 +78,7 @@ extern _free
 extern _print_malloc_segments_info
 extern _print_detailed_malloc
 extern _print_more_malloc_info
+;extern _print_free_list_info
 
 extern _mem_copy
 extern _print
@@ -876,6 +877,25 @@ _read_input:
         mov [rel cursor_idx], rax
         jmp .read_key
 
+    .print_free_list_info:
+
+        mov rax, 1
+        mov rdi, 1
+        lea rsi, [rel new_line]
+        call _print
+
+        ;call _print_free_list_info
+
+        call _print_prefix_line
+
+        mov rax, [rel filled_size_input_buffer_len]
+        mov rdi, 1
+        mov rsi, [rel input_buffer_address]
+        call _print
+
+        mov rax, [rel filled_size_input_buffer_len]
+        mov [rel cursor_idx], rax
+        jmp .read_key
         
     .cursor_left_space:
         mov rax, [rel cursor_idx]

@@ -230,6 +230,7 @@ _init:
     call _get_and_set_memory_for_input_buffer
     call _set_last_command_exit_code
     call _initialize_shell_env_array
+    .two:
     ret
 
 

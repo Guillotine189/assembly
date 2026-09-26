@@ -51,6 +51,14 @@ section .rodata
 	word_occupied db "Occupied", 0
 	word_occupied_len equ $ - word_occupied
 
+	malloc_free_list_info db "myMalloc Free list info: ", 0
+	malloc_free_list_info_len equ $ - malloc_free_list_info
+
+	opening_bracket db '[', 0
+	closing_bracket db ']', 0
+	arrow db " -> ", 0
+	arrow_len equ $ - arrow
+
 section .bss
 
 	malloc_info_buffer resb 256 		; detailed info line
@@ -65,6 +73,7 @@ global _free
 global _print_malloc_segments_info
 global _print_more_malloc_info
 global _print_detailed_malloc
+global _print_free_list_info
 
 ; [free_size_of_this_segments] -> 8bytes
 ; [occupied|free]			   -> 8bytes
@@ -128,7 +137,7 @@ _malloc:
 
 	.use_old_brk:
 	mov r12, [rel malloc_address_last_segment]
-	mov r12, [r12 + MYMALLOC_NEXT_OFF]
+	mov r12, [r12 + MYMALLOC_NEXT_OFF] 				; r12 = old brk
 
 	.continue:
 	cmp qword [rel malloc_address_first_segment], 0
@@ -148,7 +157,7 @@ _malloc:
 	call _find_and_allocate_free_chunk 				; this returns address of free chunk
 
 	test rax, rax 									; or -1 if cannot find a free chunk
-	jl .check_if_last_segment_is_free
+	js .check_if_last_segment_is_free
 	jmp .return
 
 
@@ -215,7 +224,7 @@ _malloc:
 	mov qword [r12 + MYMALLOC_USED_OFF], 1 			; 0 -> free, 1 -> occupied
 	mov qword [r12 + MYMALLOC_PREV_OFF], r13 		; add_prev_segment
 	mov qword [r12 + MYMALLOC_NEXT_OFF], rax 		; add_next_segment = new brk address
-
+	mov qword [r12 + MYMALLOC_NEXT_FREE_OFF], 0 	; not a part of any free list
 	mov [rel malloc_address_last_segment], r12   ; this segment is the last segment now
 	jmp .return_old_brk_address
 
@@ -241,13 +250,13 @@ _malloc:
 ; TODO: maybe when last segment is freed, unmap them?
 ; rdi : address received from malloc
 _free:
+	inc qword [rel free_called]
 	test rdi, rdi
 	jz .invalid_pointer
 
 	cmp qword [rdi + MYMALLOC_USED_OFF], 1
 	jne .invalid_pointer
 
-	inc qword [rel free_called]
 	push rbx
 	push r12
 
@@ -396,7 +405,13 @@ _find_and_allocate_free_chunk:
 	lea rsi, [rel free_list_large_segment_head_address]
 	call _find_chunk
 
+	test rax, rax
+	jl .no_chunk_found
+
 	.return:
+		ret
+	.no_chunk_found:
+		mov rax, -1
 		ret
 
 
@@ -470,11 +485,13 @@ _find_chunk:
 
 		mov rax, [rcx + MYMALLOC_NEXT_FREE_OFF]
 		mov [r9 + MYMALLOC_NEXT_FREE_OFF], rax  		; prev->next = curr->next
+		jmp .continue
 
 		.head_was_free_remove_it:
 			mov rax, [rcx + MYMALLOC_NEXT_FREE_OFF]   
 			mov [r12], rax 							  ; new_head = curr->next_free
 
+		.continue:
 		; mark this segment as occupied
 		mov qword [rcx + MYMALLOC_USED_OFF], 1
 		;clear the free pointer
@@ -715,7 +732,7 @@ _remove_from_specific_free_list:
 		ret
 
 
-	segment_not_found:
+	.segment_not_found:
 		mov rax, -1
 		ret
 
@@ -1126,6 +1143,137 @@ _print_detailed_malloc:
 		pop r13
 		pop r12
 		ret
+
+
+_print_free_list_info:
+	push r12
+	push r13
+	push r14
+
+	mov rax, malloc_free_list_info_len
+	mov rdi, 1
+	lea rsi, [rel malloc_free_list_info]
+	call print_with_new_line
+
+
+	mov r12, [rel free_list_small_segment_head_address]
+	call .print
+
+	mov r12, [rel free_list_medium_segment_head_address]
+	call .print
+
+	mov r12, [rel free_list_large_segment_head_address]
+	call .print
+
+	jmp .print_final_vertical_line
+
+
+	.print:
+
+	test r12, r12
+	jz .print_new_line
+
+	; copy the vertical line
+	lea rdi, [rel malloc_info_buffer]
+	lea rsi, [rel vertial_seperator_line]
+	mov rcx, vertial_seperator_line_len
+	rep movsb
+
+	; copy new_line
+	lea rsi, [rel new_line]
+	mov rcx, 1
+	rep movsb
+
+	; calculate size
+	mov rcx, rdi
+	lea r8, [rel malloc_info_buffer]
+	sub rcx, r8
+
+	mov rax, rcx
+	mov rdi, 1
+	lea rsi, [rel malloc_info_buffer]
+	call print
+
+
+	xor r13, r13 					; flag to check if last segment was reached
+	mov r14, 1 						; number of segments 
+	.loop_and_print_till_last_segment:
+		cmp r12, 0
+		je .print_new_line
+
+		lea rdi, [rel malloc_info_buffer]
+
+		cmp r14, 1
+		je .skip_printing_arrow
+
+		;copy arrow
+		lea rsi, [rel arrow]
+		mov rcx, arrow_len
+		rep movsb
+
+		.skip_printing_arrow:
+
+		; copy the '['
+		lea rsi, [rel opening_bracket]
+		mov rcx, 1
+		rep movsb
+
+		push rdi 				; save the next position for insertion
+		;convert size into ascii
+		mov rax, [r12 + MYMALLOC_SIZE_OFF]
+		lea rdi, [rel number_buffer]
+		call itoa
+		pop rdi
+
+		; copy the size of free segment
+		lea rsi, [rel number_buffer]
+		mov rcx, rax
+		rep movsb
+		
+		; copy the ']'
+		lea rsi, [rel closing_bracket]
+		mov rcx, 1
+		rep movsb
+
+		;calculate the size of 
+		mov rcx, rdi
+		lea r8, [rel malloc_info_buffer]
+		sub rcx, r8
+
+		mov rax, rcx
+		mov rdi, 1
+		lea rsi, [rel malloc_info_buffer]
+		call print
+
+
+		.loopback:
+		; move segment to next
+		mov r12, [r12 + MYMALLOC_NEXT_FREE_OFF]
+		jmp .loop_and_print_till_last_segment
+
+
+	.print_new_line:
+		mov rax, 1
+		mov rdi, 1
+		lea rsi, [rel new_line]
+		call print
+		ret
+
+
+	.print_final_vertical_line:
+		mov rax, vertial_seperator_line_len
+		mov rdi, 1
+		lea rsi, [rel vertial_seperator_line]
+		call print_with_new_line
+
+
+	.return:
+		pop r14
+		pop r13
+		pop r12
+		ret
+
+
 
 
 

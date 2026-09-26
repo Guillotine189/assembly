@@ -5,6 +5,7 @@
 
 section .rodata
     null_qword dq 0
+    path db "PATH=", 0
 
 
 
@@ -24,8 +25,6 @@ extern shell_env_array_object
 extern token_array
 
 global _process_tokens
-
-
 
 ; type enum
 TYPE_END                    equ 0

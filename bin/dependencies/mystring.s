@@ -138,7 +138,7 @@ _append_string_mystring:
 
 	add [r12 + MYSTRING_SIZE_OFF], r13 			; update the size
 
-	jmp .return
+	jmp .return_success
 
 
 	.get_more_space_string:
@@ -188,8 +188,13 @@ _append_string_mystring:
 	.error_increasng_string_size:
 	.error_appending_string:
 		mov rax, -1
+		pop r14
+		pop r13
+		pop r12
+		ret
 
-	.return:
+	.return_success:
+		xor rax, rax
 		pop r14
 		pop r13
 		pop r12
@@ -237,7 +242,7 @@ _append_bytes_mystring:
 
 	add [r12 + MYSTRING_SIZE_OFF], r13 			; update the size
 
-	jmp .return
+	jmp .return_success
 
 
 	.get_more_space_string:
@@ -287,8 +292,13 @@ _append_bytes_mystring:
 	.error_increasng_string_size:
 	.error_appending_string:
 		mov rax, -1
+		pop r14
+		pop r13
+		pop r12
+		ret
 
-	.return:
+	.return_success:
+		xor rax, rax
 		pop r14
 		pop r13
 		pop r12

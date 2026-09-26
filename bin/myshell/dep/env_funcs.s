@@ -181,9 +181,25 @@ _initialize_shell_env_array:
 		ret
 
 	.error_adding_env_struct:
+		; TODO: print proper errors
+		mov [rel exit_status_code], rax
+		call _exit_with_status_code
+
 	.error_getting_heap_memory:
+		; TODO: print proper errors
+		mov [rel exit_status_code], rax
+		call _exit_with_status_code
+
 	.error_appending_to_string:
+		; TODO: print proper errors
+		mov [rel exit_status_code], rax
+		call _exit_with_status_code
+
 	.error_creating_string_object:
+		; TODO: print proper errors
+		mov [rel exit_status_code], rax
+		call _exit_with_status_code
+
 	.error_creating_array:
 		; TODO: print proper errors
 		mov [rel exit_status_code], rax

@@ -47,7 +47,7 @@ extern _free
 extern _add_cmd_into_history
 
 global _generate_tokens
-
+global parsed_string_object
 
 ; i have a parsed_string_object that stores the final parsed string
 ; i have a parse_buffer where i add bytes
@@ -1201,7 +1201,7 @@ _free_input_buffer_string_object:
 
 _free_parsed_buffer_string_object:
     lea rdi, [rel parsed_string_object]
-    call _default_dynamic_array_destructor
+    call _destructor_mystring
     ret
 
 _free_token_array:
