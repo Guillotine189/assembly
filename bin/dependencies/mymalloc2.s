@@ -10,6 +10,7 @@ section .data
 	malloc_occupied_segments dq 0
 	malloc_called dq 0
 	free_called dq 0
+	times_asked_os_for_more_memory dq 0
 
 
 section .rodata
@@ -23,10 +24,12 @@ section .rodata
 	info_filled_seg_len equ $ - info_filled_seg
 	info_empty_seg db "Total Free segments: ", 0
 	info_empty_seg_len equ $ - info_empty_seg
-	times_malloc_called db "Times malloc called: ", 0
-	times_malloc_called_len equ $ - times_malloc_called
-	times_free_called db "Times free called: ", 0
-	times_free_called_len equ $ - times_free_called
+	times_malloc_called_line db "Times malloc called: ", 0
+	times_malloc_called_line_len equ $ - times_malloc_called_line
+	times_free_called_line db "Times free called: ", 0
+	times_free_called_line_len equ $ - times_free_called_line
+	times_asked_os_line db "Times asked os for more memory: ", 0
+	times_asked_os_line_len equ $ - times_asked_os_line
 	dash db "-", 0
 
 
@@ -232,6 +235,7 @@ _malloc:
 
 
 	.get_more_heap_space:
+	inc qword [rel times_asked_os_for_more_memory]
 	; move brk up, try to get more heap space
 	mov rax, 12
 	mov rdi, r12 						; address of old brk
@@ -803,9 +807,9 @@ _print_malloc_segments_info:
 	lea rsi, [rel number_buffer]
 	call print_with_new_line
 
-	mov rax, times_malloc_called_len
+	mov rax, times_malloc_called_line_len
 	mov rdi, 1
-	lea rsi, [rel times_malloc_called]
+	lea rsi, [rel times_malloc_called_line]
 	call print
 	mov rax, [rel malloc_called]
 	lea rdi, [rel number_buffer]
@@ -814,11 +818,22 @@ _print_malloc_segments_info:
 	lea rsi, [rel number_buffer]
 	call print_with_new_line
 
-	mov rax, times_free_called_len
+	mov rax, times_free_called_line_len
 	mov rdi, 1
-	lea rsi, [rel times_free_called]
+	lea rsi, [rel times_free_called_line]
 	call print
 	mov rax, [rel free_called]
+	lea rdi, [rel number_buffer]
+	call itoa
+	mov rdi, 1
+	lea rsi, [rel number_buffer]
+	call print_with_new_line
+
+	mov rax, times_asked_os_line_len
+	mov rdi, 1
+	lea rsi, [rel times_asked_os_line]
+	call print
+	mov rax, [rel times_asked_os_for_more_memory]
 	lea rdi, [rel number_buffer]
 	call itoa
 	mov rdi, 1

@@ -13,9 +13,9 @@ nasm -f elf64 ./dep/process_tokens.s -o ./dep/process_tokens.o
 
 # only temporary
 #nasm -f elf64 ../dependencies/errorHandling.s -o ../dependencies/errorHandling.o 
-nasm -f elf64 ../dependencies/mystring.s -o ../dependencies/mystring.o 
-nasm -f elf64 ../dependencies/dynamicarray.s -o ../dependencies/dynamicarray.o 
-nasm -f elf64 ../dependencies/mymalloc2.s -o ../dependencies/mymalloc2.o 
+#nasm -f elf64 ../dependencies/mystring.s -o ../dependencies/mystring.o 
+#nasm -f elf64 ../dependencies/dynamicarray.s -o ../dependencies/dynamicarray.o 
+#nasm -f elf64 ../dependencies/mymalloc2.s -o ../dependencies/mymalloc2.o 
 
 ld   myshell.o \
     ./dep/read_input.o \

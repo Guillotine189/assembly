@@ -20,7 +20,7 @@ extern _free
 ; you can make constructors/destructors yourself 
 
 
-; default constructor: looks at size of one value, and capacity of vecotor
+; default constructor: looks at size of one value, and capacity of array
 ; asks for size_of_1_val*capacity from malloc
 ; if capacity is not given, it allocates 1*size_of_1_value
 ; MAKE SURE SIZE_OF_1_VALUE is PRESENT

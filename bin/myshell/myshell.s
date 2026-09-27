@@ -193,7 +193,7 @@ extern _get_and_set_mem_for_history_array
 extern _read_input
 
 extern _generate_tokens
-extern _process_tokens
+extern _process_token_generate_pipeline
 
 extern _check_and_execute_if_built_in
 extern _check_if_cmd_is_in_path
@@ -894,7 +894,7 @@ _handle_input:
     test rax, rax
     jl .error_parsing_input
 
-    call _process_tokens
+    call _process_token_generate_pipeline
     test rax, rax
     jl .error_parocessing_token
 

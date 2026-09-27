@@ -24,7 +24,7 @@ extern shell_env_array_object
 
 extern token_array
 
-global _process_tokens
+global _process_token_generate_pipeline
 
 ; type enum
 TYPE_END                    equ 0
@@ -34,15 +34,39 @@ TYPE_REDIRECT_OUT           equ 3
 TYPE_REDIRECT_IN            equ 4
 TYPE_ENV_ASSSIGNMENT        equ 5
 
-; 8 bytes for type, 8 bytes for address, total 16 bytes
+; 8 bytes for type, 8 bytes for address
 TOKEN_STRUCT_OBJECT_SIZE    equ 16
 TOKEN_STRUCT_TYPE_OFF       equ 0
 TOKEN_STRUCT_ADDRESS_OFF    equ 8
 
 
 
+
+
+
+_process_token_generate_pipeline:
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ; process token_array and build pipeline
-_process_tokens:
+_process_input:
     mov rax,  -1
     ret
 

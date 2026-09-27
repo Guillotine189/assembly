@@ -787,7 +787,7 @@ _print_line_before_parsing:
     call _print
     ret
 
-; Stage 2 PARSER guarantees
+; Stage 2 PARSER output:
 ; 1. Words are NULL terminated.
 ; 2. operators(|, >, <) are also NULL terminated.
 ; 3. operators are separated from adjacent words.
@@ -799,7 +799,7 @@ _print_line_before_parsing:
 ; 'foo=bar' env -> will produce error in bash
 ; mine will simply resolve single quotes, and foo=bar will be treated as TYPE_ENV_ASSSIGNMENT
 ; so in my shell equivelant will be "'foo=bar'"
-; to fix that, add a flag for '=', in 2nd stage. If '='' was inside a quote, mark that flag as 1
+; to fix that, add a flag for '=', in 2nd stage. If '=' was inside a quote, mark that flag as 1
 ; when classifying token, if '=' is encountered, check weather that was inside a quote or not
 ; if it was inside quotes, then check next, else this is a TYPE_ENV_ASSSIGNMENT
 
