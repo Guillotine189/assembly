@@ -797,11 +797,11 @@ _print_line_before_parsing:
 
 
 ; 'foo=bar' env -> will produce error in bash
-; mine will simply resolve single quotes, and foo=bar will be treated as TYPE_ENV_ASSSIGNMENT
+; mine will simply resolve single quotes, and foo=bar will be treated as TOKEN_TYPE_ENV_ASSSIGNMENT
 ; so in my shell equivelant will be "'foo=bar'"
 ; to fix that, add a flag for '=', in 2nd stage. If '=' was inside a quote, mark that flag as 1
 ; when classifying token, if '=' is encountered, check weather that was inside a quote or not
-; if it was inside quotes, then check next, else this is a TYPE_ENV_ASSSIGNMENT
+; if it was inside quotes, then check next, else this is a TOKEN_TYPE_ENV_ASSSIGNMENT
 
 ; The parsed_string 
 ; for input[ echo PATH=$SHELL !! | grep hello\n ], where older command is[ ls -la ]
@@ -813,12 +813,12 @@ _classify_and_generate_tokens:
     mov rbp, rsp
 
     ; type enum
-    TYPE_END                    equ 0
-    TYPE_WORD                   equ 1
-    TYPE_PIPE                   equ 2
-    TYPE_REDIRECT_OUT           equ 3
-    TYPE_REDIRECT_IN            equ 4
-    TYPE_ENV_ASSSIGNMENT        equ 5
+    TOKEN_TYPE_END                    equ 0
+    TOKEN_TYPE_WORD                   equ 1
+    TOKEN_TYPE_PIPE                   equ 2
+    TOKEN_TYPE_REDIRECT_OUT           equ 3
+    TOKEN_TYPE_REDIRECT_IN            equ 4
+    TOKEN_TYPE_ENV_ASSSIGNMENT        equ 5
 
     ; 8 bytes for type, 8 bytes for address, total 16 bytes
     TOKEN_STRUCT_OBJECT_SIZE    equ 16
@@ -896,7 +896,7 @@ _classify_and_generate_tokens:
         sub rsp, TOKEN_STRUCT_OBJECT_SIZE
 
         lea rcx, [rsp + TOKEN_STRUCT_TYPE_OFF]
-        mov qword [rcx], TYPE_WORD
+        mov qword [rcx], TOKEN_TYPE_WORD
         lea rcx, [rsp + TOKEN_STRUCT_ADDRESS_OFF]
         lea rax, [r9 + r10]             ; address of parsed_string + offset for this token beginning index
         mov [rcx], rax
@@ -991,7 +991,7 @@ _classify_and_generate_tokens:
         sub rsp, TOKEN_STRUCT_OBJECT_SIZE
 
         lea rcx, [rsp + TOKEN_STRUCT_TYPE_OFF]
-        mov qword [rcx], TYPE_ENV_ASSSIGNMENT
+        mov qword [rcx],TOKEN_TYPE_ENV_ASSSIGNMENT
         lea rcx, [rsp + TOKEN_STRUCT_ADDRESS_OFF]
         lea rax, [r9 + r13]
         mov [rcx], rax
@@ -1052,7 +1052,7 @@ _classify_and_generate_tokens:
         sub rsp, TOKEN_STRUCT_OBJECT_SIZE
 
         lea rcx, [rsp + TOKEN_STRUCT_TYPE_OFF]
-        mov qword [rcx], TYPE_PIPE
+        mov qword [rcx], TOKEN_TYPE_PIPE
         lea rcx, [rsp + TOKEN_STRUCT_ADDRESS_OFF]
         mov qword [rcx], 0          ; for pipe, no address
 
@@ -1087,7 +1087,7 @@ _classify_and_generate_tokens:
         sub rsp, TOKEN_STRUCT_OBJECT_SIZE
 
         lea rcx, [rsp + TOKEN_STRUCT_TYPE_OFF]
-        mov qword [rcx], TYPE_REDIRECT_OUT
+        mov qword [rcx], TOKEN_TYPE_REDIRECT_OUT
         lea rcx, [rsp + TOKEN_STRUCT_ADDRESS_OFF]
         mov qword [rcx], 0          ; for >, no address
 
@@ -1121,7 +1121,7 @@ _classify_and_generate_tokens:
         sub rsp, TOKEN_STRUCT_OBJECT_SIZE
 
         lea rcx, [rsp + TOKEN_STRUCT_TYPE_OFF]
-        mov qword [rcx], TYPE_REDIRECT_IN
+        mov qword [rcx], TOKEN_TYPE_REDIRECT_IN
         lea rcx, [rsp + TOKEN_STRUCT_ADDRESS_OFF]
         mov qword [rcx], 0          ; for <, no address
 
@@ -1152,7 +1152,7 @@ _classify_and_generate_tokens:
         sub rsp,  TOKEN_STRUCT_OBJECT_SIZE
 
         lea rcx, [rsp + TOKEN_STRUCT_TYPE_OFF]
-        mov qword [rcx], TYPE_END
+        mov qword [rcx], TOKEN_TYPE_END
         lea rcx, [rsp + TOKEN_STRUCT_ADDRESS_OFF]
         mov qword [rcx], 0          ; for <, no address
 

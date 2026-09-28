@@ -1317,7 +1317,7 @@ _print_free_list_info:
 ; rax : the number
 ; rdi : address of buffer in which output is stored
 ; return address of buffer in rcx
-; length of number in rax
+; number of bytes written in rax
 itoa:
 	test rax, rax
 	jz .zero_length

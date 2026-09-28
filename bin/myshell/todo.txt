@@ -12,6 +12,7 @@ BASIC------
 5.2) In auto complete, if a bic is there, it skips other possible outcomes. Fix that.
 
 6) Command overlow into next line visual fix
+7) shell env, update pwd, old_pwd on chdir. Also check and update other env variables.
 7) see how many times a operations are calling malloc and free. Like double tab.
 
 
@@ -21,4 +22,19 @@ EFFICIENCY------
 8) change error handling library, instead of if else  comparision, make it switch style
 
 CLOSEUP--------
+8.1) right now only 1 redirection output is allowed, or you will overwrite which to redirect out to
 9) Complete all the todos scattered in programs
+
+
+------------------
+nm test
+nm test.o
+nm malloc.o
+
+readelf -h test
+readelf -S test
+readelf -s test
+readelf -r test
+
+objdump -d test
+objdump -dr test
