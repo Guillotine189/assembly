@@ -7,6 +7,8 @@ global _default_dynamic_array_destructor
 global _dynamic_array_add_element
 global _dynamic_array_remove_element
 global _dynamic_array_get_element_address
+global _dynamic_array_clear
+
 
 extern _malloc
 extern _free
@@ -318,5 +320,21 @@ _dynamic_array_get_element_address:
 	.error_invalid_address:
 	.error_negative_index:
 	.error_out_of_bounds:
+		mov rax, -1
+		ret
+
+
+; rdi: address of dynamic_array object 
+; returns: rax : 0 on success , -ve number on error
+_dynamic_array_clear:
+	test rdi, rdi
+	jz .error_invalid_address
+
+	mov qword [rdi + DYNAMICARRAY_SIZE_OFF], 0 		; size of array = 0
+
+	xor rax, rax
+	ret
+
+	.error_invalid_address:
 		mov rax, -1
 		ret

@@ -532,41 +532,41 @@ section .data
 
 section .text
 
-; rax: number of bytes to print 
+; rdi: number of bytes to print 
 ; rdi: fd to write to
 ; rsi: address of string 
-; returns bytes printed rax
+; returns bytes printed rdi
 errorHandling_print_with_new_line:
 
-    mov rdx, rax                    ; rdx total bytes
-    mov rax, 1                      ; write syscall
+    mov rdx, rdi                    ; rdx total bytes
+    mov rdi, 1                      ; write syscall
     syscall
 
     ; print new line
-    mov rax, 10
-    push rax
+    mov rdi, 10
+    push rdi
 
-    mov rax, 1
+    mov rdi, 1
     mov rdi, 1                      ; fd
     mov rsi, rsp                    ; buffer address
     mov rdx, 1                      ; bytes to print
     syscall
 
     .cleanup:
-    pop rax
+    pop rdi
     ret
 
 
 
 %macro CHECK_ERRNO 2
-    cmp rax, %1
+    cmp rdi, %1
     je %2
 %endmacro
 
 
 %macro PRINT_ERRNO 1
 .errno_%1:
-    mov rax, errno_%1_msg_len
+    mov rdi, errno_%1_msg_len
     mov rdi, 1
     lea rsi, [rel errno_%1_msg]
     call errorHandling_print_with_new_line
@@ -579,14 +579,14 @@ errorHandling_print_with_new_line:
 global _print_error_with_new_line
 
 
-; rax: error number (-ve or positive)
+; rdi: error number (-ve or positive)
 _print_error_with_new_line:
-    test rax, rax
+    test rdi, rdi
     jl .negate_error_code
     jmp .find_error
     
     .negate_error_code:
-    	neg rax 			
+    	neg rdi 			
 
     .find_error:
 

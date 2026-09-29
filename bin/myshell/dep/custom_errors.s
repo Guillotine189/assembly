@@ -4,15 +4,10 @@ section .data
     error_code dq 0
     
 section .rodata
+
+    ; --------------------------------  MAIN ---------------------------------
     error_input_init_memory db "MyShell: Error allocating memory for input buffer: ",0
     error_input_init_memory_len equ $ - error_input_init_memory
-
-
-    error_reading_input db "MyShell: Error reading input: ", 0
-    error_reading_input_len equ $ - error_reading_input
-
-    error_increasing_input_buffer_mem db "MyShell: Error increasing input buffer storage: ", 0
-    error_increasing_input_buffer_mem_len equ $ - error_increasing_input_buffer_mem
 
     error_overriding_custom_handler db "MyShell: Error overriding custom handler: ", 0
     error_overriding_custom_handler_len equ $ - error_overriding_custom_handler
@@ -37,6 +32,16 @@ section .rodata
     error_getting_mem_for_cmd_in_history db "MyShell: Error allocating memory for command for history.",0
     error_getting_mem_for_cmd_in_history_len equ $ - error_getting_mem_for_cmd_in_history
 
+
+    ; ----------------------------- READ INPUT ---------------------------------
+    error_reading_input db "MyShell: Error reading input: ", 0
+    error_reading_input_len equ $ - error_reading_input
+
+    error_increasing_input_buffer_mem db "MyShell: Error increasing input buffer storage: ", 0
+    error_increasing_input_buffer_mem_len equ $ - error_increasing_input_buffer_mem
+
+
+    ; ---------------------------- EXECUTE PROCESS ---------------------------------
     error_getting_pipes db "MyShell: Error executing process: Error creating pipe: ", 0
     error_getting_pipes_len equ $ - error_getting_pipes 
 
@@ -60,6 +65,130 @@ section .rodata
 
     parent_error_closing_write_pipe db "MyShell: Error closing parent write pipe: ", 0
     parent_error_closing_write_pipe_len equ $ - parent_error_closing_write_pipe
+
+
+    ; --------------------------- PROCESS TOKENS ---------------------------------
+
+    error_initializing_command_array db "MyShell: Error executing command. Error initializing command array:", 0
+    error_initializing_command_array_len equ $ - error_initializing_command_array
+
+    error_initializing_argv_array db "MyShell: Error executing command. Error initializing argv array:", 0
+    error_initializing_argv_array_len equ $ - error_initializing_argv_array
+
+    error_initializing_envp_array db "MyShell: Error executing command. Error initializing envp array:", 0
+    error_initializing_envp_array_len equ $ - error_initializing_envp_array
+
+    error_redirect_in_expects_word db "MyShell: Unexpected token near '<'", 0
+    error_redirect_in_expects_word_len equ $ - error_redirect_in_expects_word
+
+    error_redirect_out_expects_word db "MyShell: Unexpected token near '>'", 0
+    error_redirect_out_expects_word_len equ $ - error_redirect_out_expects_word
+
+    error_adding_to_argc db "MyShell: Error executing command. Error adding argv variable:", 0
+    error_adding_to_argc_len equ $ - error_adding_to_argc
+
+    error_adding_custom_env_var db "MyShell: Error executing command. Error adding custom env varriable:", 0
+    error_adding_custom_env_var_len equ $ - error_adding_custom_env_var
+
+    error_adding_command_stuct db "MyShell: Error executing command. Error chaining command: ", 0
+    error_adding_command_stuct_len equ $ - error_adding_command_stuct
+
+    error_invalid_token_after_pipe db "MyShell: Unexpected token near '|'", 0
+    error_invalid_token_after_pipe_len equ $ - error_invalid_token_after_pipe
+
+    error_unknow_token db "MyShell: Error executing command. Error unknown token value", 0
+    error_unknow_token_len equ $ - error_unknow_token
+
+
+print_error_initializing_command_array:
+    mov rax, error_initializing_command_array_len
+    mov rdi, 1
+    lea rsi , [rel error_initializing_command_array]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+
+print_error_initializing_argv_array:
+    mov rax, error_initializing_argv_array_len
+    mov rdi, 1
+    lea rsi , [rel error_initializing_argv_array]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+print_error_initializing_envp_array:
+    mov rax, error_initializing_envp_array_len
+    mov rdi, 1
+    lea rsi , [rel error_initializing_envp_array]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+
+print_error_redirect_in_expects_word:
+    mov rax, error_redirect_in_expects_word_len
+    mov rdi, 1
+    lea rsi , [rel error_redirect_in_expects_word]
+    call _print_with_new_line
+    ret
+
+print_error_redirect_out_expects_word:
+    mov rax, error_redirect_out_expects_word_len
+    mov rdi, 1
+    lea rsi , [rel error_redirect_out_expects_word]
+    call _print_with_new_line
+    ret
+
+print_error_adding_to_argc:
+    mov rax, error_adding_to_argc_len
+    mov rdi, 1
+    lea rsi , [rel error_adding_to_argc]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+print_error_adding_custom_env_var:
+    mov rax, error_adding_custom_env_var_len
+    mov rdi, 1
+    lea rsi , [rel error_adding_custom_env_var]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+print_error_adding_command_stuct:
+    mov rax, error_adding_command_stuct_len
+    mov rdi, 1
+    lea rsi , [rel error_adding_command_stuct]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+print_error_invalid_token_after_pipe:
+    mov rax, error_invalid_token_after_pipe_len
+    mov rdi, 1
+    lea rsi , [rel error_invalid_token_after_pipe]
+    call _print_with_new_line
+    ret
+
+print_error_unknow_token:
+    mov rax, error_unknow_token_len
+    mov rdi, 1
+    lea rsi , [rel error_unknow_token]
+    call _print_with_new_line
+    ret
 
 extern _print
 extern _print_with_new_line
@@ -93,13 +222,25 @@ global parent_print_error_moving_child_to_fg
 global parent_print_error_synchronizing_with_child
 global parent_print_error_closing_write_pipe
 
+; ---- process token
+global print_error_initializing_command_array
+global print_error_initializing_argv_array
+global print_error_initializing_envp_array
+global print_error_redirect_in_expects_word
+global print_error_redirect_out_expects_word
+global print_error_adding_to_argc
+global print_error_adding_custom_env_var
+global print_error_adding_command_stuct
+global print_error_invalid_token_after_pipe
+global print_error_unknow_token
+
 print_error_input_init_memory:
     mov rax, error_input_init_memory_len
     mov rdi, 1
     lea rsi, [rel error_input_init_memory]
     call _print
 
-    mov rax, [rel error_code]
+    mov rdi, [rel error_code]
     call _print_error_with_new_line
     ret
 
@@ -110,7 +251,7 @@ print_error_reading_input:
     lea rsi, [rel error_reading_input]
     call _print
 
-    mov rax, [rel error_code]
+    mov rdi, [rel error_code]
     call _print_error_with_new_line
     ret
 
@@ -121,7 +262,7 @@ print_error_increasing_input_mem:
     lea rsi , [rel error_increasing_input_buffer_mem]
     call _print
 
-    mov rax, [rel error_code]
+    mov rdi, [rel error_code]
     call _print_error_with_new_line
     ret
 
@@ -140,7 +281,7 @@ print_error_overriding_custom_handler:
     lea rsi, [rel reusable_buffer]
     call _print
 
-    mov rax, [rel error_code]
+    mov rdi, [rel error_code]
     call _print_error_with_new_line
     ret
 
@@ -151,7 +292,7 @@ print_error_setting_non_con_mode:
     lea rsi , [rel error_setting_non_con_mode]
     call _print
 
-    mov rax, [rel error_code]
+    mov rdi, [rel error_code]
     call _print_error_with_new_line
     ret
 
@@ -163,7 +304,7 @@ print_error_getting_cwd:
     lea rsi , [rel error_getting_cwd]
     call _print
 
-    mov rax, [rel error_code]
+    mov rdi, [rel error_code]
     call _print_error_with_new_line
     ret
 
@@ -174,7 +315,7 @@ print_error_forking:
     lea rsi , [rel error_forking]
     call _print
 
-    mov rax, [rel error_code]
+    mov rdi, [rel error_code]
     call _print_error_with_new_line
     ret
 
@@ -192,7 +333,7 @@ child_print_error_executing_process:
     mov rsi, [rel address_command]
     call _print
 
-    mov rax, [rel error_code]
+    mov rdi, [rel error_code]
     call _print_error_with_new_line
     ret
 
@@ -202,7 +343,7 @@ parent_print_error_closing_read_pipe:
     lea rsi, [rel parent_error_closing_read_pipe]
     call _print
 
-    mov rax, [rel error_code]
+    mov rdi, [rel error_code]
     call _print_error_with_new_line
     ret
 
@@ -212,7 +353,7 @@ parent_print_error_setting_gpid_for_child:
     lea rsi, [rel parent_error_setting_gpid_for_child]
     call _print
 
-    mov rax, [rel error_code]
+    mov rdi, [rel error_code]
     call _print_error_with_new_line
     ret
 
@@ -222,7 +363,7 @@ parent_print_error_moving_child_to_fg:
     lea rsi, [rel parent_error_moving_child_to_fg]
     call _print
 
-    mov rax, [rel error_code]
+    mov rdi, [rel error_code]
     call _print_error_with_new_line
     ret
 
@@ -232,7 +373,7 @@ parent_print_error_synchronizing_with_child:
     lea rsi, [rel parent_error_synchronizing_with_child]
     call _print
 
-    mov rax, [rel error_code]
+    mov rdi, [rel error_code]
     call _print_error_with_new_line
     ret
 
@@ -242,7 +383,7 @@ parent_print_error_closing_write_pipe:
     lea rsi, [rel parent_error_closing_write_pipe]
     call _print
 
-    mov rax, [rel error_code]
+    mov rdi, [rel error_code]
     call _print_error_with_new_line
     ret
 
@@ -273,7 +414,7 @@ print_error_allocating_memory_for_history:
     lea rsi , [rel error_allocating_memory_for_history]
     call _print
 
-    mov rax, [rel error_code]
+    mov rdi, [rel error_code]
     call _print_error_with_new_line
     ret
 
@@ -283,7 +424,7 @@ print_error_getting_mem_for_cmd_in_history:
     lea rsi , [rel error_getting_mem_for_cmd_in_history]
     call _print
 
-    mov rax, [rel error_code]
+    mov rdi, [rel error_code]
     call _print_error_with_new_line
     ret
 
@@ -293,7 +434,7 @@ print_error_getting_pipes:
     lea rsi , [rel error_getting_pipes]
     call _print
 
-    mov rax, [rel error_code]
+    mov rdi, [rel error_code]
     call _print_error_with_new_line
     ret
 
@@ -304,6 +445,7 @@ print_error_getting_pgid:
     lea rsi , [rel error_getting_pgid]
     call _print
 
-    mov rax, [rel error_code]
+    mov rdi, [rel error_code]
     call _print_error_with_new_line
     ret
+

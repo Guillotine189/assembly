@@ -12,28 +12,42 @@ section .rodata
 
 
 section .text
-
-; old 
-extern command_argc_dynamic_array_object
-extern command_argv_dynamic_array_object
+; old
 extern parsed_string_object
 extern address_command
+extern shell_env_array_object
+extern command_argc_dynamic_array_object
+extern command_argv_dynamic_array_object
 
-
+; error
+extern error_code
+extern print_error_initializing_command_array
+extern print_error_initializing_argv_array
+extern print_error_initializing_envp_array
+extern print_error_redirect_in_expects_word
+extern print_error_redirect_out_expects_word
+extern print_error_adding_to_argc
+extern print_error_adding_custom_env_var
+extern print_error_adding_command_stuct
+extern print_error_invalid_token_after_pipe
+extern print_error_unknow_token
 
 
 extern _default_dynamic_array_constructor
 extern _default_dynamic_array_destructor
 extern _dynamic_array_add_element
 extern _dynamic_array_get_element_address
+extern _dynamic_array_clear
 
 extern shell_env_array_object
 
 extern token_array
 
 global _process_token_generate_pipeline
+global _free_command_array
 
-; type enum
+
+; token type enum
 TOKEN_TYPE_END                    equ 0
 TOKEN_TYPE_WORD                   equ 1
 TOKEN_TYPE_PIPE                   equ 2
@@ -46,7 +60,7 @@ TOKEN_STRUCT_OBJECT_SIZE    equ 16
 TOKEN_STRUCT_TYPE_OFF       equ 0
 TOKEN_STRUCT_ADDRESS_OFF    equ 8
 
-; > can be a [file, /dev/null, named+pip, etc] All can be just opened with open(o_wonly, o_create, O_truncate)
+; > can be a [file, /dev/null, named_pipe, etc] All can be just opened with open(o_wonly, o_create, O_truncate)
 REDIRECT_STRUCT_SIZE            equ 16
 REDIRECT_STRUCT_TYPE_OFF        equ 0
 REDIRECT_STRUCT_ADDRESS_OFF     equ 8
@@ -58,14 +72,14 @@ REDIRECT_TYPE_OTHER             equ 2
 
 COMMAND_STRUCT_SIZE             equ 104
 COMMAND_STRUCT_NAME_OFF         equ 0
-COMMAND_STRUCT_ARGC_OBJ_OFF     equ 8
-COMMAND_STRUCT_ENVP_OBJ_OFF     equ COMMAND_STRUCT_ARGC_OBJ_OFF + DYNAMICARRAY_OBJECT_SIZE
+COMMAND_STRUCT_ARGV_OBJ_OFF     equ 8
+COMMAND_STRUCT_ENVP_OBJ_OFF     equ COMMAND_STRUCT_ARGV_OBJ_OFF + DYNAMICARRAY_OBJECT_SIZE
 COMMAND_STRUCT_RIN_STRUCT_OFF   equ COMMAND_STRUCT_ENVP_OBJ_OFF + DYNAMICARRAY_OBJECT_SIZE
 COMMAND_STRUCT_ROUT_STRUCT_OFF  equ COMMAND_STRUCT_RIN_STRUCT_OFF + REDIRECT_STRUCT_SIZE
 
 ; command struct: 
 ; [address of command name]     8bytes
-; [argc_array_object_address]   32bytes
+; [argv_array_object_address]   32bytes
 ; [envp_array_object_address]   32bytes
 ; [redirect_in_struct]          16bytes
 ; [redirect_out_struct]         16bytes
@@ -106,7 +120,7 @@ _process_token_generate_pipeline:
 
 
     ; build argc array object
-    lea rdi, [rsp + COMMAND_STRUCT_ARGC_OBJ_OFF]
+    lea rdi, [rsp + COMMAND_STRUCT_ARGV_OBJ_OFF]
     mov qword [rdi + DYNAMICARRAY_CAPACITY_OFF], 7    ; expect 7 argument, more then enough
     mov qword [rdi + DYNAMICARRAY_SIZE_OFF], 0
     mov qword [rdi + DYNAMICARRAY_ELEMENT_SIZE_OFF], 8 ; i will be storing pointers to argc
@@ -114,7 +128,7 @@ _process_token_generate_pipeline:
     call _default_dynamic_array_constructor
 
     test rax, rax
-    jl .error_initializing_argc_array
+    jl .error_initializing_argv_array
 
 
     ; build array object for envp
@@ -159,14 +173,17 @@ _process_token_generate_pipeline:
 
     mov rcx, [rax + TOKEN_STRUCT_TYPE_OFF]              ; rcx: the type of token
 
+    cmp rcx, TOKEN_TYPE_WORD
+    je .handle_word
+
     cmp rcx, TOKEN_TYPE_END
     je .end_of_tokens
 
+    cmp rcx, TOKEN_TYPE_PIPE
+    je .handle_pipe
+
     cmp rcx, TOKEN_TYPE_REDIRECT_OUT
     je .handle_redirect_out
-
-    cmp rcx, TOKEN_TYPE_WORD
-    je .handle_word
 
     cmp rcx, TOKEN_TYPE_REDIRECT_IN
     je .handle_redirect_in
@@ -174,8 +191,6 @@ _process_token_generate_pipeline:
     cmp rcx, TOKEN_TYPE_ENV_ASSSIGNMENT
     je .handle_env_assignment
 
-    cmp rcx, TOKEN_TYPE_PIPE
-    je .handle_pipe
 
     jmp .error_unknow_token
 
@@ -193,7 +208,6 @@ _process_token_generate_pipeline:
         mov r15, 1                      ; mark redirect seen as true
 
         ; put the redirect out struct into the command array
-        lea rdx, [rax + TOKEN_STRUCT_OBJECT_SIZE]
         mov rdx, [rdx + TOKEN_STRUCT_ADDRESS_OFF]       ; rdx: value of token(which is address)
         
         ; fill the actual redirect struct part of command struct
@@ -206,6 +220,7 @@ _process_token_generate_pipeline:
         jmp .process_next_token
 
     .handle_redirect_in:
+        ; almosost same as redirect out
 
         ; next token must be word
         lea rdx, [rax + TOKEN_STRUCT_OBJECT_SIZE]
@@ -221,7 +236,6 @@ _process_token_generate_pipeline:
         mov qword [rdi + REDIRECT_STRUCT_TYPE_OFF], REDIRECT_TYPE_OTHER
         mov qword [rdi + REDIRECT_STRUCT_ADDRESS_OFF], rdx
 
-        ; consume the filename
         inc r13
 
         jmp .process_next_token
@@ -252,7 +266,7 @@ _process_token_generate_pipeline:
         mov [rsp + COMMAND_STRUCT_NAME_OFF], rdx        ; the address of command has been set inside command struct
 
         .add_as_argument:
-        lea rdi, [rsp + COMMAND_STRUCT_ARGC_OBJ_OFF]       ; rdi: the address of argc arr object for current command
+        lea rdi, [rsp + COMMAND_STRUCT_ARGV_OBJ_OFF]       ; rdi: the address of argc arr object for current command
         lea rsi, [rax + TOKEN_STRUCT_ADDRESS_OFF]       ; rsi: the address of address of command name
         call _dynamic_array_add_element
 
@@ -290,6 +304,9 @@ _process_token_generate_pipeline:
         cmp rdi, TOKEN_TYPE_REDIRECT_OUT
         je .cont
 
+        cmp rdi, TOKEN_TYPE_REDIRECT_IN
+        je .cont
+
         jmp .error_invalid_token_after_pipe
 
         .cont:
@@ -313,7 +330,7 @@ _process_token_generate_pipeline:
 
 
     ; Add aNULL to argc and envp array
-    lea rdi, [rsp + COMMAND_STRUCT_ARGC_OBJ_OFF]
+    lea rdi, [rsp + COMMAND_STRUCT_ARGV_OBJ_OFF]
     lea rsi, [rel null_qword]
     call _dynamic_array_add_element
 
@@ -333,7 +350,7 @@ _process_token_generate_pipeline:
     .build_new_command:
 
     ; initialize argc array object
-    lea rdi, [rsp + COMMAND_STRUCT_ARGC_OBJ_OFF]
+    lea rdi, [rsp + COMMAND_STRUCT_ARGV_OBJ_OFF]
     mov qword [rdi + DYNAMICARRAY_CAPACITY_OFF], 7    ; expect 7 argument, more then enough
     mov qword [rdi + DYNAMICARRAY_SIZE_OFF], 0
     mov qword [rdi + DYNAMICARRAY_ELEMENT_SIZE_OFF], 8 ; i will be storing pointers to argc
@@ -341,7 +358,7 @@ _process_token_generate_pipeline:
     call _default_dynamic_array_constructor
 
     test rax, rax
-    jl .error_initializing_argc_array
+    jl .error_initializing_argv_array
 
 
     ; initialize array object for envp
@@ -377,14 +394,10 @@ _process_token_generate_pipeline:
 
 
 
-
-
-
     .end_of_tokens:
 
     ; Add aNULL to argc and envp array
-    ; Add aNULL to argc and envp array
-    lea rdi, [rsp + COMMAND_STRUCT_ARGC_OBJ_OFF]
+    lea rdi, [rsp + COMMAND_STRUCT_ARGV_OBJ_OFF]
     lea rsi, [rel null_qword]
     call _dynamic_array_add_element
 
@@ -393,56 +406,211 @@ _process_token_generate_pipeline:
     call _dynamic_array_add_element
 
     ; add_command_struct_into_array
-        lea rdi, [rel command_array]
-        mov rsi, rsp                    ; rdi : the address of command struct inside stack
-        call _dynamic_array_add_element
+    lea rdi, [rel command_array]
+    mov rsi, rsp                    ; rdi : the address of command struct inside stack
+    call _dynamic_array_add_element
 
     ; remove_from_stack
-        add rsp, COMMAND_STRUCT_SIZE                ; remove command struct
+    add rsp, COMMAND_STRUCT_SIZE                ; remove command struct
 
-        test rax, rax
-        jl .error_adding_command_stuct
+    test rax, rax
+    jl .error_adding_command_stuct
 
-    .return:
+    ; CHANGE THIS TO RETURN_SUCCESS
+    jmp .return_failure                     
+
+
+
+    .error_initializing_command_array:
+        mov [rel error_code], rax
+        call print_error_initializing_command_array
+        jmp .clean_up_current_stack_and_command_array
+
+    .error_initializing_argv_array:
+        mov [rel error_code], rax
+        call print_error_initializing_argv_array
+
+        add rsp, COMMAND_STRUCT_SIZE
+        call _free_command_array
+        jmp .clean_up_current_stack_and_command_array
+
+    .error_initializing_envp_array:
+
+        mov [rel error_code], rax
+        call print_error_initializing_envp_array
+
+        lea rdi, [rsp + COMMAND_STRUCT_ARGV_OBJ_OFF]
+        call _default_dynamic_array_destructor
+
+        add rsp, COMMAND_STRUCT_SIZE
+        call _free_command_array
+        jmp .clean_up_current_stack_and_command_array
+
+    .error_redirect_in_expects_word:
+        mov [rel error_code], rax
+        call print_error_redirect_in_expects_word
+        jmp .clean_up_current_stack_and_command_array
+
+    .error_redirect_out_expects_word:
+        mov [rel error_code], rax
+        call print_error_redirect_out_expects_word
+        jmp .clean_up_current_stack_and_command_array
+
+    .error_adding_to_argc:
+        mov [rel error_code], rax
+        call print_error_adding_to_argc
+        jmp .clean_up_current_stack_and_command_array
+
+    .error_adding_custom_env_var:
+        mov [rel error_code], rax
+        call print_error_adding_custom_env_var
+        jmp .clean_up_current_stack_and_command_array
+
+    .error_adding_command_stuct:
+        mov [rel error_code], rax
+        call print_error_adding_command_stuct
+        jmp .clean_up_current_stack_and_command_array
+
+    .error_invalid_token_after_pipe:
+        mov [rel error_code], rax
+        call print_error_invalid_token_after_pipe
+        jmp .clean_up_current_stack_and_command_array
+
+    .error_unknow_token:
+        mov [rel error_code], rax
+        call print_error_unknow_token
+        jmp .clean_up_current_stack_and_command_array
+
+
+    .clean_up_current_stack_and_command_array:
+        ; clean up the argc array object
+        lea rdi, [rsp + COMMAND_STRUCT_ARGV_OBJ_OFF]
+        call _default_dynamic_array_destructor
+
+        ; clean up the envp array object
+        lea rdi, [rsp + COMMAND_STRUCT_ENVP_OBJ_OFF]
+        call _default_dynamic_array_destructor
+
+        ; remove the command struct from stack
+        add rsp, COMMAND_STRUCT_SIZE
+
+        ; free all the other commands that were made during this process
+        call _free_command_array
+        jmp .return_failure
+
+    .return_failure:
+        pop r15
+        pop r14
+        pop r13
+        pop r12
+        mov rsp, rbp
+        pop rbp
         mov rax, -1
+        ret
+        
+    .return_success:
+        pop r15
+        pop r14
+        pop r13
+        pop r12
+        mov rsp, rbp
+        pop rbp
+        xor rax, rax
         ret
 
 
+; this function frees the array object inside the individual command_struct, then
+; free the command array manually by calling default_destructor
+_free_command_array:
+    push r12
+    push r13
+    push r14
+    push r15
+    
+    lea r12, [rel command_array]
+    mov r13, [r12 + DYNAMICARRAY_POINTER_OFF]           ; r13: the address of 1st command, the beginning of actual array
+    mov r12, [r12 + DYNAMICARRAY_SIZE_OFF]              ; r12: commands array size
+
+    xor r14, r14                                        ; r14: idx for looping inside command array
+
+    ; now for every command, i have ; command struct: 
+    ; [address of command name]     8bytes          ; do nothing
+    ; [argv_array_object_address]   32bytes         ; call destructor on this
+    ; [envp_array_object_address]   32bytes         ; call destructor on this
+    ; [redirect_in_struct]          16bytes          ; do nothing
+    ; [redirect_out_struct]         16bytes          ; do nothing
 
 
-    ;TODO: PROPER CLEANUP ON EVERY ERROR
-    ;TODO: PROPER CLEANUP ON EVERY ERROR
-    ;TODO: PROPER CLEANUP ON EVERY ERROR
-    ;TODO: PROPER CLEANUP ON EVERY ERROR
-    ;TODO: PROPER CLEANUP ON EVERY ERROR
-    .error_initializing_envp_array:
-    .error_initializing_argc_array:
-    .error_nothing_before_redirect_in:
-    .error_redirect_in_expects_word:
-    .error_redirect_out_expects_word:
-    .error_adding_to_argc:
-    .error_adding_custom_env_var:
-    .error_adding_command_stuct:
-    ; synatx error unexpected |
-    .error_invalid_token_after_pipe:
-    .error_unknow_token:
+    .loop_free_inside_objects:
+        cmp r14, r12                        ; if idx = size => break
+        je .free_command_array
 
-    .error_initializing_command_array:
+        ; get the next command
+        lea rdi, [rel command_array]
+        mov rsi, r14
+        call _dynamic_array_get_element_address         
+
+        test rax, rax
+        jl .error_getting_next_command
+
+        ; rax: has the address of next command struct
+        mov r15, rax
+
+
+        ; free argv array obj for this command
+        lea rdi, [r15 + COMMAND_STRUCT_ARGV_OBJ_OFF]
+        call _default_dynamic_array_destructor
+        ; todo : handle error
+
+        ; free envp array obj for this command
+        lea rdi, [r15 + COMMAND_STRUCT_ENVP_OBJ_OFF]
+        call _default_dynamic_array_destructor
+        ; todo : handle error
+
+
+        inc r14
+        jmp .loop_free_inside_objects
+
+
+
+    .free_command_array:
+        ; now free the commmand_array itself. 
+
+        ; TODO: in future, don't free this array, reuse it. Only clear it and move on.
+        ; No need to allocate, deallocate this again and again when i will be using it for executing commands everytime.
+
+
+        lea rdi, [rel command_array]
+        call _dynamic_array_clear
+
+        lea rdi, [rel command_array]
+        call _default_dynamic_array_destructor
+        ; todo : handle error
+
+        jmp .return_success
+
+
+    .error_getting_next_command:
+        ; TODO: print proper error
         jmp .return_failure
 
 
 
+    .return_success:
+        pop r15
+        pop r14
+        pop r13
+        pop r12
+        xor rax, rax
+        ret
 
-        .return_failure:
-            pop r15
-            pop r14
-            pop r13
-            pop r12
-            mov rsp, rbp
-            pop rbp
-            mov rax, -1
-            ret
-
+    .return_failure:
+        pop r15
+        pop r14
+        pop r13
+        pop r12
+        mov rax, -1
+        ret
 
 
 
@@ -466,7 +634,7 @@ _process_input:
     call _default_dynamic_array_constructor
 
     test rax, rax
-    jl .error_initializing_argc_array
+    jl .error_initializing_argv_array
 
 
     ; build array for envp
@@ -610,7 +778,7 @@ _process_input:
         lea rdi, [rel command_argc_dynamic_array_object]
         call _default_dynamic_array_destructor
 
-    .error_initializing_argc_array:
+    .error_initializing_argv_array:
         mov rax, -1
         ret
 
