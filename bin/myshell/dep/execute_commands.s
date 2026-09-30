@@ -164,7 +164,7 @@ _reset_child_signals:
     ; put pgid in fg
     ; release children through sync pipe, write a total of N bytes, one per child.
     ; close parents sync-pipe write end
-    ; wait4 all childs to finish
+    ; wait4 all childs to finish (n chidren = n wait4 calls)
     ; cleanup (change the procee group id to 0)
     ; set non canonical mode
     ; put shell in fg
@@ -422,15 +422,25 @@ _execute_commands:
     call .close_write_sync_pipe
     ; todo: error
 
-    ; reap child group
-    mov rax, sys_wait4   ;syscall number
-    mov rdi, [rel pgid_commands] 
-    neg rdi                 ; -ve pid means i have given it a pgid
-    xor rsi, rsi     ;where to store exit status(For simply waiting, NULL/0 is fine)
-    xor rdx, rdx     ;how to wait
-    xor r10, r10      ;where to store resource usage
-    syscall
+    lea r13, [rel command_array]
+    mov r13, [r13 + DYNAMICARRAY_SIZE_OFF]
+    
+    .loop_reap_all_children:
+        test r13, r13
+        jl .all_children_exited
+        ; reap child group
+        mov rax, sys_wait4   ;syscall number
+        mov rdi, [rel pgid_commands] 
+        neg rdi                 ; -ve pid means i have given it a pgid
+        xor rsi, rsi     ;where to store exit status(For simply waiting, NULL/0 is fine)
+        xor rdx, rdx     ;how to wait
+        xor r10, r10      ;where to store resource usage
+        syscall
 
+        dec r13
+        jmp .loop_reap_all_children
+
+    .all_children_exited:
     ; TODO: handle error for waiting
 
     ; child finished, now take the shell back to foreground
