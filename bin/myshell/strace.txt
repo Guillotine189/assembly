@@ -1,0 +1,285 @@
+                = 4222
+[pid  4222] close(4 <unfinished ...>
+[pid  4213] setpgid(4222, 4222)         = 0
+[pid  4222] <... close resumed>)        = 0
+[pid  4213] fork(strace: Process 4223 attached
+ <unfinished ...>
+[pid  4222] setpgid(0, 0 <unfinished ...>
+[pid  4213] <... fork resumed>)         = 4223
+[pid  4223] close(4 <unfinished ...>
+[pid  4222] <... setpgid resumed>)      = 0
+[pid  4213] setpgid(4223, 4222)         = 0
+[pid  4222] dup2(6, 1 <unfinished ...>
+[pid  4213] close(5 <unfinished ...>
+[pid  4223] <... close resumed>)        = 0
+[pid  4213] <... close resumed>)        = 0
+[pid  4223] setpgid(0, 4222 <unfinished ...>
+[pid  4222] <... dup2 resumed>)         = 1
+[pid  4213] close(6 <unfinished ...>
+[pid  4223] <... setpgid resumed>)      = 0
+[pid  4213] <... close resumed>)        = 0
+[pid  4223] dup2(5, 0 <unfinished ...>
+[pid  4222] close(6 <unfinished ...>
+[pid  4213] ioctl(0, TIOCSPGRP, [4222] <unfinished ...>
+[pid  4223] <... dup2 resumed>)         = 0
+[pid  4213] <... ioctl resumed>)        = 0
+[pid  4223] close(6 <unfinished ...>
+[pid  4222] <... close resumed>)        = 0
+[pid  4213] write(4, ".", 1 <unfinished ...>
+[pid  4223] <... close resumed>)        = 0
+[pid  4213] <... write resumed>)        = 1
+[pid  4223] close(5 <unfinished ...>
+[pid  4222] close(5 <unfinished ...>
+[pid  4213] write(4, ".", 1 <unfinished ...>
+[pid  4223] <... close resumed>)        = 0
+[pid  4213] <... write resumed>)        = 1
+[pid  4223] rt_sigaction(SIGINT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=0} <unfinished ...>
+[pid  4222] <... close resumed>)        = 0
+[pid  4213] close(4)                    = 0
+[pid  4222] rt_sigaction(SIGINT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=0} <unfinished ...>
+[pid  4213] wait4(-4222 <unfinished ...>
+[pid  4222] <... rt_sigaction resumed>, NULL, 8) = 0
+[pid  4223] <... rt_sigaction resumed>, NULL, 8) = 0
+[pid  4222] rt_sigaction(SIGTSTP, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=0} <unfinished ...>
+[pid  4223] rt_sigaction(SIGTSTP, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=0}, NULL, 8) = 0
+[pid  4222] <... rt_sigaction resumed>, NULL, 8) = 0
+[pid  4223] rt_sigaction(SIGTTOU, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=0}, NULL, 8) = 0
+[pid  4222] rt_sigaction(SIGTTOU, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=0} <unfinished ...>
+[pid  4223] rt_sigaction(SIGTTIN, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=0} <unfinished ...>
+[pid  4222] <... rt_sigaction resumed>, NULL, 8) = 0
+[pid  4223] <... rt_sigaction resumed>, NULL, 8) = 0
+[pid  4222] rt_sigaction(SIGTTIN, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=0} <unfinished ...>
+[pid  4223] read(3 <unfinished ...>
+[pid  4222] <... rt_sigaction resumed>, NULL, 8) = 0
+[pid  4223] <... read resumed>, ".", 1) = 1
+[pid  4222] read(3 <unfinished ...>
+[pid  4223] close(3 <unfinished ...>
+[pid  4222] <... read resumed>, ".", 1) = 1
+[pid  4223] <... close resumed>)        = 0
+[pid  4222] close(3 <unfinished ...>
+[pid  4223] execve("/bin/grep", ["/bin/grep", "my"], 0x26e33e47 /* 67 vars */ <unfinished ...>
+[pid  4222] <... close resumed>)        = 0
+[pid  4222] execve("/bin/ls", ["/bin/ls"], 0x26e33897 /* 0 vars */ <unfinished ...>
+[pid  4223] <... execve resumed>)       = 0
+[pid  4223] newfstatat(AT_FDCWD, "/etc/ld.so.cache", {st_mode=S_IFREG|0644, st_size=210411, ...}, 0) = 0
+[pid  4223] openat(AT_FDCWD, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3
+[pid  4223] fstat(3, {st_mode=S_IFREG|0644, st_size=210411, ...}) = 0
+[pid  4223] mmap(NULL, 210411, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7fb225e4b000
+[pid  4223] close(3)                    = 0
+[pid  4223] brk(NULL)                   = 0x561a903ed000
+[pid  4223] mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7fb225e49000
+[pid  4223] access("/etc/ld.so.preload", R_OK) = -1 ENOENT (No such file or directory)
+[pid  4223] newfstatat(AT_FDCWD, "/etc/ld.so.cache", {st_mode=S_IFREG|0644, st_size=210411, ...}, 0) = 0
+[pid  4223] openat(AT_FDCWD, "/usr/lib/libpcre2-8.so.0", O_RDONLY|O_CLOEXEC) = 3
+[pid  4223] read(3, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0"..., 1024) = 1024
+[pid  4223] fstat(3, {st_mode=S_IFREG|0755, st_size=850224, ...}) = 0
+[pid  4223] mmap(NULL, 848368, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7fb225d79000
+[pid  4223] mmap(0x7fb225d7c000, 638976, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x3000) = 0x7fb225d7c000
+[pid  4223] mmap(0x7fb225e18000, 192512, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x9f000) = 0x7fb225e18000
+[pid  4223] mmap(0x7fb225e47000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0xce000 <unfinished ...>
+[pid  4222] <... execve resumed>)       = 0
+[pid  4223] <... mmap resumed>)         = 0x7fb225e47000
+[pid  4222] newfstatat(AT_FDCWD, "/etc/ld.so.cache" <unfinished ...>
+[pid  4223] close(3 <unfinished ...>
+[pid  4222] <... newfstatat resumed>, {st_mode=S_IFREG|0644, st_size=210411, ...}, 0) = 0
+[pid  4223] <... close resumed>)        = 0
+[pid  4222] openat(AT_FDCWD, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC <unfinished ...>
+[pid  4223] newfstatat(AT_FDCWD, "/etc/ld.so.cache" <unfinished ...>
+[pid  4222] <... openat resumed>)       = 3
+[pid  4223] <... newfstatat resumed>, {st_mode=S_IFREG|0644, st_size=210411, ...}, 0) = 0
+[pid  4222] fstat(3, {st_mode=S_IFREG|0644, st_size=210411, ...}) = 0
+[pid  4223] openat(AT_FDCWD, "/usr/lib/libc.so.6", O_RDONLY|O_CLOEXEC <unfinished ...>
+[pid  4222] mmap(NULL, 210411, PROT_READ, MAP_PRIVATE, 3, 0 <unfinished ...>
+[pid  4223] <... openat resumed>)       = 3
+[pid  4222] <... mmap resumed>)         = 0x7f537e104000
+[pid  4223] read(3 <unfinished ...>
+[pid  4222] close(3 <unfinished ...>
+[pid  4223] <... read resumed>, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0P\177\2\0\0\0\0\0"..., 1024) = 1024
+[pid  4222] <... close resumed>)        = 0
+[pid  4223] fstat(3 <unfinished ...>
+[pid  4222] brk(NULL <unfinished ...>
+[pid  4223] <... fstat resumed>, {st_mode=S_IFREG|0755, st_size=2440544, ...}) = 0
+[pid  4223] mmap(NULL, 2464592, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0 <unfinished ...>
+[pid  4222] <... brk resumed>)          = 0x55a627c0c000
+[pid  4223] <... mmap resumed>)         = 0x7fb225a00000
+[pid  4223] mmap(0x7fb225a24000, 1765376, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x24000 <unfinished ...>
+[pid  4222] mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f537e102000
+[pid  4223] <... mmap resumed>)         = 0x7fb225a24000
+[pid  4222] access("/etc/ld.so.preload", R_OK <unfinished ...>
+[pid  4223] mmap(0x7fb225bd3000, 495616, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x1d3000 <unfinished ...>
+[pid  4222] <... access resumed>)       = -1 ENOENT (No such file or directory)
+[pid  4223] <... mmap resumed>)         = 0x7fb225bd3000
+[pid  4223] mmap(0x7fb225c4c000, 24576, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x24b000 <unfinished ...>
+[pid  4222] newfstatat(AT_FDCWD, "/etc/ld.so.cache", {st_mode=S_IFREG|0644, st_size=210411, ...}, 0) = 0
+[pid  4223] <... mmap resumed>)         = 0x7fb225c4c000
+[pid  4223] mmap(0x7fb225c52000, 31568, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1, 0 <unfinished ...>
+[pid  4222] openat(AT_FDCWD, "/usr/lib/libcap.so.2", O_RDONLY|O_CLOEXEC <unfinished ...>
+[pid  4223] <... mmap resumed>)         = 0x7fb225c52000
+[pid  4223] close(3 <unfinished ...>
+[pid  4222] <... openat resumed>)       = 3
+[pid  4223] <... close resumed>)        = 0
+[pid  4222] read(3, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\200\212\0\0\0\0\0\0"..., 1024) = 1024
+[pid  4222] fstat(3, {st_mode=S_IFREG|0755, st_size=51256, ...}) = 0
+[pid  4223] mmap(NULL, 12288, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7fb225d76000
+[pid  4222] mmap(NULL, 53320, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7f537e0f4000
+[pid  4223] arch_prctl(ARCH_SET_FS, 0x7fb225d76740) = 0
+[pid  4222] mmap(0x7f537e0f7000, 28672, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x3000 <unfinished ...>
+[pid  4223] set_tid_address(0x7fb225d76d68 <unfinished ...>
+[pid  4222] <... mmap resumed>)         = 0x7f537e0f7000
+[pid  4223] <... set_tid_address resumed>) = 4223
+[pid  4222] mmap(0x7f537e0fe000, 8192, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0xa000 <unfinished ...>
+[pid  4223] set_robust_list(0x7fb225d76a20, 24) = 0
+[pid  4223] rseq({cpu_id_start=0, cpu_id=RSEQ_CPU_ID_UNINITIALIZED, rseq_cs=NULL, flags=0, node_id=0, mm_cid=0, slice_ctrl={request=0, granted=0, __reserved=0}, __reserved=0}, 33, 0, 0x53053053 <unfinished ...>
+[pid  4222] <... mmap resumed>)         = 0x7f537e0fe000
+[pid  4223] <... rseq resumed>)         = 0
+[pid  4223] getrandom( <unfinished ...>
+[pid  4222] mmap(0x7f537e100000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0xb000 <unfinished ...>
+[pid  4223] <... getrandom resumed>"\x17\x77\xae\x5b\x41\x4e\x97\x61\x9f\xcd\xe0\xa4\x5c\xb1\xb8\xa2", 16, GRND_NONBLOCK) = 16
+[pid  4222] <... mmap resumed>)         = 0x7f537e100000
+[pid  4223] mprotect(0x7fb225c4c000, 16384, PROT_READ <unfinished ...>
+[pid  4222] close(3 <unfinished ...>
+[pid  4223] <... mprotect resumed>)     = 0
+[pid  4222] <... close resumed>)        = 0
+[pid  4222] newfstatat(AT_FDCWD, "/etc/ld.so.cache", {st_mode=S_IFREG|0644, st_size=210411, ...}, 0) = 0
+[pid  4223] mprotect(0x7fb225e47000, 4096, PROT_READ <unfinished ...>
+[pid  4222] openat(AT_FDCWD, "/usr/lib/libc.so.6", O_RDONLY|O_CLOEXEC) = 3
+[pid  4223] <... mprotect resumed>)     = 0
+[pid  4222] read(3 <unfinished ...>
+[pid  4223] mprotect(0x561a72bc9000, 8192, PROT_READ <unfinished ...>
+[pid  4222] <... read resumed>, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0P\177\2\0\0\0\0\0"..., 1024) = 1024
+[pid  4223] <... mprotect resumed>)     = 0
+[pid  4222] fstat(3 <unfinished ...>
+[pid  4223] mprotect(0x7fb225eca000, 8192, PROT_READ <unfinished ...>
+[pid  4222] <... fstat resumed>, {st_mode=S_IFREG|0755, st_size=2440544, ...}) = 0
+[pid  4223] <... mprotect resumed>)     = 0
+[pid  4222] mmap(NULL, 2464592, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7f537de00000
+[pid  4223] prlimit64(0, RLIMIT_STACK, NULL <unfinished ...>
+[pid  4222] mmap(0x7f537de24000, 1765376, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x24000 <unfinished ...>
+[pid  4223] <... prlimit64 resumed>, {rlim_cur=8192*1024, rlim_max=RLIM64_INFINITY}) = 0
+[pid  4222] <... mmap resumed>)         = 0x7f537de24000
+[pid  4223] getrandom("\x8d\x23\xfa\xa7\xa3\xfe\x2d\x7e", 8, GRND_NONBLOCK) = 8
+[pid  4222] mmap(0x7f537dfd3000, 495616, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x1d3000) = 0x7f537dfd3000
+[pid  4222] mmap(0x7f537e04c000, 24576, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x24b000 <unfinished ...>
+[pid  4223] openat(AT_FDCWD, "/usr/lib/locale/locale-archive", O_RDONLY|O_CLOEXEC) = 3
+[pid  4223] fstat(3, {st_mode=S_IFREG|0644, st_size=3069120, ...}) = 0
+[pid  4222] <... mmap resumed>)         = 0x7f537e04c000
+[pid  4222] mmap(0x7f537e052000, 31568, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1, 0) = 0x7f537e052000
+[pid  4222] close(3)                    = 0
+[pid  4222] mmap(NULL, 12288, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f537e0f1000
+[pid  4223] mmap(NULL, 3069120, PROT_READ, MAP_PRIVATE, 3, 0 <unfinished ...>
+[pid  4222] arch_prctl(ARCH_SET_FS, 0x7f537e0f1740 <unfinished ...>
+[pid  4223] <... mmap resumed>)         = 0x7fb225600000
+[pid  4222] <... arch_prctl resumed>)   = 0
+[pid  4223] close(3 <unfinished ...>
+[pid  4222] set_tid_address(0x7f537e0f1d68 <unfinished ...>
+[pid  4223] <... close resumed>)        = 0
+[pid  4223] brk(NULL <unfinished ...>
+[pid  4222] <... set_tid_address resumed>) = 4222
+[pid  4223] <... brk resumed>)          = 0x561a903ed000
+[pid  4222] set_robust_list(0x7f537e0f1a20, 24) = 0
+[pid  4222] rseq({cpu_id_start=0, cpu_id=RSEQ_CPU_ID_UNINITIALIZED, rseq_cs=NULL, flags=0, node_id=0, mm_cid=0, slice_ctrl={request=0, granted=0, __reserved=0}, __reserved=0}, 33, 0, 0x53053053 <unfinished ...>
+[pid  4223] brk(0x561a9040e000 <unfinished ...>
+[pid  4222] <... rseq resumed>)         = 0
+[pid  4223] <... brk resumed>)          = 0x561a9040e000
+[pid  4222] getrandom( <unfinished ...>
+[pid  4223] openat(AT_FDCWD, "/usr/lib/gconv/gconv-modules.cache", O_RDONLY|O_CLOEXEC <unfinished ...>
+[pid  4222] <... getrandom resumed>"\xa4\xee\x12\x94\x79\x58\x16\x47\x15\x5e\x8e\x9f\xb7\x47\x2b\x64", 16, GRND_NONBLOCK) = 16
+[pid  4223] <... openat resumed>)       = 3
+[pid  4222] mprotect(0x7f537e04c000, 16384, PROT_READ <unfinished ...>
+[pid  4223] fstat(3 <unfinished ...>
+[pid  4222] <... mprotect resumed>)     = 0
+[pid  4223] <... fstat resumed>, {st_mode=S_IFREG|0644, st_size=27010, ...}) = 0
+[pid  4222] mprotect(0x7f537e100000, 4096, PROT_READ <unfinished ...>
+[pid  4223] mmap(NULL, 27010, PROT_READ, MAP_SHARED, 3, 0) = 0x7fb225d6f000
+[pid  4222] <... mprotect resumed>)     = 0
+[pid  4223] close(3)                    = 0
+[pid  4223] futex(0x7fb225c516ec, FUTEX_WAKE_PRIVATE, 2147483647 <unfinished ...>
+[pid  4222] mprotect(0x55a613639000, 8192, PROT_READ <unfinished ...>
+[pid  4223] <... futex resumed>)        = 0
+[pid  4222] <... mprotect resumed>)     = 0
+[pid  4222] mprotect(0x7f537e183000, 8192, PROT_READ <unfinished ...>
+[pid  4223] openat(AT_FDCWD, "/usr/share/locale/locale.alias", O_RDONLY|O_CLOEXEC <unfinished ...>
+[pid  4222] <... mprotect resumed>)     = 0
+[pid  4223] <... openat resumed>)       = 3
+[pid  4223] fstat(3, {st_mode=S_IFREG|0644, st_size=2998, ...}) = 0
+[pid  4222] prlimit64(0, RLIMIT_STACK, NULL <unfinished ...>
+[pid  4223] read(3, "# Locale name alias data base.\n#"..., 4096) = 2998
+[pid  4222] <... prlimit64 resumed>, {rlim_cur=8192*1024, rlim_max=RLIM64_INFINITY}) = 0
+[pid  4223] read(3 <unfinished ...>
+[pid  4222] getrandom("\x29\x7f\x2f\xf3\x2f\x55\x25\xa8", 8, GRND_NONBLOCK) = 8
+[pid  4222] prctl(PR_CAPBSET_READ, CAP_MAC_OVERRIDE) = 1
+[pid  4222] prctl(PR_CAPBSET_READ, 0x30 /* CAP_??? */) = -1 EINVAL (Invalid argument)
+[pid  4222] prctl(PR_CAPBSET_READ, CAP_CHECKPOINT_RESTORE) = 1
+[pid  4222] prctl(PR_CAPBSET_READ, 0x2c /* CAP_??? */) = -1 EINVAL (Invalid argument)
+[pid  4222] prctl(PR_CAPBSET_READ, 0x2a /* CAP_??? */ <unfinished ...>
+[pid  4223] <... read resumed>, "", 4096) = 0
+[pid  4223] close(3 <unfinished ...>
+[pid  4222] <... prctl resumed>)        = -1 EINVAL (Invalid argument)
+[pid  4223] <... close resumed>)        = 0
+[pid  4223] openat(AT_FDCWD, "/usr/share/locale/en_IN/LC_MESSAGES/gnulib.mo", O_RDONLY) = -1 ENOENT (No such file or directory)
+[pid  4223] openat(AT_FDCWD, "/usr/share/locale/en/LC_MESSAGES/gnulib.mo", O_RDONLY) = -1 ENOENT (No such file or directory)
+[pid  4223] openat(AT_FDCWD, "/proc/self/maps", O_RDONLY) = 3
+[pid  4222] prctl(PR_CAPBSET_READ, 0x29 /* CAP_??? */ <unfinished ...>
+[pid  4223] mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7fb225d6d000
+[pid  4222] <... prctl resumed>)        = -1 EINVAL (Invalid argument)
+[pid  4223] lseek(3, 0, SEEK_SET)       = 0
+[pid  4222] brk(NULL <unfinished ...>
+[pid  4223] read(3 <unfinished ...>
+[pid  4222] <... brk resumed>)          = 0x55a627c0c000
+[pid  4222] brk(0x55a627c2d000 <unfinished ...>
+[pid  4223] <... read resumed>, "561a72b9e000-561a72ba1000 r--p 0"..., 8192) = 3013
+[pid  4222] <... brk resumed>)          = 0x55a627c2d000
+[pid  4223] read(3 <unfinished ...>
+[pid  4222] ioctl(1, TCGETS2 <unfinished ...>
+[pid  4223] <... read resumed>, "", 5179) = 0
+[pid  4222] <... ioctl resumed>, 0x7fffce7a5130) = -1 ENOTTY (Inappropriate ioctl for device)
+[pid  4223] close(3 <unfinished ...>
+[pid  4222] openat(AT_FDCWD, ".", O_RDONLY|O_NONBLOCK|O_CLOEXEC|O_DIRECTORY) = 3
+[pid  4222] fstat(3, {st_mode=S_IFDIR|0755, st_size=4096, ...}) = 0
+[pid  4222] getdents64(3, 0x55a627c11340 /* 9 entries */, 32768) = 272
+[pid  4222] getdents64(3, 0x55a627c11340 /* 0 entries */, 32768) = 0
+[pid  4223] <... close resumed>)        = 0
+[pid  4222] close(3)                    = 0
+[pid  4222] fstat(1, {st_mode=S_IFIFO|0600, st_size=0, ...}) = 0
+[pid  4222] write(1, "a.out\nbuild_myshell.sh\ndep\nmyshe"..., 65 <unfinished ...>
+[pid  4223] munmap(0x7fb225d6d000, 8192 <unfinished ...>
+[pid  4222] <... write resumed>)        = 65
+[pid  4223] <... munmap resumed>)       = 0
+[pid  4222] close(1)                    = 0
+[pid  4222] close(2 <unfinished ...>
+[pid  4223] sigaltstack({ss_sp=0x561a72bcb6c0, ss_flags=0, ss_size=65536} <unfinished ...>
+[pid  4222] <... close resumed>)        = 0
+[pid  4223] <... sigaltstack resumed>, NULL) = 0
+[pid  4222] exit_group(0)               = ?
+[pid  4223] rt_sigaction(SIGSEGV, {sa_handler=0x561a72bc1a70, sa_mask=[HUP INT QUIT USR1 USR2 PIPE ALRM TERM CHLD URG XCPU XFSZ VTALRM PROF WINCH IO PWR], sa_flags=SA_RESTORER|SA_ONSTACK|SA_SIGINFO, sa_restorer=0x7fb225a44e70}, NULL, 8) = 0
+[pid  4222] +++ exited with 0 +++
+[pid  4223] rt_sigaction(SIGSEGV, {sa_handler=0x561a72bc1a70, sa_mask=[HUP INT QUIT USR1 USR2 PIPE ALRM TERM CHLD URG XCPU XFSZ VTALRM PROF WINCH IO PWR], sa_flags=SA_RESTORER|SA_ONSTACK|SA_SIGINFO, sa_restorer=0x7fb225a44e70} <unfinished ...>
+[pid  4213] <... wait4 resumed>, NULL, 0, NULL) = 4222
+[pid  4223] <... rt_sigaction resumed>, NULL, 8) = 0
+[pid  4213] --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=4222, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+[pid  4223] fstat(1 <unfinished ...>
+[pid  4213] ioctl(0, TIOCSPGRP, [4211] <unfinished ...>
+[pid  4223] <... fstat resumed>, {st_mode=S_IFCHR|0600, st_rdev=makedev(0x88, 0x2), ...}) = 0
+[pid  4213] <... ioctl resumed>)        = 0
+[pid  4223] newfstatat(AT_FDCWD, "/dev/null" <unfinished ...>
+[pid  4213] write(1, "\33[91m\33[1mMyShell\33[0m:\33[92m\33[1m/h"..., 77MyShell:/home/sarthak/Desktop/asm/bin/myshell$ ) = 77
+[pid  4223] <... newfstatat resumed>, {st_mode=S_IFCHR|0666, st_rdev=makedev(0x1, 0x3), ...}, 0) = 0
+[pid  4213] read(0 <unfinished ...>
+[pid  4223] fstat(0, {st_mode=S_IFIFO|0600, st_size=0, ...}) = 0
+[pid  4223] lseek(0, 0, SEEK_CUR)       = -1 ESPIPE (Illegal seek)
+[pid  4223] read(0, "a.out\nbuild_myshell.sh\ndep\nmyshe"..., 98304) = 65
+[pid  4223] fstat(1, {st_mode=S_IFCHR|0600, st_rdev=makedev(0x88, 0x2), ...}) = 0
+[pid  4223] write(1, "build_myshell.sh\n", 17build_myshell.sh
+) = 17
+[pid  4223] write(1, "myshell\n", 8myshell
+)    = 8
+[pid  4223] write(1, "myshell.s\n", 10myshell.s
+) = 10
+[pid  4223] read(0, "", 98304)          = 0
+[pid  4223] close(1)                    = 0
+[pid  4223] close(2)                    = 0
+[pid  4223] exit_group(0)               = ?
+[pid  4223] +++ exited with 0 +++
+<... read resumed>, 0x40e970, 1)        = ? ERESTARTSYS (To be restarted if SA_RESTART is set)
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=4223, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+read(0, "\4", 1)                        = 1

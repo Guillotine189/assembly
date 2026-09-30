@@ -6,7 +6,7 @@
 
 section .data
 
-    pipe_for_sync dd 2        ; to start all child at same time
+    pipe_for_sync dq 0        ; to start all child at same time
     pgid_commands dq 0
 
 section .rodata
@@ -100,13 +100,13 @@ _set_last_command_exit_code:
 
 _reset_child_signals:
     
-    mov rsi, SIGINT
+    mov rdi, SIGINT
     call _reset_signal
-    mov rsi, SIGTSTP
+    mov rdi, SIGTSTP
     call _reset_signal
-    mov rsi, SIGTTOU
+    mov rdi, SIGTTOU
     call _reset_signal
-    mov rsi, SIGTTIN
+    mov rdi, SIGTTIN
     call _reset_signal
     ret
 
@@ -120,6 +120,7 @@ _reset_child_signals:
     ; create a envp_array from shell_env, a general envp array for commands to inherit
     ; initialize pipe array
 
+    ; set old termios
     ; parent_loop
     ; loop through command array
     ; if the command index is 'n'
@@ -152,7 +153,7 @@ _reset_child_signals:
     ; Setup envp_array for execve
     ; restore signal handling
     ; wait for sync signal(read 1 byte)
-    ; close the sync pipe read
+    ; close the both sync pipe read
     ; final check: if the command is built in or not, or if it can be found in path
     ; execve(argc_address, argv_array, envp_array)
     ; handle error execve
@@ -165,6 +166,7 @@ _reset_child_signals:
     ; close parents sync-pipe write end
     ; wait4 all childs to finish
     ; cleanup (change the procee group id to 0)
+    ; set non canonical mode
     ; put shell in fg
 
     ; why use a synchronization pipe?
@@ -179,6 +181,8 @@ _reset_child_signals:
 
 
 _execute_commands:
+    mov qword [rel pgid_commands], 0
+    mov qword [rel pipe_for_sync], 0     ; i know it's 8 bytes long
     
     ; get pipe
     mov rax, sys_pipe
@@ -267,6 +271,9 @@ _execute_commands:
     COMMAND_STRUCT_RIN_STRUCT_OFF   equ COMMAND_STRUCT_ENVP_OBJ_OFF + DYNAMICARRAY_OBJECT_SIZE
     COMMAND_STRUCT_ROUT_STRUCT_OFF  equ COMMAND_STRUCT_RIN_STRUCT_OFF + REDIRECT_STRUCT_SIZE
 
+
+    call _set_old_termios
+
     lea r12, [rel command_array]              ; r12: commmand array object address
     xor r13, r13                              ; r13: idx for looping through command structs
     .loop_parent_setup_child:
@@ -282,7 +289,7 @@ _execute_commands:
 
         ; else close the old pipe pair that are no longer needed
         lea rdi, [rel pipe_array]
-        mov rsi, r13
+        mov rsi, rax
         call _dynamic_array_get_element_address             ; get the pipe pair for this index
         ; todo: handle error
 
@@ -391,6 +398,7 @@ _execute_commands:
     syscall
     ; TODO: handle error for moving child to foreground
 
+
     lea r13, [rel command_array]
     mov r13, [r13 + DYNAMICARRAY_SIZE_OFF]
     .loop_put_bytes_into_write_sync_pipe:
@@ -410,6 +418,7 @@ _execute_commands:
         jmp .loop_put_bytes_into_write_sync_pipe
 
     .done_writing_in_pipe:
+    call .close_read_sync_pipe
     call .close_write_sync_pipe
     ; todo: error
 
@@ -439,6 +448,7 @@ _execute_commands:
 
     .cleanup:
         mov qword [rel pgid_commands], 0
+        mov qword [rel pipe_for_sync], 0     ; i know it's 8 bytes long
         ret
 
 
@@ -490,6 +500,7 @@ _execute_commands:
 
         test rax, rax
         jl .child_error_setting_gpid
+        jmp .check_redirect_in
 
         .use_already_set_pgid:
 
@@ -501,8 +512,10 @@ _execute_commands:
         test rax, rax
         jl .child_error_setting_gpid
 
+        .check_redirect_in:
         ; check redirect in struct
         ; r13 has idx for current command
+
 
         lea rdi, [rel command_array]
         mov rsi, r13
@@ -701,7 +714,9 @@ _execute_commands:
         call _dynamic_array_add_element
         ;todo: handle error
 
+
         .no_change_in_envp_array:
+
         ; restore signal handling
         call _reset_child_signals         ; childs signals have been restored to default
 
@@ -717,6 +732,7 @@ _execute_commands:
         ; close the read sync pipe
         call .close_read_sync_pipe
         ; todo: handle error
+
 
 
         ; now i can execve, but i have to decide which envp array to use
@@ -754,6 +770,13 @@ _execute_commands:
         mov rax, sys_execve
         syscall
 
+
+        ;--------------------------------------
+        ; explicitly end for testing
+        mov rax, 60
+        mov rdi, -2
+        syscall
+        ;--------------------------------------
 
         ; anything after this is error
         ; todo: handle

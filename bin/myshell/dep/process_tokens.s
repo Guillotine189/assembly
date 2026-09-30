@@ -417,7 +417,7 @@ _process_token_generate_commands:
     jl .error_adding_command_stuct
 
     ; CHANGE THIS TO RETURN_SUCCESS
-    jmp .return_failure                     
+    jmp .return_success                     
 
 
 

@@ -308,7 +308,7 @@ _signal_handling:
 
 
 
-; rsi = signal number like SIGINT
+; rdi = signal number like SIGINT
 _reset_signal:
     push rdi
 
@@ -529,6 +529,7 @@ _handle_input:
     call _execute_commands
 
 
+
     ; DEALLOCATE THE parsed_string_object
     lea rdi, [rel parsed_string_object]
     call _destructor_mystring
@@ -564,8 +565,6 @@ _start:
 
         call _handle_input
         jmp .loop_main
-
-    ; TODO: _free_all_memory
 
 
 _cleanup:
