@@ -7,6 +7,7 @@ sys_rt_sigaction    equ 13
 sys_rt_sigreturn    equ 15  
 sys_ioctl		    equ 16
 sys_pipe 			equ 22
+sys_dup2			equ 33
 sys_fork            equ 57
 sys_execve          equ 59
 sys_wait4           equ 61

@@ -24,16 +24,6 @@ extern filled_size_input_buffer_len
 
 extern last_command_exit_code_ascii
 
-extern _constructor_mystring
-extern _destructor_mystring
-extern _append_string_mystring
-extern _append_bytes_mystring
-
-
-extern _default_dynamic_array_constructor
-extern _default_dynamic_array_destructor
-extern _dynamic_array_add_element
-
 extern _itoa
 extern _print
 

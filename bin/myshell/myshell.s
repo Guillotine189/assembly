@@ -190,7 +190,7 @@ global _exit_with_status_code
 global _exit
 global _set_prefix_line
 global _print_prefix_line
-global _set_canonical_mode
+global _set_old_termios
 global _set_noncanonical_mode
 global _reset_signal
 
@@ -377,7 +377,7 @@ _set_noncanonical_mode:
         mov [rel exit_status_code], 1
         jmp _exit_with_status_code
 
-_set_canonical_mode:
+_set_old_termios:
 
     ; restore old struct, get out of nin canonical mode
     mov     rax, sys_ioctl
@@ -570,7 +570,7 @@ _start:
 
 _cleanup:
     
-    call _set_canonical_mode
+    call _set_old_termios
     ret
 
 

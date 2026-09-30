@@ -9,6 +9,7 @@ BASIC------
 5.1) '!!' is replaced by the old command, but the old command is not processed. So it just goes in as 1 big argument. Fix that. ✅
 
 5.1.1) give error when SQ/DQ remains open after pressing enter.
+5.2) After fork, the children should not be forced to be in canonical mode, store and restore the old termios at shell start and put it so
 5.2) In auto complete, if it matches a single bic, it skips other possible outcomes. Fix that.
 
 6) visual fix, when command overflows into next line.
