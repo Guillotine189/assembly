@@ -156,9 +156,11 @@ _process_token_generate_commands:
     ; mark the redirect out and redirect in as default
     lea rax, [rsp + COMMAND_STRUCT_ROUT_STRUCT_OFF]         ; address of redirect out struct
     mov qword [rax + REDIRECT_STRUCT_TYPE_OFF], REDIRECT_TYPE_DEFAULT
+    mov qword [rax + REDIRECT_STRUCT_ADDRESS_OFF], 0
 
     lea rax, [rsp + COMMAND_STRUCT_RIN_STRUCT_OFF]         ; address of redirect in struct
     mov qword [rax + REDIRECT_STRUCT_TYPE_OFF], REDIRECT_TYPE_DEFAULT
+    mov qword [rax + REDIRECT_STRUCT_ADDRESS_OFF], 0
 
 
     .loop_token_struct:
@@ -190,7 +192,7 @@ _process_token_generate_commands:
 
     cmp rcx, TOKEN_TYPE_ENV_ASSSIGNMENT
     je .handle_env_assignment
-
+    ; tODO: ENV ASSIGNAMENT AFTER 1st are wrong
 
     jmp .error_unknow_token
 
@@ -262,8 +264,9 @@ _process_token_generate_commands:
         ; add as command
         ; find the address of command
         mov rdx, [rax + TOKEN_STRUCT_ADDRESS_OFF]       ; rdx: the address of command name
-
         mov [rsp + COMMAND_STRUCT_NAME_OFF], rdx        ; the address of command has been set inside command struct
+
+        ; check if the command is
 
         .add_as_argument:
         lea rdi, [rsp + COMMAND_STRUCT_ARGV_OBJ_OFF]       ; rdi: the address of argc arr object for current command
@@ -280,7 +283,10 @@ _process_token_generate_commands:
     .handle_env_assignment:
         ; rax: the address of current token struct
 
-        ; simply add the value inside token to envp array object
+        ; TODO: CHECK IF THE TOKEN ALREADY EXISTS inside the, eg doo=bar foo=bar 
+        ; should result in foo=bar2 not both
+
+        ; add the value inside token to envp array object
         lea rdi, [rsp + COMMAND_STRUCT_ENVP_OBJ_OFF]       ; rdi: address of envp array obj
         lea rsi, [rax + TOKEN_STRUCT_ADDRESS_OFF]       ; rsi: the address of address of value of envp_var
         call _dynamic_array_add_element
@@ -380,14 +386,14 @@ _process_token_generate_commands:
     ; same with redirect in, "<" take priority over pipe
 
 
-    ; mark the redirect out and redirect in as default
-    lea rax, [rsp + COMMAND_STRUCT_ROUT_STRUCT_OFF]         ; address of redirect out struct
-    mov qword [rax + REDIRECT_STRUCT_TYPE_OFF], REDIRECT_TYPE_DEFAULT
-    mov qword [rax + REDIRECT_STRUCT_ADDRESS_OFF], 0
-
     ;redirect in for next command starts from REDIRECT_TYPE_PIPE, not REDIRECT_TYPE_DEFAULT
     lea rax, [rsp + COMMAND_STRUCT_RIN_STRUCT_OFF]         ; address of redirect in struct
     mov qword [rax + REDIRECT_STRUCT_TYPE_OFF], REDIRECT_TYPE_PIPE
+    mov qword [rax + REDIRECT_STRUCT_ADDRESS_OFF], 0
+
+    ; mark the redirect out and redirect in as default
+    lea rax, [rsp + COMMAND_STRUCT_ROUT_STRUCT_OFF]         ; address of redirect out struct
+    mov qword [rax + REDIRECT_STRUCT_TYPE_OFF], REDIRECT_TYPE_DEFAULT
     mov qword [rax + REDIRECT_STRUCT_ADDRESS_OFF], 0
 
     jmp .loop_token_struct

@@ -3,7 +3,7 @@ BASIC------
 1.1) Put argc arguments and argv arguments inside dynamic array. ✅
 2) Better parser, make it handle pipes, redirection etc. ⏳
 3) Decide how to store the commands, args, envp for every single command.⏳
-4) Run chained commands (ls | grep "data.txt" > output.txt).
+4) Run chained commands (ls | grep "data.txt" > output.txt).⏳
 5) Add auto complete for installed command name only (like ls, grep etc).
 
 5.1) '!!' is replaced by the old command, but the old command is not processed. So it just goes in as 1 big argument. Fix that. ✅
@@ -12,10 +12,13 @@ BASIC------
 5.2) After fork, the children should not be forced to be in canonical mode, store and restore the old termios at shell start and put it so
 5.2) In auto complete, if it matches a single bic, it skips other possible outcomes. Fix that.
 
+5.3) adding a temp env varibale when running a command results in removal of 1st shell env in final. Fix that.
+
 6) visual fix, when command overflows into next line.
 7) Inside shell env, update pwd, old_pwd when chdir. Also check and update other env variables.
 8) right now only 1 redirection output is allowed, or you will overwrite which to redirect out to.
 9 ) add ">>".
+
 
 
 EFFICIENCY------

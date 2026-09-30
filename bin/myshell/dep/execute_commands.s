@@ -427,7 +427,8 @@ _execute_commands:
     
     .loop_reap_all_children:
         test r13, r13
-        jl .all_children_exited
+        je .all_children_exited
+
         ; reap child group
         mov rax, sys_wait4   ;syscall number
         mov rdi, [rel pgid_commands] 
@@ -543,7 +544,7 @@ _execute_commands:
         cmp rax, REDIRECT_TYPE_OTHER
         je .handle_redirect_in_other
 
-        ; if redirect_in is default, conitnue
+        ; if redirect_in is default, continue
         jmp .check_redirect_out
 
         .handle_redirect_in_pipe:
@@ -583,16 +584,24 @@ _execute_commands:
         ; if type_other: check if i can open(o_ronly). Error->exit, else change fd0 to the fd of that.
 
         mov rax, sys_open
-        lea rdi, [r14 + COMMAND_STRUCT_RIN_STRUCT_OFF]
-        mov rdi, [rdi + REDIRECT_STRUCT_ADDRESS_OFF] ; rdi: the address of the file i want to open
+        mov rdi, [r14 + COMMAND_STRUCT_RIN_STRUCT_OFF + REDIRECT_STRUCT_ADDRESS_OFF]
         mov rsi, O_RDONLY
         syscall
         ; todo: give error if i cannot open this and exit
 
-        mov rdi, rax                ; old fd: the one i want to change
-        mov rsi, 0                  ; new fd: the one i want to take place of
+        mov r15, rax
+
+        mov rdi, r15                ; old fd: the one i want new fd to point to
+        mov rsi, 0                  ; new fd: the one that will point to old fd
         mov rax, sys_dup2
         syscall
+        ; todo: error handling and exit
+
+        ; close the fd of file
+        mov rax, sys_close
+        mov rdi, r15
+        syscall
+
         ; todo: error handling and exit
         jmp .check_redirect_out
 
@@ -607,8 +616,8 @@ _execute_commands:
 
         mov r14, rax                        ; r14: the address of current command struct
 
-        lea rax, [r14 + COMMAND_STRUCT_ROUT_STRUCT_OFF]
-        mov rax, [rax + REDIRECT_STRUCT_TYPE_OFF]   ; rax: type of redirect out
+        mov rax, [r14 + COMMAND_STRUCT_ROUT_STRUCT_OFF + REDIRECT_STRUCT_TYPE_OFF]
+        ; rax: type of redirect out
 
         cmp rax, REDIRECT_TYPE_PIPE
         je .handle_redirect_out_pipe
@@ -653,9 +662,9 @@ _execute_commands:
         .handle_redirect_out_other:
         ; if type_other: check if i can open(o_wonly, o_create, O_truncate). Error->exit, else change fd1 to the fd of that.
         mov rax, sys_open
-        lea rdi, [r14 + COMMAND_STRUCT_RIN_STRUCT_OFF]
-        mov rdi, [rdi + REDIRECT_STRUCT_ADDRESS_OFF] ; rdi: the address of the file i want to open
+        mov rdi, [r14 + COMMAND_STRUCT_ROUT_STRUCT_OFF + REDIRECT_STRUCT_ADDRESS_OFF]
         mov rsi, O_WRONLY | O_TRUNC | O_CREAT
+        mov rdx, 0666q                    ; read+write
         syscall
         ; todo: give error if i cannot create this and exit
 
@@ -695,7 +704,7 @@ _execute_commands:
         .loop_shell_env_array2:
 
             cmp r12, [r14 + DYNAMICARRAY_SIZE_OFF]
-            je .done_adding_shell_env_var2
+            je .no_change_in_envp_array             ; the common one already includes a NULL qword
 
             mov rax, r12
             mov rcx, [r14 + DYNAMICARRAY_ELEMENT_SIZE_OFF]
@@ -715,15 +724,6 @@ _execute_commands:
 
             inc r12
             jmp .loop_shell_env_array2
-
-        .done_adding_shell_env_var2:
-        ; add a null address after them
-        ; r13 is shell_env_array_object
-        mov rdi, r15
-        lea rsi, [rel null_qword]
-        call _dynamic_array_add_element
-        ;todo: handle error
-
 
         .no_change_in_envp_array:
 

@@ -983,7 +983,7 @@ _classify_and_generate_tokens:
         lea rcx, [rsp + TOKEN_STRUCT_TYPE_OFF]
         mov qword [rcx],TOKEN_TYPE_ENV_ASSSIGNMENT
         lea rcx, [rsp + TOKEN_STRUCT_ADDRESS_OFF]
-        lea rax, [r9 + r13]
+        lea rax, [r9 + r10]
         mov [rcx], rax
 
         ; add token struct to array
