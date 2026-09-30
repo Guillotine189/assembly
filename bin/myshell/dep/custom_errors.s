@@ -99,96 +99,9 @@ section .rodata
     error_unknow_token db "MyShell: Error executing command. Error unknown token value", 0
     error_unknow_token_len equ $ - error_unknow_token
 
+section .bss
+    reusable_buffer_error resb 1024
 
-print_error_initializing_command_array:
-    mov rax, error_initializing_command_array_len
-    mov rdi, 1
-    lea rsi , [rel error_initializing_command_array]
-    call _print
-
-    mov rdi, [rel error_code]
-    call _print_error_with_new_line
-    ret
-
-
-print_error_initializing_argv_array:
-    mov rax, error_initializing_argv_array_len
-    mov rdi, 1
-    lea rsi , [rel error_initializing_argv_array]
-    call _print
-
-    mov rdi, [rel error_code]
-    call _print_error_with_new_line
-    ret
-
-print_error_initializing_envp_array:
-    mov rax, error_initializing_envp_array_len
-    mov rdi, 1
-    lea rsi , [rel error_initializing_envp_array]
-    call _print
-
-    mov rdi, [rel error_code]
-    call _print_error_with_new_line
-    ret
-
-
-print_error_redirect_in_expects_word:
-    mov rax, error_redirect_in_expects_word_len
-    mov rdi, 1
-    lea rsi , [rel error_redirect_in_expects_word]
-    call _print_with_new_line
-    ret
-
-print_error_redirect_out_expects_word:
-    mov rax, error_redirect_out_expects_word_len
-    mov rdi, 1
-    lea rsi , [rel error_redirect_out_expects_word]
-    call _print_with_new_line
-    ret
-
-print_error_adding_to_argc:
-    mov rax, error_adding_to_argc_len
-    mov rdi, 1
-    lea rsi , [rel error_adding_to_argc]
-    call _print
-
-    mov rdi, [rel error_code]
-    call _print_error_with_new_line
-    ret
-
-print_error_adding_custom_env_var:
-    mov rax, error_adding_custom_env_var_len
-    mov rdi, 1
-    lea rsi , [rel error_adding_custom_env_var]
-    call _print
-
-    mov rdi, [rel error_code]
-    call _print_error_with_new_line
-    ret
-
-print_error_adding_command_stuct:
-    mov rax, error_adding_command_stuct_len
-    mov rdi, 1
-    lea rsi , [rel error_adding_command_stuct]
-    call _print
-
-    mov rdi, [rel error_code]
-    call _print_error_with_new_line
-    ret
-
-print_error_invalid_token_after_pipe:
-    mov rax, error_invalid_token_after_pipe_len
-    mov rdi, 1
-    lea rsi , [rel error_invalid_token_after_pipe]
-    call _print_with_new_line
-    ret
-
-print_error_unknow_token:
-    mov rax, error_unknow_token_len
-    mov rdi, 1
-    lea rsi , [rel error_unknow_token]
-    call _print_with_new_line
-    ret
 
 extern _print
 extern _print_with_new_line
@@ -197,7 +110,6 @@ extern _itoa
 extern _strlen
 
 extern error_custom_handler_number
-extern reusable_buffer
 extern address_command
 
 
@@ -274,11 +186,11 @@ print_error_overriding_custom_handler:
     call _print
 
     mov rax, [rel error_custom_handler_number]
-    lea rdi, [rel reusable_buffer]
+    lea rdi, [rel reusable_buffer_error]
     call _itoa                          ; rax has len of number in bytes
 
     mov rdi, 1
-    lea rsi, [rel reusable_buffer]
+    lea rsi, [rel reusable_buffer_error]
     call _print
 
     mov rdi, [rel error_code]
@@ -449,3 +361,96 @@ print_error_getting_pgid:
     call _print_error_with_new_line
     ret
 
+
+
+; ---------------------- PROCESS TOKENS ----------------------
+
+print_error_initializing_command_array:
+    mov rax, error_initializing_command_array_len
+    mov rdi, 1
+    lea rsi , [rel error_initializing_command_array]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+
+print_error_initializing_argv_array:
+    mov rax, error_initializing_argv_array_len
+    mov rdi, 1
+    lea rsi , [rel error_initializing_argv_array]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+print_error_initializing_envp_array:
+    mov rax, error_initializing_envp_array_len
+    mov rdi, 1
+    lea rsi , [rel error_initializing_envp_array]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+
+print_error_redirect_in_expects_word:
+    mov rax, error_redirect_in_expects_word_len
+    mov rdi, 1
+    lea rsi , [rel error_redirect_in_expects_word]
+    call _print_with_new_line
+    ret
+
+print_error_redirect_out_expects_word:
+    mov rax, error_redirect_out_expects_word_len
+    mov rdi, 1
+    lea rsi , [rel error_redirect_out_expects_word]
+    call _print_with_new_line
+    ret
+
+print_error_adding_to_argc:
+    mov rax, error_adding_to_argc_len
+    mov rdi, 1
+    lea rsi , [rel error_adding_to_argc]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+print_error_adding_custom_env_var:
+    mov rax, error_adding_custom_env_var_len
+    mov rdi, 1
+    lea rsi , [rel error_adding_custom_env_var]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+print_error_adding_command_stuct:
+    mov rax, error_adding_command_stuct_len
+    mov rdi, 1
+    lea rsi , [rel error_adding_command_stuct]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+print_error_invalid_token_after_pipe:
+    mov rax, error_invalid_token_after_pipe_len
+    mov rdi, 1
+    lea rsi , [rel error_invalid_token_after_pipe]
+    call _print_with_new_line
+    ret
+
+print_error_unknow_token:
+    mov rax, error_unknow_token_len
+    mov rdi, 1
+    lea rsi , [rel error_unknow_token]
+    call _print_with_new_line
+    ret

@@ -43,7 +43,7 @@ extern shell_env_array_object
 
 extern token_array
 
-global _process_token_generate_pipeline
+global _process_token_generate_commands
 global _free_command_array
 
 
@@ -85,6 +85,11 @@ COMMAND_STRUCT_ROUT_STRUCT_OFF  equ COMMAND_STRUCT_RIN_STRUCT_OFF + REDIRECT_STR
 ; [redirect_out_struct]         16bytes
 ;                        TOTAL: 104bytes
 
+; argv_array_object -> the final argv that needs to be given
+
+; envp_array_object -> only the EXTRA TEMP ENVP PROVIDED DURING EXECUTION.
+; That means, i have to add the shell envp into this before giving it to execve
+
 ; redirect_struct:
 ; [TYPE]        : redirect_other, pipe, default
 ; [LOCATIION]   : if other: address of location, else NULL
@@ -94,7 +99,7 @@ COMMAND_STRUCT_ROUT_STRUCT_OFF  equ COMMAND_STRUCT_RIN_STRUCT_OFF + REDIRECT_STR
 
 
 
-_process_token_generate_pipeline:
+_process_token_generate_commands:
     push rbp
     mov rbp ,rsp
     push r12
@@ -396,14 +401,14 @@ _process_token_generate_pipeline:
 
     .end_of_tokens:
 
-    ; Add aNULL to argc and envp array
+    ; Add aNULL to argc but not to envp array
     lea rdi, [rsp + COMMAND_STRUCT_ARGV_OBJ_OFF]
     lea rsi, [rel null_qword]
     call _dynamic_array_add_element
 
-    lea rdi, [rsp + COMMAND_STRUCT_ENVP_OBJ_OFF]
-    lea rsi, [rel null_qword]
-    call _dynamic_array_add_element
+    ; lea rdi, [rsp + COMMAND_STRUCT_ENVP_OBJ_OFF]
+    ; lea rsi, [rel null_qword]
+    ; call _dynamic_array_add_element
 
     ; add_command_struct_into_array
     lea rdi, [rel command_array]
@@ -507,7 +512,7 @@ _process_token_generate_pipeline:
         pop rbp
         mov rax, -1
         ret
-        
+
     .return_success:
         pop r15
         pop r14

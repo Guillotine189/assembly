@@ -367,7 +367,7 @@ HIGHER ADDRESSES
                 │             ↓               │
 0x7ffffffde000  └─────────────────────────────┘
                 ↑
-                │ stack grows downward :  ~0–1 TB-ish gap depending on layout/ASLR
+                │ stack grows downward :  ~1 TB-ish gap depending on layout/ASLR
                 │
 
 0x7ffff7dd0000  ┌─────────────────────────────┐
@@ -737,15 +737,15 @@ shell pid: 100
       gpid: 100
 
 child1 pid : 101 
-      gpid: 100 (same as parent gpid)
+      gpid: 101 (same as 1st child's pid)
 
 child2 pid : 102
-      gpid: 100 (same as parent gpid)
+      gpid: 101 (same as 1st child's gpid)
 
 child2 pid : 103 
-      gpid: 100 (same as parent gpid)
+      gpid: 101 (same as 1st child's gpid)
 
-Now shell(parent) decides, which process to put in fg. and then let them handle it.
+Now shell(parent) put gpid 101 in fg and waits for all childrens to exit. Once done, it puts itself into fg.
 
 
 ---------------TO CHANGE PROCESS GPID
@@ -796,62 +796,3 @@ execve
                          v
                   restore shell
                     termios
-
-Pipeline
-│
-├── Command 0
-│   command = "echo"
-│   argv = ["echo", "hello", NULL]
-│   stdin = DEFAULT
-│   stdout = PIPE
-│
-├── Command 1
-│   command = "grep"
-│   argv = ["grep", "hello", NULL]
-│   stdin = PIPE
-│   stdout = PIPE
-│
-└── Command 2
-    command = "wc"
-    argv = ["wc", "-l", NULL]
-    stdin = PIPE
-    stdout = DEFAULT
-
-
-Pipeline
-│
-├── Command 0
-│
-│   command = "echo"
-│
-│   argc = 2
-│
-│   argv:
-│       [0] = "echo"
-│       [1] = "hello"
-│       [2] = NULL
-│
-│   temp_env:
-│       [0] = "FOO=bar"
-│       [1] = NULL
-│
-│   redirects:
-│       stdout → "output.txt"
-│
-│
-└── Command 1
-    │
-    command = "grep"
-    
-    argc = 2
-    
-    argv:
-        [0] = "grep"
-        [1] = "hello"
-        [2] = NULL
-
-    temp_env:
-        NULL
-
-    redirects:
-        stdout → "result.txt"

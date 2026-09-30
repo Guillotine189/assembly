@@ -16,6 +16,7 @@ global og_envp_stack_array_address
 
 global input_buffer_address
 global filled_size_input_buffer_len
+global shell_pgid
 section .data
 
     capacity_input_buffer_len dq 4096
@@ -27,13 +28,9 @@ section .data
 
     og_envp_stack_array_address dq 1
 
-    cursor_position dq 0
-
     input_interrupted dq 0
 
     shell_pgid dq 0
-    child_pid dq 0
-    child_pgid dq 0
 
     exit_status_code dq 0
     exit_flag dq 0
@@ -79,16 +76,9 @@ section .rodata
     clear_scrollback db 0x1b, '[3J'   ; clear the scrollable part of the screen as well
     clear_scrollback_len equ $ - clear_scrollback
 
-    dot db ".",0
-    double_dot_slash db "../", 0
-    back_slash db "/"
-    dot_back_slash db "./", 0
-    dash db '-',0
     semicolon db ":" , 0
     dollar_sign_with_space db "$ ", 0
     new_line db 0x0a, 0
-    null_qword dq 0
-
 
     colour_len equ 5
     colour_reset_len equ 4
@@ -124,11 +114,6 @@ global curr_cwd
 global old_cwd
 global old_cwd_len
 
-global reusable_buffer
-
-global last_command_exit_code_ascii
-global command_argc_dynamic_array_object
-global command_argv_dynamic_array_object
 section .bss
     reusable_buffer resb 4096
 
@@ -146,13 +131,7 @@ section .bss
     termios     resb 60
     old_termios resb 60
 
-    pipe_for_command resd 2             ; 2fd:  4bytes each, [read, write]
-    pipe_read_buffer_child resb 8
 
-    last_command_exit_code_ascii resb 32
-
-    command_argc_dynamic_array_object resb DYNAMICARRAY_OBJECT_SIZE
-    command_argv_dynamic_array_object resb DYNAMICARRAY_OBJECT_SIZE
 
 ; variables
 extern error_code
@@ -176,29 +155,21 @@ extern _cmp_equal_memory
 extern print_error_input_init_memory
 extern print_error_getting_cwd
 extern print_error_overriding_custom_handler
-extern print_error_forking
 extern print_error_setting_non_con_mode
 extern print_error_getting_pgid
-extern print_error_command_not_found
-extern print_error_getting_pipes
-extern child_print_error_executing_process
-extern parent_print_error_closing_read_pipe
-extern parent_print_error_setting_gpid_for_child
-extern parent_print_error_moving_child_to_fg
-extern parent_print_error_synchronizing_with_child
-extern parent_print_error_closing_write_pipe
 
+extern _initialize_shell_env_array
 
 extern _get_and_set_mem_for_history_array
 extern _read_input
 
 extern _generate_tokens
-extern _process_token_generate_pipeline
+extern _process_token_generate_commands
+extern _execute_commands
+extern _set_last_command_exit_code
 
-extern _check_and_execute_if_built_in
-extern _check_if_cmd_is_in_path
 
-extern _initialize_shell_env_array
+
 
 extern _default_dynamic_array_constructor
 extern _default_dynamic_array_destructor
@@ -210,6 +181,7 @@ extern _destructor_mystring
 extern _append_string_mystring
 
 
+
 section .text
 
 
@@ -218,6 +190,9 @@ global _exit_with_status_code
 global _exit
 global _set_prefix_line
 global _print_prefix_line
+global _set_canonical_mode
+global _set_noncanonical_mode
+global _reset_signal
 
 
 _init:
@@ -245,8 +220,6 @@ _signal_do_nothing_handler:
 _signal_do_nothing_restorer:
     mov rax, sys_rt_sigreturn
     syscall
-
-
 
 
 
@@ -526,11 +499,6 @@ _set_prefix_line:
 
     ret
 
-_set_last_command_exit_code:
-    mov rax, 0
-    lea rdi, [rel last_command_exit_code_ascii]
-    call _itoa
-    ret
 
 
 _print_prefix_line:
@@ -539,346 +507,6 @@ _print_prefix_line:
     lea rsi, [rel prefix_line]
     call _print
     ret
-
-
-
-_execute_process:
-
-    ; get pipe
-    mov rax, sys_pipe
-    lea rdi, [rel pipe_for_command]
-    syscall 
-
-    test rax, rax
-    jl .error_getting_pipe
-
-    ; command starts with ./ or / or ../, this is not a built_in or a command that should
-    ; be ran after checking from path env variable
-
-    mov rax, [rel address_command]
-    cmp byte [rax], '/'     ; if 1st byte is /, its a absolute path, direct execution
-    je .execute_command
-
-    mov rax, 2
-    mov rdi, [rel address_command]
-    lea rsi, [rel dot_back_slash]
-    call _cmp_equal_memory
-
-    test rax, rax                    ; if starting with ./, then this is a relative path
-    jz .execute_command 
-
-
-    mov rax, 3
-    mov rdi, [rel address_command]
-    lea rsi, [rel double_dot_slash]
-    call _cmp_equal_memory
-
-    test rax, rax                    ; if starting with ../, then this is a relative path
-    jz .execute_command 
-
-    
-    ; now either the command is built in or it is supposed to be inside path variables
-
-    ; check if the command is built in
-    call _check_and_execute_if_built_in
-    test rax, rax
-    jz .close_pipes                      ; zero mean it was builtin
-
-    ; check if the command is supposed to run using a path var or not
-    call _check_if_cmd_is_in_path
-    test rax, rax
-    jl .command_not_found  ; command not inside env_path either -> give error
-
-    ; now the command is actually in env_path
-
-    ; now if path was found i need to change address of command
-    mov [rel address_command], rax
-
-
-    .execute_command:
-    mov rax, sys_fork
-    syscall  
-
-    test rax, rax
-    jl .error_forking
-    jnz .parent
-
-
-
-    ; this is child now
-
-    ; close the write part of pipe for child, no need
-    call .close_write_pipe
-    test rax, rax
-    jl .child_error_closing_write_pipe
-
-    ; set the gpid of child to be it's own pid
-    mov rax, sys_setpgid
-    xor rdi, rdi               ; pid = 0  -> change for current process
-    xor rsi, rsi               ; gpid = 0 -> use current process's PID as gpid
-    syscall
-
-    test rax, rax
-    jl .child_error_setting_gpid
-
-
-    ; now wait for signal from parent before executing
-    ; eg : [3,4] for [read, write]
-    .try_sync:
-        mov rax, sys_read
-        mov edi, [rel pipe_for_command]
-        lea rsi, [rel pipe_read_buffer_child]
-        mov edx, 1
-        syscall
-
-        cmp rax, 1
-        je .sync_success
-
-        ; if there is an interrupt, this does not mean sync failed
-        cmp rax, -EINTR
-        je .try_sync
-
-        jmp .child_error_synchronizing
-
-    .sync_success:
-
-    ; now close the read pipe 
-    call .close_read_pipe
-    test rax, rax
-    jl .child_error_closing_read_pipe
-
-    ; setup before executing child process
-
-    call _set_canonical_mode                ; terminal is now canonical
-    call _reset_child_signals         ; childs signals have been restored to default
-
-
-    mov rax, sys_execve
-    mov rdi, [rel address_command]
-    lea rsi, [rel command_argc_dynamic_array_object]
-    mov rsi, [rsi + DYNAMICARRAY_POINTER_OFF]
-    lea rdx, [rel command_argv_dynamic_array_object]
-    mov rdx, [rdx + DYNAMICARRAY_POINTER_OFF]
-    syscall
-
-    ; this part only executes when execve failed
-    mov [rel exit_status_code], rax
-    mov [rel error_code], rax
-    call child_print_error_executing_process
-    call _exit_with_status_code
-
-    .child_error_setting_gpid:
-        mov [rel exit_status_code], rax   ; the og error code why checnging gpid failed
-        call .close_read_pipe
-        call _exit_with_status_code
-
-    .child_error_closing_write_pipe:
-        ; close read pipe and exit
-        mov [rel exit_status_code], rax
-        call .close_read_pipe
-        call _exit_with_status_code
-
-    .child_error_closing_read_pipe:
-        ; write pipe is already closed, cannnot close read pipe so exit
-        mov [rel exit_status_code], rax
-        call _exit_with_status_code
-        
-
-    .child_error_synchronizing:
-        mov [rel exit_status_code], rax   ; the og error code why checnging gpid failed
-        ; close the read pipe, wite pipe already closed
-        mov rax, sys_close
-        mov edi, [rel pipe_for_command]
-        syscall
-
-        call _exit_with_status_code
-
-
-
-
-    .parent:
-
-        mov [rel child_pid], rax
-        mov [rel child_pgid], rax
-
-        ; close the read part of the parent
-        call .close_read_pipe
-        test rax, rax
-        jl .parent_error_closing_read_pipe
-
-        ; child_pid is in rax
-
-      ; make sure child is in its own process group. This is done here to avoid race
-        mov rax, sys_setpgid
-        mov rdi, [rel child_pid]
-        mov rsi, [rel child_pid]
-        syscall
-
-        test rax, rax
-        jl .parent_error_setting_gpid_for_child
-
-        ; make child the fg process in terminal 
-        mov rax, sys_ioctl
-        mov rdi, 0                  ; fd of the temrinal / the controlling terminal
-        mov rsi, TIOCSPGRP          ; 0x5410
-        lea rdx, [rel child_pgid]
-        syscall
-        ; TODO: handle error for moving child to foreground
-
-        test rax, rax
-        jl .parent_error_moving_child_to_fg
-
-
-        ; Now send the signal to child group to continue
-        mov rax, sys_write
-        mov edi, [rel pipe_for_command + 4]
-        lea rsi, [rel dot]
-        mov rdx, 1                      ; juts write 1 byte to tell child to start
-        syscall
-        
-        cmp rax, 1
-        jne .parent_error_synchronizing_with_child
-
-        ; close the write part of pipe
-        call .close_write_pipe
-        test rax, rax
-        jl .print_parent_error_closing_write_pipe
-        jmp .wait_and_reclaim_terminal
-
-
-        .print_parent_error_closing_write_pipe:
-          ; i don't want to kill child process here    
-            call .parent_error_closing_write_pipe
-        
-
-
-
-        .wait_and_reclaim_terminal:
-        ; reap child group
-        mov rax, sys_wait4   ;syscall number
-        mov rdi, [rel child_pgid] 
-        neg rdi                 ; -ve pid means i have given it a pgid
-        xor rsi, rsi     ;where to store exit status(For simply waiting, NULL/0 is fine)
-        xor rdx, rdx     ;how to wait
-        xor r10, r10      ;where to store resource usage
-        syscall
-
-        ; TODO: handle error for waiting
-
-        ; child finished, now take the shell back to foreground
-        mov rax, sys_ioctl
-        xor rdi, rdi
-        mov rsi, TIOCSPGRP
-        lea rdx, [rel shell_pgid]
-        syscall
-
-        ; TODO: dont reset non-canonical, save the old state and apply it
-        call _set_noncanonical_mode
-        ret
-
-
-    .parent_error_closing_read_pipe:
-        mov [rel error_code], rax
-        call .close_write_pipe
-        call .kill_and_reap_child_process
-        call parent_print_error_closing_read_pipe
-        ret
-
-    .parent_error_setting_gpid_for_child:
-        mov [rel exit_status_code], rax   ; the og error code why checnging gpid failed
-        call .close_write_pipe          ; read pipe is already closed
-        call .kill_and_reap_child_process
-        call parent_print_error_setting_gpid_for_child
-        ret
-
-    .parent_error_moving_child_to_fg:
-        mov [rel exit_status_code], rax
-        call .close_write_pipe
-        call .kill_and_reap_child_process
-        call parent_print_error_moving_child_to_fg
-        ret
-
-    .parent_error_synchronizing_with_child:
-        mov [rel exit_status_code], rax
-        call .close_write_pipe
-        call .kill_and_reap_child_process
-        call parent_print_error_synchronizing_with_child
-        ret        
-
-    .parent_error_closing_write_pipe:
-        mov [rel exit_status_code], rax
-        call parent_print_error_closing_write_pipe
-        ret        
-
-    .kill_and_reap_child_process:
-        ; 0 pid => send this signal to every process in calling process group 
-        ; pid is -ve: pid is actually a gpid, send signal to all pid inside pgid
-
-        ; sig : 0 => no SIGNAL is sent, but permission and checks are performed
-        ; meaning, i can use this to check if that pid/gpid exists
-        ; but there is a race between checking and killing the child
-        ; thec hild can disappear in between checking if it exists and killing it
-        ; so no point in checking, just kill the child bec i will do it in the end
-
-        ; now send the kill signal to child process group
-        mov rax, sys_kill
-        mov rdi, [rel child_pgid]  
-        neg rdi
-        mov rsi, SIGKILL
-        syscall
-
-        ; whether kill succeeded or not,
-        ; try to reap the child process group.
-        mov rax, sys_wait4
-        mov rdi, [rel child_pgid]
-        neg rdi 
-        xor rsi, rsi
-        xor rdx, rdx
-        xor r10, r10
-        syscall
-
-        ret
-
-
-
-    .command_not_found:
-        mov [rel error_code], rax
-        call print_error_command_not_found
-        jmp .close_pipes
-
-    .error_forking:
-        mov [rel error_code], rax
-        call print_error_forking
-        jmp .close_pipes
-
-    .close_pipes:
-        mov rax, sys_close
-        mov edi, [rel pipe_for_command]
-        syscall
-
-        mov rax, sys_close
-        mov edi, [rel pipe_for_command + 4]
-        syscall
-        ret
-
-    .close_read_pipe:
-        mov rax, sys_close
-        mov edi, [rel pipe_for_command]
-        syscall
-        ret
-
-    .close_write_pipe:
-        mov rax, sys_close
-        mov edi, [rel pipe_for_command + 4]
-        syscall
-        ret
-
-    .error_getting_pipe:
-        mov [rel error_code], rax
-        call print_error_getting_pipes
-        ret
-
-
 
 
 
@@ -894,24 +522,16 @@ _handle_input:
     test rax, rax
     jl .error_parsing_input
 
-    call _process_token_generate_pipeline
+    call _process_token_generate_commands
     test rax, rax
     jl .error_parocessing_token
 
-    call _execute_process
+    call _execute_commands
 
 
     ; DEALLOCATE THE parsed_string_object
     lea rdi, [rel parsed_string_object]
     call _destructor_mystring
-
-    ; DEALLOCATE THE command_argc_dynamic_array_object
-    lea rdi, [rel command_argc_dynamic_array_object]  
-    call _default_dynamic_array_destructor
-
-    ; DEALLOCATE THE command_argv_dynamic_array_object
-    lea rdi, [rel command_argv_dynamic_array_object]
-    call _default_dynamic_array_destructor
 
     ret
 
@@ -947,18 +567,6 @@ _start:
 
     ; TODO: _free_all_memory
 
-
-_reset_child_signals:
-    
-    mov rsi, SIGINT
-    call _reset_signal
-    mov rsi, SIGTSTP
-    call _reset_signal
-    mov rsi, SIGTTOU
-    call _reset_signal
-    mov rsi, SIGTTIN
-    call _reset_signal
-    ret
 
 _cleanup:
     
