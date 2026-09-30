@@ -25,6 +25,7 @@ extern _strlen
 extern _print
 extern _print_with_new_line
 extern _itoa
+extern _strcmp
 
 extern _exit_with_status_code
 
@@ -60,12 +61,32 @@ _get_and_set_mem_for_history_array:
 ; rdi: address of command
 _add_cmd_into_history:
 	; get new space for command
-	push rdi 								; original address saved into stack
+	push r12
+	push r13
+	mov r12, rdi
 
 	call _strlen 						; rax has len of command
-	push rax 								; original len saved in stack
+	mov r13, rax								; original len saved in stack
 
-	mov rdi, rax
+	; check if the command is repeated
+	mov rdi, 1  				; give me the last command
+	call _return_address_of_command_from_newest
+
+	test rax, rax    		; if -1, meaning history doesn't exists
+	jl .continue
+
+	; else i need to check
+	; rax has address of last command
+	mov rdi, r12   			; new command
+	mov rsi, rax  			; old command
+	call _strcmp
+
+	test rax, rax   		; only zero when both are same
+	je .return
+
+
+	.continue:
+	mov rdi, r13
 	inc rdi 								; include the \0
 	call _malloc
     
@@ -75,22 +96,25 @@ _add_cmd_into_history:
 	
 	; copy the command into the address malloc gave me
 	mov rdi, rax 				; address of destination
-	pop rcx 					; len of command
+	mov rcx, r13 					; len of command
 	inc rcx 					; i want to copy 0 byte as well in end
-	pop rsi 					; address of src
+	mov rsi, r12 					; address of src
 	rep movsb
 
 	mov rdi, rax
 	call _add_address_into_array
-	ret
+	jmp .return
 
 	.set_error_getting_mem_for_cmd_in_history:
-		pop rdi
-		pop rdi
 		mov [rel error_code], rax
 		call print_error_getting_mem_for_cmd_in_history
-		ret 			; dont exit, just return and dont save into history
+		jmp .return
 
+
+	.return:
+		pop r13
+		pop r12
+		ret
 
 	
 ; rdi: address you want me to add

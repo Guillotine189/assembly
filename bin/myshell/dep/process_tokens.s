@@ -2,6 +2,7 @@
 %include "../dependencies/mystring.inc"
 %include "../dependencies/dynamicarray.inc"
 
+global command_array
 section .bss
     command_array resb DYNAMICARRAY_SIZE_OFF
 

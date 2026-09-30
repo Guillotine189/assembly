@@ -26,7 +26,7 @@ EFFICIENCY------
 8) change error handling library, instead of if else  comparision, make it switch style.
 
 END--------
-10) Same command when repeated should not be added to history again and again one after the other.
+10) Same command when repeated should not be added to history again and again one after other. ✅
 9) Complete all the todos scattered in programs.
 11) put the line "extern _funtion_name" of every library inside library_name.inc, not just FUNC_OFF
 

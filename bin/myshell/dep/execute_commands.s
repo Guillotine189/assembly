@@ -433,7 +433,13 @@ _execute_commands:
 
     ; TODO: dont reset non-canonical, save the old state and apply it
     call _set_noncanonical_mode
+    call .cleanup
     ret
+
+
+    .cleanup:
+        mov qword [rel pgid_commands], 0
+        ret
 
 
 
@@ -538,9 +544,14 @@ _execute_commands:
         syscall
         ; todo: handle error
 
+        ; close both pipes, RN: fd0 points to same object the pipe pointed to. I can close the pipes
         mov edi, [r14 + 4]               ; a pipe is 4 bytes long, so pipe write is 4 bytes ahead
         mov rax, sys_close
         syscall
+        mov edi, [r14]
+        mov rax, sys_close
+        syscall
+
         ; todo: handle error
         jmp .check_redirect_out
 
@@ -600,9 +611,14 @@ _execute_commands:
         ; Make pipe_read become stdin
         mov rax, sys_dup2
         mov edi, [r14 + 4]        ; oldfd/the one you want to change = pipe_read
-        mov rsi, 1            ; newfd/the one you want to become = stdout
+        mov rsi, 1            ; newfd/the one that will point to the same object as old = stdout
         syscall
         ; todo: handle error
+
+        ; close both pipes, RN: fd1 points to same object the pipe pointed to. I can close the pipes
+        mov edi, [r14 + 4]               ; a pipe is 4 bytes long, so pipe write is 4 bytes ahead
+        mov rax, sys_close
+        syscall
 
         mov edi, [r14]               ; a pipe is 4 bytes long, so pipe write is 4 bytes ahead
         mov rax, sys_close
@@ -620,8 +636,8 @@ _execute_commands:
         syscall
         ; todo: give error if i cannot create this and exit
 
-        mov rdi, rax                ; old fd: the one i want to change
-        mov rsi, 1                  ; new fd: the one i want to take place of
+        mov rdi, rax                ; old fd: the one i want to become
+        mov rsi, 1            ; newfd/the one that will point to the same object as old = stdout
         mov rax, sys_dup2
         syscall
         ; todo: error handling and exit
@@ -720,18 +736,18 @@ _execute_commands:
         je .use_common_env_array
 
         mov rdx, [r8 + DYNAMICARRAY_POINTER_OFF] ; rdx: the address of array of edited envp pointers
-        jmp .execve
+        jmp .run_command
 
         .use_common_env_array:
         lea rdx, [rel common_shell_env_var_array_object]
         mov rdx, [rdx + DYNAMICARRAY_POINTER_OFF]   ; rsi: the address of array or common envp pointers
 
+        .run_command:
+
+        ; final check: if the command is built in, or if it can be found in $PATH
+
+
         .execve:
-
-
-        ; final check: if the command is built in or not, or if it can be found in path
-
-
         mov rdi, [rax + COMMAND_STRUCT_NAME_OFF]        ; this conatins the addres of command name
         lea rsi, [rax + COMMAND_STRUCT_ARGV_OBJ_OFF]
         mov rsi, [rsi + DYNAMICARRAY_POINTER_OFF]       ; rsi: the address containing argv array
