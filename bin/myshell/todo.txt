@@ -13,6 +13,7 @@ BASIC------
 5.2) In auto complete, if it matches a single bic, it skips other possible outcomes. Fix that.
 
 5.3) adding a temp env varibale when running a command results in removal of 1st shell env in final. Fix that.
+5.4) 
 
 6) visual fix, when command overflows into next line.
 7) Inside shell env, update pwd, old_pwd when chdir. Also check and update other env variables.

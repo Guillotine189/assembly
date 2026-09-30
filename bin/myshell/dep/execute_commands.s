@@ -754,8 +754,21 @@ _execute_commands:
         call _dynamic_array_get_element_address
         ;todo: handle errror
         ; rax: the address of current command struct
+        mov r12, rax
 
-        lea r8, [rax + COMMAND_STRUCT_ENVP_OBJ_OFF] ; r8: the address of envp array object 
+        ; final check: if the command is built in, or if it can be found in $PATH
+        mov rdi, [r12 + COMMAND_STRUCT_NAME_OFF]
+        call _check_if_cmd_is_in_path
+
+        test rax, rax
+        jl .final_command_construction
+
+        ; else the final command was inside PATH
+        mov [r12 + COMMAND_STRUCT_NAME_OFF], rax
+
+        .final_command_construction:
+
+        lea r8, [r12 + COMMAND_STRUCT_ENVP_OBJ_OFF] ; r8: the address of envp array object 
         mov rcx, [r8 + DYNAMICARRAY_SIZE_OFF]  ; rcx: the size of envp array
 
         test rcx, rcx
@@ -770,12 +783,9 @@ _execute_commands:
 
         .run_command:
 
-        ; final check: if the command is built in, or if it can be found in $PATH
-
-
         .execve:
-        mov rdi, [rax + COMMAND_STRUCT_NAME_OFF]        ; this conatins the addres of command name
-        lea rsi, [rax + COMMAND_STRUCT_ARGV_OBJ_OFF]
+        mov rdi, [r12 + COMMAND_STRUCT_NAME_OFF]        ; this conatins the addres of command name
+        lea rsi, [r12 + COMMAND_STRUCT_ARGV_OBJ_OFF]
         mov rsi, [rsi + DYNAMICARRAY_POINTER_OFF]       ; rsi: the address containing argv array
         mov rax, sys_execve
         syscall

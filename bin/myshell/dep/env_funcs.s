@@ -652,9 +652,11 @@ _unset_var_in_shell_env:
 
 
 
+; rdi: the address of command(null terminated)
 ; returns address in rax, if exists or -1 if not
 _check_if_cmd_is_in_path:
-	
+	push r12
+	mov r12, rdi
 	; TODO: change this so i can check the env variables for individual commands
 	; Rn i am checking from the original list on env var.
 
@@ -666,6 +668,7 @@ _check_if_cmd_is_in_path:
 	jl .error_path_env_not_found
 
 	mov [rel path_address], rax
+	mov rdi, r12
 	call _parse_path_and_check_if_command_in_path
 
 	test rax, rax
@@ -675,6 +678,7 @@ _check_if_cmd_is_in_path:
 	jmp .inside_path
 
 	.error_path_env_not_found:
+		pop r12
 		mov rax, error_path_env_not_found_len
 		mov rdi, 1
 		lea rsi, [rel error_path_env_not_found]
@@ -684,15 +688,22 @@ _check_if_cmd_is_in_path:
 
 
 	.not_inside_path:
+		pop r12
 		mov rax, -1
 		ret
 
 	.inside_path:
+		pop r12
 		ret
 
-
+; rdi: the address of command(null terminated)
 ; returns: rax : -1 -> if not exists, address of constructed path if exists
 _parse_path_and_check_if_command_in_path:
+	push r12
+	push r13
+	push r14
+
+	mov r14, rdi
 
 	mov rax, [rel path_address]
 	add rax, 5 							; 'PATH=' skipped
@@ -772,10 +783,10 @@ _parse_path_and_check_if_command_in_path:
 		push rax
 
 		.add_command:
-		mov rdi, [rel address_command]
+		mov rdi, r14
 		call _strlen
 		pop rdi
-		mov rsi, [rel address_command]
+		mov rsi, r14
 		mov rdx, 0
 		mov r8, 1
 		call _memcpy_with_end_char 
@@ -804,9 +815,15 @@ _parse_path_and_check_if_command_in_path:
 
 
 	.not_in_path:
+		pop r14
+		pop r13
+		pop r12
 		mov rax, -1
 		ret
 
 	.in_path:
+		pop r14
+		pop r13
+		pop r12
 		lea rax, [rel reusable_buffer_path]
 		ret
