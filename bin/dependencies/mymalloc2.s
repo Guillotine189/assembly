@@ -209,6 +209,7 @@ _malloc:
 		mov rdi, r12						; address of last segment
 		add rdi, METADATA_SIZE 				; add metadat size
 		add rdi, rbx 						; the final size requested
+		add rdi, 32768   					; allocator asking for fixed 32kb more
 		syscall 							; rax has new brk position
 
 		cmp rax, rdi
@@ -223,10 +224,28 @@ _malloc:
 		; Existing last segment is now the requested size.
 	    mov [r12 + MYMALLOC_SIZE_OFF], rbx
 	    mov qword [r12 + MYMALLOC_USED_OFF], 1
-	    mov [r12 + MYMALLOC_NEXT_OFF], rax
+	    mov [r12 + MYMALLOC_NEXT_OFF], r12 
+		add [r12 + MYMALLOC_NEXT_OFF], METADATA_SIZE
+		add [r12 + MYMALLOC_NEXT_OFF], rbx  ; add_next_segment = remaining 32kb segment
+		mov qword [r12 + MYMALLOC_NEXT_FREE_OFF], 0 	; not a part of any free list
 
-	    dec qword [rel malloc_free_segments]
-	    inc qword [rel malloc_occupied_segments]
+		; create the next segment
+		mov r13, [r12 + MYMALLOC_NEXT_OFF]
+
+		mov qword [r13 + MYMALLOC_SIZE_OFF], 32768 - METADATA_SIZE
+		mov qword [r13 + MYMALLOC_USED_OFF], 0
+		mov [r13 + MYMALLOC_NEXT_OFF], rax 		; next offset is new brk
+		mov [r13 + MYMALLOC_PREV_OFF], r12 		; prev is the new segment asked
+		mov [r13 + MYMALLOC_NEXT_FREE_OFF], 0 
+
+		mov [rel malloc_address_last_segment], r13   ; this segment is the last segment now
+
+		; add this new segment into free list
+		mov rdi, r13
+		call _add_to_free_list
+
+
+		inc [rel malloc_total_segments]
 
 	    mov rax, r12
 	    add rax, METADATA_SIZE
@@ -241,22 +260,43 @@ _malloc:
 	mov rdi, r12 						; address of old brk
 	add rdi, METADATA_SIZE 				; add metadat size
 	add rdi, rbx 						; add size requested
+	add rdi, 32768   					; additional 32kb reserved by allocator
 	syscall 							; rax has new brk position
 
 	cmp rax, rdi
 	jne .error_moving_brk_up_and_ret
 
-	inc qword [rel malloc_total_segments]
-	inc qword [rel malloc_occupied_segments]
-
-	;fill_metadata
+	;fill_metadata for asked segment
 
 	mov [r12 + MYMALLOC_SIZE_OFF], rbx 			; 1st 8 bytes: size of free space in this segment
 	mov qword [r12 + MYMALLOC_USED_OFF], 1 			; 0 -> free, 1 -> occupied
 	mov [r12 + MYMALLOC_PREV_OFF], r13 		; add_prev_segment
-	mov [r12 + MYMALLOC_NEXT_OFF], rax 		; add_next_segment = new brk address
 	mov qword [r12 + MYMALLOC_NEXT_FREE_OFF], 0 	; not a part of any free list
-	mov [rel malloc_address_last_segment], r12   ; this segment is the last segment now
+
+	mov [r12 + MYMALLOC_NEXT_OFF], r12 
+	add [r12 + MYMALLOC_NEXT_OFF], METADATA_SIZE
+	add [r12 + MYMALLOC_NEXT_OFF], rbx  ; add_next_segment = remaining 32kb segment
+
+	; create the next segment
+	mov r13, [r12 + MYMALLOC_NEXT_OFF]
+
+	mov qword [r13 + MYMALLOC_SIZE_OFF], 32768 - METADATA_SIZE
+	mov qword [r13 + MYMALLOC_USED_OFF], 0
+	mov [r13 + MYMALLOC_NEXT_OFF], rax 		; next offset is new brk
+	mov [r13 + MYMALLOC_PREV_OFF], r12 		; prev is the new segment asked
+	mov [r13 + MYMALLOC_NEXT_FREE_OFF], 0 
+
+	mov [rel malloc_address_last_segment], r13   ; this segment is the last segment now
+
+	; add this new segment into free list
+	mov rdi, r13
+	call _add_to_free_list
+
+
+	add qword [rel malloc_total_segments], 2
+	inc qword [rel malloc_occupied_segments]
+	inc qword [rel malloc_free_segments]
+
 	jmp .return_old_brk_address
 
 	.return_old_brk_address:

@@ -88,7 +88,15 @@ extern command_array
 section .text
 global _execute_commands
 
+global _update_last_command_exit_code
 global _set_last_command_exit_code
+
+; rdi: the command exit code
+_update_last_command_exit_code:
+    mov rax, rdi
+    lea rdi, [rel last_command_exit_code_ascii]
+    call _itoa
+    ret
 
 _set_last_command_exit_code:
     ; write to exit code ascii, 0
@@ -756,7 +764,11 @@ _execute_commands:
         ; rax: the address of current command struct
         mov r12, rax
 
-        ; final check: if the command is built in, or if it can be found in $PATH
+        ; final check: if command it can be found in $PATH
+        mov rdi, r12
+        call _check_and_execute_if_built_in
+        ; if it's builtin, it will directly execute and exit, so part after of this doesn't matter
+
         mov rdi, [r12 + COMMAND_STRUCT_NAME_OFF]
         call _check_if_cmd_is_in_path
 

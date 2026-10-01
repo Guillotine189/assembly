@@ -69,9 +69,9 @@ extern old_cwd
 extern old_cwd_len
 extern last_command_exit_code_ascii
 
+extern _exit_with_status_code
+
 extern command_argc_dynamic_array_object
-extern address_envp_address_array
-extern address_command
 
 extern _find_var_in_shell_env
 extern _update_var_in_shell_env
@@ -79,6 +79,8 @@ extern _unset_var_in_shell_env
 extern _print_shell_env
 
 extern _print_history
+
+extern _update_last_command_exit_code
 
 extern _exit
 
@@ -88,17 +90,40 @@ sys_chdir           equ 80
 global _check_and_execute_if_built_in
 global _check_and_return_command_if_bic
 
-
+; rdi: the address of command struct
 _check_and_execute_if_built_in:
+	push r12
+	push r13
 
-    mov rax, [rel address_command]
+
+    REDIRECT_STRUCT_SIZE            equ 16
+    REDIRECT_STRUCT_TYPE_OFF        equ 0
+    REDIRECT_STRUCT_ADDRESS_OFF     equ 8
+
+    REDIRECT_TYPE_DEFAULT           equ 0
+    REDIRECT_TYPE_PIPE              equ 1
+    REDIRECT_TYPE_OTHER             equ 2
+
+    COMMAND_STRUCT_SIZE             equ 104
+    COMMAND_STRUCT_NAME_OFF         equ 0
+    COMMAND_STRUCT_ARGV_OBJ_OFF     equ 8
+    COMMAND_STRUCT_ENVP_OBJ_OFF     equ COMMAND_STRUCT_ARGV_OBJ_OFF + DYNAMICARRAY_OBJECT_SIZE
+    COMMAND_STRUCT_RIN_STRUCT_OFF   equ COMMAND_STRUCT_ENVP_OBJ_OFF + DYNAMICARRAY_OBJECT_SIZE
+    COMMAND_STRUCT_ROUT_STRUCT_OFF  equ COMMAND_STRUCT_RIN_STRUCT_OFF + REDIRECT_STRUCT_SIZE
+
+
+	mov r15, rdi
+	mov r12, [r15 + COMMAND_STRUCT_NAME_OFF] 		; r12 has the address for name of command
+	lea r15, [r15 + COMMAND_STRUCT_ARGV_OBJ_OFF]    ; r15:object for argc includes null
+
+    mov rax, r12
     lea rdi, [rel cd_]
     call _strcmp
 
     test rax, rax
     je .check_and_execute_cd
 
-    mov rax, [rel address_command]
+    mov rax, r12
     lea rdi, [rel pwd_]
     call _strcmp
 
@@ -106,14 +131,14 @@ _check_and_execute_if_built_in:
     je .check_and_execute_pwd
 
 
-    mov rax, [rel address_command]
+    mov rax, r12
     lea rdi, [rel clear_]
     call _strcmp
 
     test rax, rax
     je .clear_screen
 
-    mov rax, [rel address_command]
+    mov rax, r12
     lea rdi, [rel history_]
     call _strcmp
 
@@ -121,14 +146,14 @@ _check_and_execute_if_built_in:
     je .print_history_and_ret
 
 
-    mov rax, [rel address_command]
+    mov rax, r12
     lea rdi, [rel export_]
     call _strcmp
 
     test rax, rax
     je .update_shell_env
 
-    mov rax, [rel address_command]
+    mov rax, r12
     lea rdi, [rel unset_]
     call _strcmp
 
@@ -136,7 +161,7 @@ _check_and_execute_if_built_in:
     je .unset_shel_env
 
 
-    mov rax, [rel address_command]
+    mov rax, r12
     lea rdi, [rel env_]
     call _strcmp
 
@@ -144,7 +169,7 @@ _check_and_execute_if_built_in:
     je .print_env
 
 
-    mov rax, [rel address_command]
+    mov rax, r12
     lea rdi, [rel exit_]
     call _strcmp
 
@@ -152,13 +177,14 @@ _check_and_execute_if_built_in:
     je _exit
 
     .not_built_in:
-	    mov rax, -1
+    	pop r13
+    	pop r12
 	    ret
 
 
     .check_and_execute_cd:
 
-        lea rdi, [rel command_argc_dynamic_array_object]   ; 2nd argument is the path name
+        mov rdi, r15   ; 2nd argument is the path name
         ; cd path arg > 2 -> not valid, but There is a NULL as argument in end
         cmp qword [rdi + DYNAMICARRAY_SIZE_OFF], 3
         jg .error_cd_too_many_args
@@ -182,6 +208,16 @@ _check_and_execute_if_built_in:
 
         pop rdi
         call _builtin_cd
+        test rax, rax
+    	jl .error_changing_dir0
+
+    	xor rdi, rdi
+    	call _update_last_command_exit_code
+    	jmp .return_built_in
+
+    	.error_changing_dir0:
+    	mov rdi, 1
+    	call _update_last_command_exit_code
         jmp .return_built_in
 
 
@@ -192,6 +228,18 @@ _check_and_execute_if_built_in:
 
         	lea rdi, [rel old_cwd] 
         	call _builtin_cd
+        	test rax, rax
+        	jl .error_changing_dir
+
+        	xor rdi, rdi
+        	call _update_last_command_exit_code
+        	jmp .success_changin_dir
+
+        	.error_changing_dir:
+        	mov rdi, 1
+        	call _update_last_command_exit_code
+
+        	.success_changin_dir:
         	jmp .return_built_in
             
         .move_to_home_dir:
@@ -204,6 +252,18 @@ _check_and_execute_if_built_in:
 
         	mov rdi, rax
         	call _builtin_cd
+        	test rax, rax
+        	jl .error_changing_dir2
+
+        	xor rdi, rdi
+        	call _update_last_command_exit_code
+        	jmp .success_changin_dir2
+
+        	.error_changing_dir2:
+        	mov rdi, 1
+        	call _update_last_command_exit_code
+
+        	.success_changin_dir2:
 			jmp .return_built_in
 
 
@@ -213,6 +273,9 @@ _check_and_execute_if_built_in:
 		    mov rdi, 1
 		    lea rsi, [rel error_cd_too_many_args]
 		    call _print_with_new_line
+
+		    mov rdi, 1
+		    call _update_last_command_exit_code
 		    jmp .return_built_in
 
 		.error_home_env_not_set:
@@ -220,11 +283,17 @@ _check_and_execute_if_built_in:
 		    mov rdi, 1
 		    lea rsi, [rel error_home_env_not_set]
 		    call _print_with_new_line
+
+		    mov rdi, 1
+		    call _update_last_command_exit_code
 		    jmp .return_built_in
 		    
         
     .check_and_execute_pwd:
         call _builtin_pwd
+
+	    xor rdi, rdi
+	    call _update_last_command_exit_code
         jmp .return_built_in
 
     .clear_screen:
@@ -234,17 +303,22 @@ _check_and_execute_if_built_in:
 		mov rdx, cursor_clear_screen_len
 		syscall
 
+	    xor rdi, rdi
+	    call _update_last_command_exit_code
 		jmp .return_built_in
 
 	.print_history_and_ret:
 		call _print_history
+
+	    xor rdi, rdi
+	    call _update_last_command_exit_code
 		jmp .return_built_in
 
 
 	.update_shell_env:
 
 		; the array conains a NULL as an argument
-		lea r13, [rel command_argc_dynamic_array_object]   ; 2nd argument is the path name
+		mov r13, r15   ; 2nd argument is the path name
         mov r13, [r13 + DYNAMICARRAY_POINTER_OFF]
 
         ; 0th argument is command name, last argument is NULL
@@ -252,7 +326,7 @@ _check_and_execute_if_built_in:
 		.loop_set_env_vars:
 	        mov r12, [r13 + r14*8] 					; read the actual argument address
 			cmp r12, 0  				; if i have reached the null arg
-			je .done
+			je .return_built_in
 
 			; r12 is the address of env var
 			; ex : "FOO=BAR" - > r13 points to 'F'
@@ -262,13 +336,12 @@ _check_and_execute_if_built_in:
 			test rax, rax
 			jl .error_invalid_var
 
+		    xor rdi, rdi
+		    call _update_last_command_exit_code
+
 		.loopback:
 			inc r14
 			jmp .loop_set_env_vars
-
-
-        .done:
-		jmp .return_built_in
 
 		.error_invalid_var:
 			; TODO: print invaid env supplied
@@ -285,12 +358,14 @@ _check_and_execute_if_built_in:
 			mov rsi, r12
 			call _print_with_new_line
 
+		    mov rdi, 1
+		    call _update_last_command_exit_code
 			jmp .loopback
 
 	.unset_shel_env:
 
 		; the array conains a NULL as an argument
-		lea r13, [rel command_argc_dynamic_array_object]   ; 2nd argument is the path name
+		mov r13, r15   ; 2nd argument is the path name
         mov r13, [r13 + DYNAMICARRAY_POINTER_OFF]
 
         ; 0th argument is command name, last argument is NULL
@@ -308,19 +383,24 @@ _check_and_execute_if_built_in:
 
 
         .done2:
+        xor rdi, rdi
+        call _update_last_command_exit_code
 		jmp .return_built_in
 
 	.print_env:
 		call _print_shell_env
+        xor rdi, rdi
+        call _update_last_command_exit_code
 		jmp .return_built_in
 
     .return_built_in:
-        mov rax, 0
-        ret
+    	; i have updated the exit status code already
+    	jmp _exit
 
 
 
 ; rdi: new location address
+; r15: the address of argv array object
 _builtin_cd:
 	mov rax, sys_chdir
 	syscall
@@ -362,9 +442,9 @@ _builtin_cd:
     mov r8, 1  						; copies 0 at end
     call _memcpy_with_end_char  					; now my cur is old
 
-
 	call _set_prefix_line
 
+	xor rax, rax
 	ret
 
 	.error_changing_dir:
@@ -374,14 +454,14 @@ _builtin_cd:
 		lea rsi, [rel error_changing_dir]
 		call _print
 
-		lea rdi, [rel command_argc_dynamic_array_object]
+		mov rdi, r15
 		mov rdi, [rdi + DYNAMICARRAY_POINTER_OFF]
 		add rdi, 8    				; offset of arg1 address
 		mov rdi, [rdi]
 		call _strlen
 
 		mov rdi, 1
-		lea rsi, [rel command_argc_dynamic_array_object]
+		mov rsi, r15
 		mov rsi, [rsi + DYNAMICARRAY_POINTER_OFF]
 		add rsi, 8
 		mov rsi, [rsi]

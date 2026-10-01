@@ -37,16 +37,6 @@ extern _mem_copy
 extern _memcpy_with_end_char
 extern _itoa
 
-extern _default_dynamic_array_constructor
-extern _default_dynamic_array_destructor
-extern _dynamic_array_add_element
-extern _dynamic_array_remove_element
-
-extern _constructor_mystring
-extern _destructor_mystring
-extern _append_string_mystring
-extern _mystring_clear
-
 extern _malloc
 extern _free
 
@@ -60,9 +50,6 @@ extern curr_cwd_len
 extern old_cwd
 extern old_cwd_len
 
-extern address_argc_address_array
-extern address_command
-extern total_command_aruments
 
 extern _exit
 extern _exit_with_status_code
@@ -94,17 +81,6 @@ _initialize_shell_env_array:
 	mov rbp, rsp
 	push r12
 
-	.get_a_lot_of_heap_memory:
-		mov rdi, 16384  					; 16kb
-		call _malloc
-
-		test rax, rax
-		jl .error_getting_heap_memory
-
-		; immediately free this so i can use this chunk of memory
-		; _free does not give the memory back to os, it keeps it
-		mov rdi, rax
-		call _free
 
 
 	.create_array_env:
@@ -184,10 +160,6 @@ _initialize_shell_env_array:
 		mov [rel exit_status_code], rax
 		call _exit_with_status_code
 
-	.error_getting_heap_memory:
-		; TODO: print proper errors
-		mov [rel exit_status_code], rax
-		call _exit_with_status_code
 
 	.error_appending_to_string:
 		; TODO: print proper errors
