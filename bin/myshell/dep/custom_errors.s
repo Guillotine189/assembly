@@ -236,22 +236,27 @@ print_error_forking:
     call _print_error_with_new_line
     ret
 
-
+; rdi: expects the addres of command name
 child_print_error_executing_process:
+    push r12
+    mov r12, rdi
+    
     mov rax, child_error_executing_process_len
     mov rdi, 1
     lea rsi , [rel child_error_executing_process]
     call _print
 
-    mov rdi, [rel address_command]
+    mov rdi, r12
     call _strlen
     
     mov rdi, 1
-    mov rsi, [rel address_command]
+    mov rsi, r12
     call _print
 
     mov rdi, [rel error_code]
     call _print_error_with_new_line
+
+    pop r12
     ret
 
 parent_print_error_closing_read_pipe:

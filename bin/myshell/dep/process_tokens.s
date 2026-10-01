@@ -222,8 +222,9 @@ _process_token_generate_commands:
         inc r13
         jmp .process_next_token
 
+
     .handle_redirect_in:
-        ; almosost same as redirect out
+        ; almost same as redirect out
 
         ; next token must be word
         lea rdx, [rax + TOKEN_STRUCT_OBJECT_SIZE]
@@ -240,22 +241,12 @@ _process_token_generate_commands:
         mov qword [rdi + REDIRECT_STRUCT_ADDRESS_OFF], rdx
 
         inc r13
-
         jmp .process_next_token
-
-
 
 
     .handle_word:
         ; r13: index for token
         ; rax: the address of current token struct
-
-        ; check if next token is "<", if it is then skip it, 
-        lea rdx, [rax + TOKEN_STRUCT_OBJECT_SIZE] ; rdx: the address of next token struct
-        mov rdx, [rdx + TOKEN_STRUCT_TYPE_OFF]  ; rdx: the type of next token
-
-        cmp rdx, TOKEN_TYPE_REDIRECT_IN            ; if next token is '<', skip this token
-        je .process_next_token
 
         ; else check if command has been seen, if not mark it as command else add as an argument
         test r14, r14

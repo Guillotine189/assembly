@@ -5,6 +5,7 @@ BASIC------
 3) Decide how to store the commands, args, envp for every single command.⏳
 4) Run chained commands (ls | grep "data.txt" > output.txt).⏳
 
+5) redirect in "<" does not work, messes up execve  ✅
 5) fix how bic are executed. 
 5) if single command is also Bic, it executes without proper env var  ✅
 5.3) adding a temp env varibale when running a command results in removal of 1st shell env in final. Fix that.  ✅
@@ -13,7 +14,9 @@ BASIC------
   inside parser metain weather these are inside quotes or not
 5.4) Change the env functions (they use command_argc_dynamic_array_object and command_argv_dynamic_array_object)
 
-5.6) if command doesn't exists/not found then, print error
+5.5) update exit code after command finishes
+
+5.6) if command doesn't exists/not found then, print error ✅
 9 ) add ">>", "&&", "&"
 
 5) Add auto complete for installed command name only (like ls, grep etc).
@@ -27,7 +30,7 @@ BASIC------
 6) visual fix, when command overflows into next line.
 7) Inside shell env, update pwd, old_pwd when chdir. Also check and update other env variables.
 8) right now only 1 redirection output is allowed, or you will overwrite which to redirect out to.
-
+9) add aliases
 
 
 EFFICIENCY------

@@ -54,7 +54,6 @@ section .bss
     sync_pipe_buffer resb 10
 
 extern shell_pgid
-extern last_command_exit_code_ascii
 extern exit_status_code
 extern error_code
 extern _exit_with_status_code
@@ -108,7 +107,7 @@ _set_last_command_exit_code:
     mov rax, 0
     lea rdi, [rel last_command_exit_code_ascii]
     call _itoa
-    mov qword [rel last_command_exit_code_ascii_len], 1
+    mov qword [rel last_command_exit_code_ascii_len], rax
     ret
 
 
@@ -876,16 +875,13 @@ _execute_commands:
         mov rax, sys_execve
         syscall
 
+        ; this part only executes when execve fails inside child process
+        mov [rel exit_status_code], rax
+        mov [rel error_code], rax
+        mov rdi, [r12 + COMMAND_STRUCT_NAME_OFF]
+        call child_print_error_executing_process
+        call _exit_with_status_code
 
-        ;--------------------------------------
-        ; explicitly end for testing
-        mov rax, 60
-        mov rdi, -2
-        syscall
-        ;--------------------------------------
-
-        ; anything after this is error
-        ; todo: handle
 
 
     .close_sync_pipes:
