@@ -921,19 +921,19 @@ _classify_and_generate_tokens:
         je .first_key_char_valid
 
         cmp al, 'A'
-        jb .error_invalid_key_for_TYPE_ENV_ASSSIGNMENT
+        jb .add_as_word
 
         cmp al, 'Z'
         jbe .first_key_char_valid
 
         cmp al, 'a'
-        jb .error_invalid_key_for_TYPE_ENV_ASSSIGNMENT
+        jb .add_as_word
 
         cmp al, 'z'
         jbe .first_key_char_valid
 
         
-        jmp .error_invalid_key_for_TYPE_ENV_ASSSIGNMENT
+        jmp .add_as_word
 
         .first_key_char_valid:
             ; now i have to  check the rest of the key
@@ -949,28 +949,37 @@ _classify_and_generate_tokens:
             je .valid_key_byte
 
             cmp al, '0'
-            jb .error_invalid_key_for_TYPE_ENV_ASSSIGNMENT
+            jb .add_as_word
 
             cmp al, '9'
             jbe .valid_key_byte
 
             cmp al, 'A'
-            jb .error_invalid_key_for_TYPE_ENV_ASSSIGNMENT
+            jb .add_as_word
 
             cmp al, 'Z'
             jbe .valid_key_byte
 
             cmp al, 'a'
-            jb .error_invalid_key_for_TYPE_ENV_ASSSIGNMENT
+            jb .add_as_word
 
             cmp al, 'z'
             jbe .valid_key_byte
             
-            jmp .error_invalid_key_for_TYPE_ENV_ASSSIGNMENT
+            jmp .add_as_word
 
         .valid_key_byte:
             inc rcx
             jmp .loop_check_key
+
+        .add_as_word:
+            ; word expects r8 to be at NULL
+       .loop_move_r8_reg:
+        cmp byte [r9 + r8], 0
+        je .add_word_token
+
+        inc r8
+        jmp .loop_move_r8_reg
 
         .valid_key:
 
@@ -1164,10 +1173,6 @@ _classify_and_generate_tokens:
         jmp .return_failure
 
     .error_appending_to_token:
-        call _free_token_array
-        jmp .return_failure
-
-    .error_invalid_key_for_TYPE_ENV_ASSSIGNMENT:
         call _free_token_array
         jmp .return_failure
 
