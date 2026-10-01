@@ -75,8 +75,9 @@ extern parent_print_error_synchronizing_with_child
 extern parent_print_error_closing_write_pipe
 
 
-extern _check_and_execute_if_built_in
+extern _execute_if_built_in
 extern _check_if_cmd_is_in_path
+extern _check_if_cmd_is_built_in
 
 extern _set_noncanonical_mode
 extern _set_old_termios
@@ -128,7 +129,7 @@ _reset_child_signals:
 
 
 
-
+    ; check if it's a single bic command: if yes -> setup common env, process env extra, execute
     ; create 1 pipe for group syncing
     ; create a envp_array from shell_env, a general envp array for commands to inherit
     ; initialize pipe array
@@ -197,16 +198,7 @@ _execute_commands:
     mov qword [rel pgid_commands], 0
     mov qword [rel pipe_for_sync], 0     ; i know it's 8 bytes long
     
-    ; get pipe
-    mov rax, sys_pipe
-    lea rdi, [rel pipe_for_sync]
-    syscall 
-
-    test rax, rax
-    jl .error_getting_sync_pipe
-
-
-    ; build_envp_array 
+    ; build_common_envp_array 
     xor r12, r12                              ; which env struct am i checking
     lea r13, [rel shell_env_array_object]      ; r13 is the shell array object
     mov r14, [r13 + DYNAMICARRAY_POINTER_OFF]  ; r14 now points to string object array
@@ -258,17 +250,6 @@ _execute_commands:
     ;todo: handle error
 
 
-    ; now initialize pipe array
-
-    lea rdi, [rel pipe_array]
-    mov qword [rdi + DYNAMICARRAY_CAPACITY_OFF], 4          ; 4 pipe pair are more than enough
-    mov qword [rdi + DYNAMICARRAY_ELEMENT_SIZE_OFF], 8      ; storing pipe pair that are 8bytes a pair
-    mov qword [rdi + DYNAMICARRAY_POINTER_OFF], 0
-    mov qword [rdi + DYNAMICARRAY_SIZE_OFF], 0
-    call _default_dynamic_array_constructor
-    ;todo: handle error
-
-
     REDIRECT_STRUCT_SIZE            equ 16
     REDIRECT_STRUCT_TYPE_OFF        equ 0
     REDIRECT_STRUCT_ADDRESS_OFF     equ 8
@@ -285,22 +266,45 @@ _execute_commands:
     COMMAND_STRUCT_ROUT_STRUCT_OFF  equ COMMAND_STRUCT_RIN_STRUCT_OFF + REDIRECT_STRUCT_SIZE
 
 
-    call _set_old_termios
 
     lea r12, [rel command_array]              ; r12: commmand array object address
 
+
+    ; check if i only have to execute 1 command
     cmp [r12 + DYNAMICARRAY_SIZE_OFF], 1    ; if only 1 command and builtin
     jne .continue
 
     ; check if it's built in
     mov rdi, [r12 + DYNAMICARRAY_POINTER_OFF]  ; this will be the 1st command struct address
-    call _check_and_execute_if_built_in   ; this will exit if 
-
+    call _check_if_cmd_is_built_in   ; this will exit if 
     test rax, rax
-    je .bic_command_executed
+    je .execute_single_bic_command
 
 
     .continue:
+    ; get pipe
+    mov rax, sys_pipe
+    lea rdi, [rel pipe_for_sync]
+    syscall 
+
+    test rax, rax
+    jl .error_getting_sync_pipe
+
+
+    ; now initialize pipe array
+
+    lea rdi, [rel pipe_array]
+    mov qword [rdi + DYNAMICARRAY_CAPACITY_OFF], 4          ; 4 pipe pair are more than enough
+    mov qword [rdi + DYNAMICARRAY_ELEMENT_SIZE_OFF], 8      ; storing pipe pair that are 8bytes a pair
+    mov qword [rdi + DYNAMICARRAY_POINTER_OFF], 0
+    mov qword [rdi + DYNAMICARRAY_SIZE_OFF], 0
+    call _default_dynamic_array_constructor
+    ;todo: handle error
+
+    call _set_old_termios
+
+
+
     xor r13, r13                              ; r13: idx for looping through command structs
     .loop_parent_setup_child:
 
@@ -477,7 +481,6 @@ _execute_commands:
     lea rdx, [rel shell_pgid]
     syscall
 
-    .bic_command_executed:
     ; TODO: dont reset non-canonical, save the old state and apply it
     call _set_noncanonical_mode
     call .cleanup
@@ -514,6 +517,54 @@ _execute_commands:
         mov [rel error_code], rax
         call print_error_forking
         ret
+
+
+
+    .execute_single_bic_command:
+
+        ; if it's len > 0: add the shell env variables from general array created above. including null
+        ; if len = 0: continue
+
+        mov r13, [r12 + DYNAMICARRAY_POINTER_OFF]        ; r14: address of current command struct
+
+        ; add the common shell env inside the command struct envp onject
+
+        xor r12, r12                                        ; which string am i checking
+        lea r15, [r13 + COMMAND_STRUCT_ENVP_OBJ_OFF]        ; r15: the address of envp array inside command struct
+        lea r14, [rel common_shell_env_var_array_object]    ; r14 is the common envp array object
+
+        ; go through common shell_env_array and add everythign into this envp array
+
+        .loop_shell_env_array3:
+
+            cmp r12, [r14 + DYNAMICARRAY_SIZE_OFF]
+            je .done_adding             ; the common one already includes a NULL qword
+
+            mov rax, r12
+            mov rcx, [r14 + DYNAMICARRAY_ELEMENT_SIZE_OFF]
+            mul rcx
+
+            ; dont care about the buffer overflow, probably will never happen
+            ; rax now has the offset for which string object to check
+            mov rcx, [r14 + DYNAMICARRAY_POINTER_OFF]
+            lea rsi, [rcx + rax]   ; rsi now points to the string object
+            
+            ; rsi has the address which points to the address of string
+            ; i want to copy the address of string inside array. so i need to give the address of address of string
+            mov rdi, r15
+            call _dynamic_array_add_element
+            ; todo: handle error
+
+            inc r12
+            jmp .loop_shell_env_array3
+
+        .done_adding:
+        mov rdi, r13
+        call _execute_if_built_in   ; i know it's built in
+        call .cleanup
+        ret
+
+
 
 
 
@@ -744,7 +795,6 @@ _execute_commands:
             mov rcx, [r14 + DYNAMICARRAY_POINTER_OFF]
             lea rsi, [rcx + rax]   ; rsi now points to the string object
             
-            lea rsi, [rsi + MYSTRING_POINTER_OFF]
             ; rsi has the address which points to the address of string
             ; i want to copy the address of string inside array. so i need to give the address of address of string
             mov rdi, r15
@@ -787,7 +837,7 @@ _execute_commands:
 
         ; final check: if command it can be found in $PATH
         mov rdi, r12
-        call _check_and_execute_if_built_in
+        call _execute_if_built_in
         ; if it's builtin, it will directly execute and exit, so part after of this doesn't matter
 
         test rax, rax
@@ -925,7 +975,7 @@ _execute_commands_old:
     ; now either the command is built in or it is supposed to be inside path variables
 
     ; check if the command is built in
-    call _check_and_execute_if_built_in
+    call _execute_if_built_in
     test rax, rax
     jz .close_pipes                      ; zero mean it was builtin
 

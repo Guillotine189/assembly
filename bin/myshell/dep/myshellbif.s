@@ -76,7 +76,7 @@ extern command_argc_dynamic_array_object
 extern _find_var_in_shell_env
 extern _update_var_in_shell_env
 extern _unset_var_in_shell_env
-extern _print_shell_env
+extern _print_env_from_object
 
 extern _print_history
 
@@ -87,13 +87,16 @@ extern _exit
 sys_chdir           equ 80
 
 
-global _check_and_execute_if_built_in
+global _execute_if_built_in
 global _check_and_return_command_if_bic
+global _check_if_cmd_is_built_in
 
 ; rdi: the address of command struct
-_check_and_execute_if_built_in:
+_execute_if_built_in:
 	push r12
 	push r13
+	push r14
+	push r15
 
 
     REDIRECT_STRUCT_SIZE            equ 16
@@ -112,62 +115,52 @@ _check_and_execute_if_built_in:
     COMMAND_STRUCT_ROUT_STRUCT_OFF  equ COMMAND_STRUCT_RIN_STRUCT_OFF + REDIRECT_STRUCT_SIZE
 
 
-	mov r15, rdi
-	mov r12, [r15 + COMMAND_STRUCT_NAME_OFF] 		; r12 has the address for name of command
-	lea r15, [r15 + COMMAND_STRUCT_ARGV_OBJ_OFF]    ; r15:object for argc includes null
+	mov r13, rdi
+	mov r12, [r13 + COMMAND_STRUCT_NAME_OFF] 		; r12 has the address for name of command
+	lea r15, [r13 + COMMAND_STRUCT_ARGV_OBJ_OFF]    ; r15:object for argc includes null
+
 
     mov rax, r12
     lea rdi, [rel cd_]
     call _strcmp
-
     test rax, rax
     je .check_and_execute_cd
 
     mov rax, r12
     lea rdi, [rel pwd_]
     call _strcmp
-
     test rax, rax
     je .check_and_execute_pwd
-
 
     mov rax, r12
     lea rdi, [rel clear_]
     call _strcmp
-
     test rax, rax
     je .clear_screen
 
     mov rax, r12
     lea rdi, [rel history_]
     call _strcmp
-
     test rax, rax
     je .print_history_and_ret
-
 
     mov rax, r12
     lea rdi, [rel export_]
     call _strcmp
-
     test rax, rax
     je .update_shell_env
 
     mov rax, r12
     lea rdi, [rel unset_]
     call _strcmp
-
     test rax, rax
     je .unset_shel_env
-
 
     mov rax, r12
     lea rdi, [rel env_]
     call _strcmp
-
     test rax, rax
     je .print_env
-
 
     mov rax, r12
     lea rdi, [rel exit_]
@@ -177,6 +170,8 @@ _check_and_execute_if_built_in:
     je _exit
 
     .not_built_in:
+    	pop r15
+    	pop r14
     	pop r13
     	pop r12
 	    ret
@@ -388,12 +383,16 @@ _check_and_execute_if_built_in:
 		jmp .return_built_in
 
 	.print_env:
-		call _print_shell_env
+		lea rdi, [r13 + COMMAND_STRUCT_ENVP_OBJ_OFF]
+		call _print_env_from_object
+
         xor rdi, rdi
         call _update_last_command_exit_code
 		jmp .return_built_in
 
     .return_built_in:
+    	pop r15
+    	pop r14
     	pop r13
     	pop r12
     	xor rax, rax
@@ -600,4 +599,71 @@ _check_and_return_command_if_bic:
 	.return:
 		pop r13
 		pop r12
+		ret
+
+
+; rdi: the address of command struct
+; returns: rax: 0 if command is a built in
+; 		      :  -ve if not
+_check_if_cmd_is_built_in:
+	push r12
+
+	mov r12, [rdi + COMMAND_STRUCT_NAME_OFF] 		; r12 has the address for name of command
+
+    mov rax, r12
+    lea rdi, [rel cd_]
+    call _strcmp
+    test rax, rax
+    je .built_in
+
+    mov rax, r12
+    lea rdi, [rel pwd_]
+    call _strcmp
+    test rax, rax
+    je .built_in
+
+    mov rax, r12
+    lea rdi, [rel clear_]
+    call _strcmp
+    test rax, rax
+    je .built_in
+
+    mov rax, r12
+    lea rdi, [rel history_]
+    call _strcmp
+    test rax, rax
+    je .built_in
+
+    mov rax, r12
+    lea rdi, [rel export_]
+    call _strcmp
+    test rax, rax
+    je .built_in
+
+    mov rax, r12
+    lea rdi, [rel unset_]
+    call _strcmp
+    test rax, rax
+    je .built_in
+
+    mov rax, r12
+    lea rdi, [rel env_]
+    call _strcmp
+    test rax, rax
+    je .built_in
+
+    mov rax, r12
+    lea rdi, [rel exit_]
+    call _strcmp
+    test rax, rax
+    je .built_in
+
+    .not_built_in:
+    	pop r12
+    	mov rax, -1
+	    ret
+
+	.built_in:
+		pop r12
+		xor rax, rax
 		ret

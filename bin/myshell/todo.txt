@@ -5,15 +5,16 @@ BASIC------
 3) Decide how to store the commands, args, envp for every single command.⏳
 4) Run chained commands (ls | grep "data.txt" > output.txt).⏳
 
-5) fix how bic are executed.
+5) fix how bic are executed. 
+5) if single command is also Bic, it executes without proper env var  ✅
+5.3) adding a temp env varibale when running a command results in removal of 1st shell env in final. Fix that.  ✅
+
 5) ">" and "<" inside double/single quotes should not be considered as redirection.
   inside parser metain weather these are inside quotes or not
-5) if single command is also Bic, it executes without proper env var
-
-5.3) adding a temp env varibale when running a command results in removal of 1st shell env in final. Fix that.
 5.4) Change the env functions (they use command_argc_dynamic_array_object and command_argv_dynamic_array_object)
 
 5.6) if command doesn't exists/not found then, print error
+9 ) add ">>", "&&", "&"
 
 5) Add auto complete for installed command name only (like ls, grep etc).
 5.1) '!!' is replaced by the old command, but the old command is not processed. So it just goes in as 1 big argument. Fix that. ✅
@@ -26,7 +27,6 @@ BASIC------
 6) visual fix, when command overflows into next line.
 7) Inside shell env, update pwd, old_pwd when chdir. Also check and update other env variables.
 8) right now only 1 redirection output is allowed, or you will overwrite which to redirect out to.
-9 ) add ">>".
 
 
 
@@ -34,7 +34,7 @@ EFFICIENCY------
 6) change malloc to find free segment faster, try free list ✅
 7) see how many times an operation is calling malloc and free. Like double tab.
    Too many malloc/free calls for a command. Reduce them -> reuse some variables.
-7.1) In malloc, check when total free size falls below a threshold, then ask for more memory before returning, to minimize brk syscalls.
+7.1) In malloc, check when total free size falls below a threshold, then ask for more memory before returning, to minimize brk syscalls. ✅
 8) change error handling library, instead of if else  comparision, make it switch style.
 
 END--------

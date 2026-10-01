@@ -63,7 +63,7 @@ global _find_var_in_shell_env
 global _update_var_in_shell_env
 global _unset_var_in_shell_env
 global _print_shell_env
-
+global _print_env_from_object
 global shell_env_array_object
 
 
@@ -177,8 +177,6 @@ _initialize_shell_env_array:
 		call _exit_with_status_code
 
 
-
-
 _print_shell_env:
 	push rbp
 	mov rbp, rsp
@@ -205,8 +203,8 @@ _print_shell_env:
 	
 	mov rcx, rax
 
-	mov rax, [rcx + MYSTRING_SIZE_OFF] 				; r14 has string size
-	mov rsi, [rcx + MYSTRING_POINTER_OFF] 			; r13 has the actual string
+	mov rax, [rcx + MYSTRING_SIZE_OFF]
+	mov rsi, [rcx + MYSTRING_POINTER_OFF]
 	mov rdi, 1
 	call _print_with_new_line
 
@@ -222,6 +220,46 @@ _print_shell_env:
 	pop rbp
 	ret
 
+
+; rdi: the envp array object address
+_print_env_from_object:
+	push rbp
+	mov rbp, rsp
+	push r12
+	push r13
+	push r14
+
+	mov r13, rdi
+	mov r13, [r13 + DYNAMICARRAY_POINTER_OFF] 	; r13: the starting address of array
+	xor r12, r12
+
+	.loop_print_string:
+
+
+	mov r14, [r13 + r12]   ; r9: starting address of actual string object array
+	test r14, r14
+	je .done
+
+	; r14: has the address of string that needs to be printed
+	
+	mov rdi, r14
+	call _strlen
+
+	mov rsi, r14
+	mov rdi, 1
+	call _print_with_new_line
+
+	add r12, 8 						; i know the array is just array of addresses, so to get next address move 8 bytes head
+
+	jmp .loop_print_string
+
+	.done:
+	pop r14
+	pop r13
+	pop r12
+	mov rsp, rbp
+	pop rbp
+	ret
 
 ; rdi: address of the variable to check if it's in env or not
 ; rsi: len of the varible
