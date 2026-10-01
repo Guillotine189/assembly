@@ -31,6 +31,7 @@ extern print_error_adding_to_argc
 extern print_error_adding_custom_env_var
 extern print_error_adding_command_stuct
 extern print_error_invalid_token_after_pipe
+extern print_error_command_name_not_found_for_last_command
 extern print_error_unknow_token
 
 
@@ -304,18 +305,9 @@ _process_token_generate_commands:
         lea rdi, [rax + TOKEN_STRUCT_OBJECT_SIZE] ; rdi: the address of next8 token struct
         mov rdi, [rdi + TOKEN_STRUCT_TYPE_OFF]
 
-        cmp rdi, TOKEN_TYPE_WORD
-        je .cont
+        cmp rdi, TOKEN_TYPE_END
+        je .error_invalid_token_after_pipe
 
-        cmp rdi, TOKEN_TYPE_REDIRECT_OUT
-        je .cont
-
-        cmp rdi, TOKEN_TYPE_REDIRECT_IN
-        je .cont
-
-        jmp .error_invalid_token_after_pipe
-
-        .cont:
         ; mark redirect out as pipe, or not if > already did it
         test r15, r15                               ; weather redirect out was there
         jne .go_to_next_command
@@ -334,6 +326,8 @@ _process_token_generate_commands:
     ; since i encountered a  pipe, i now have to do this all again
     ;but the redirect in for next command starts from REDIRECT_TYPE_PIPE, not REDIRECT_TYPE_DEFAULT
 
+    test r14, r14
+    je .error_command_name_not_found_for_last_command
 
     ; Add aNULL to argc and envp array
     lea rdi, [rsp + COMMAND_STRUCT_ARGV_OBJ_OFF]
@@ -401,6 +395,9 @@ _process_token_generate_commands:
 
 
     .end_of_tokens:
+
+    test r14, r14
+    je .error_command_name_not_found_for_last_command
 
     ; Add aNULL to argc but not to envp array
     lea rdi, [rsp + COMMAND_STRUCT_ARGV_OBJ_OFF]
@@ -482,6 +479,10 @@ _process_token_generate_commands:
         call print_error_invalid_token_after_pipe
         jmp .clean_up_current_stack_and_command_array
 
+    .error_command_name_not_found_for_last_command:
+        mov [rel error_code], rax
+        call print_error_command_name_not_found_for_last_command
+        jmp .clean_up_current_stack_and_command_array
     .error_unknow_token:
         mov [rel error_code], rax
         call print_error_unknow_token

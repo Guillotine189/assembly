@@ -96,8 +96,12 @@ section .rodata
     error_invalid_token_after_pipe db "MyShell: Unexpected token near '|'", 0
     error_invalid_token_after_pipe_len equ $ - error_invalid_token_after_pipe
 
+    error_command_name_not_found_for_last_command db "MyShell: Unexpected end of token. Command name not found.", 0
+    error_command_name_not_found_for_last_command_len equ $ - error_command_name_not_found_for_last_command
+
     error_unknow_token db "MyShell: Error executing command. Error unknown token value", 0
     error_unknow_token_len equ $ - error_unknow_token
+
 
 section .bss
     reusable_buffer_error resb 1024
@@ -144,6 +148,7 @@ global print_error_adding_to_argc
 global print_error_adding_custom_env_var
 global print_error_adding_command_stuct
 global print_error_invalid_token_after_pipe
+global print_error_command_name_not_found_for_last_command
 global print_error_unknow_token
 
 print_error_input_init_memory:
@@ -448,6 +453,14 @@ print_error_invalid_token_after_pipe:
     call _print_with_new_line
     ret
 
+print_error_command_name_not_found_for_last_command:
+    mov rax, error_command_name_not_found_for_last_command_len
+    mov rdi, 1
+    lea rsi , [rel error_command_name_not_found_for_last_command]
+    call _print_with_new_line
+    ret
+
+    
 print_error_unknow_token:
     mov rax, error_unknow_token_len
     mov rdi, 1

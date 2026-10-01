@@ -487,6 +487,8 @@ _execute_commands:
     .cleanup:
         mov qword [rel pgid_commands], 0
         mov qword [rel pipe_for_sync], 0     ; i know it's 8 bytes long
+        lea rdi, [rel common_shell_env_var_array_object]
+        call _dynamic_array_clear
         ret
 
 
