@@ -23,6 +23,7 @@ extern input_buffer_address
 extern filled_size_input_buffer_len
 
 extern last_command_exit_code_ascii
+extern last_command_exit_code_ascii_len
 
 extern _itoa
 extern _print
@@ -606,10 +607,10 @@ _parse_expanded_string:
                 ; the string will only append until NULL is found
                 lea rdi, [rel parse_buffer]
                 lea rsi, [rel last_command_exit_code_ascii]
-                mov rcx, 4                  ; 8*4=32bytes
-                rep movsq
+                mov rcx, [rel last_command_exit_code_ascii_len]
+                rep movsb
 
-                mov rsi, 31         ; copy buffer into string adds a null terminator at rs
+                mov rsi, [rel last_command_exit_code_ascii_len]
                 ; copy exit code from buffer into string, and now buffer is reset
                 call .copy_buffer_into_string
                 inc r8                  ; i have replace $? with exit status code

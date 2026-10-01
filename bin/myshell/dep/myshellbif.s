@@ -394,8 +394,10 @@ _check_and_execute_if_built_in:
 		jmp .return_built_in
 
     .return_built_in:
-    	; i have updated the exit status code already
-    	jmp _exit
+    	pop r13
+    	pop r12
+    	xor rax, rax
+    	ret
 
 
 
@@ -467,7 +469,7 @@ _builtin_cd:
 		mov rsi, [rsi]
 		call _print
 
-		mov rax, [rel error_code]
+		mov rdi, [rel error_code]
 		call _print_error_with_new_line
 		mov rax, -1
 		ret

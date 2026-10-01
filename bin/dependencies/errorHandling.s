@@ -532,28 +532,28 @@ section .data
 
 section .text
 
-; rdi: number of bytes to print 
+; rax: number of bytes to print 
 ; rdi: fd to write to
 ; rsi: address of string 
 ; returns bytes printed rdi
 errorHandling_print_with_new_line:
 
-    mov rdx, rdi                    ; rdx total bytes
-    mov rdi, 1                      ; write syscall
+    mov rdx, rax                    ; rdx total bytes
+    mov rax, 1                      ; write syscall
     syscall
 
     ; print new line
-    mov rdi, 10
-    push rdi
+    mov rax, 10
+    push rax
 
-    mov rdi, 1
+    mov rax, 1
     mov rdi, 1                      ; fd
     mov rsi, rsp                    ; buffer address
     mov rdx, 1                      ; bytes to print
     syscall
 
     .cleanup:
-    pop rdi
+    pop rax
     ret
 
 
@@ -566,7 +566,7 @@ errorHandling_print_with_new_line:
 
 %macro PRINT_ERRNO 1
 .errno_%1:
-    mov rdi, errno_%1_msg_len
+    mov rax, errno_%1_msg_len
     mov rdi, 1
     lea rsi, [rel errno_%1_msg]
     call errorHandling_print_with_new_line

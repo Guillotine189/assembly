@@ -28,6 +28,7 @@ section .rodata
 global command_argc_dynamic_array_object
 global command_argv_dynamic_array_object
 global last_command_exit_code_ascii
+global last_command_exit_code_ascii_len
 section .bss
     
     child_pid resq 0
@@ -38,6 +39,7 @@ section .bss
 
 
     last_command_exit_code_ascii resb 32
+    last_command_exit_code_ascii_len resq 1
 
     command_argc_dynamic_array_object resb DYNAMICARRAY_OBJECT_SIZE
     command_argv_dynamic_array_object resb DYNAMICARRAY_OBJECT_SIZE
@@ -79,6 +81,7 @@ extern _check_if_cmd_is_in_path
 extern _set_noncanonical_mode
 extern _set_old_termios
 extern _reset_signal
+extern _exit
 
 extern command_array
 
@@ -96,6 +99,7 @@ _update_last_command_exit_code:
     mov rax, rdi
     lea rdi, [rel last_command_exit_code_ascii]
     call _itoa
+    mov qword [rel last_command_exit_code_ascii_len], rax
     ret
 
 _set_last_command_exit_code:
@@ -103,6 +107,7 @@ _set_last_command_exit_code:
     mov rax, 0
     lea rdi, [rel last_command_exit_code_ascii]
     call _itoa
+    mov qword [rel last_command_exit_code_ascii_len], 1
     ret
 
 
@@ -283,6 +288,19 @@ _execute_commands:
     call _set_old_termios
 
     lea r12, [rel command_array]              ; r12: commmand array object address
+
+    cmp [r12 + DYNAMICARRAY_SIZE_OFF], 1    ; if only 1 command and builtin
+    jne .continue
+
+    ; check if it's built in
+    mov rdi, [r12 + DYNAMICARRAY_POINTER_OFF]  ; this will be the 1st command struct address
+    call _check_and_execute_if_built_in   ; this will exit if 
+
+    test rax, rax
+    je .bic_command_executed
+
+
+    .continue:
     xor r13, r13                              ; r13: idx for looping through command structs
     .loop_parent_setup_child:
 
@@ -459,6 +477,7 @@ _execute_commands:
     lea rdx, [rel shell_pgid]
     syscall
 
+    .bic_command_executed:
     ; TODO: dont reset non-canonical, save the old state and apply it
     call _set_noncanonical_mode
     call .cleanup
@@ -768,6 +787,9 @@ _execute_commands:
         mov rdi, r12
         call _check_and_execute_if_built_in
         ; if it's builtin, it will directly execute and exit, so part after of this doesn't matter
+
+        test rax, rax
+        je _exit
 
         mov rdi, [r12 + COMMAND_STRUCT_NAME_OFF]
         call _check_if_cmd_is_in_path
