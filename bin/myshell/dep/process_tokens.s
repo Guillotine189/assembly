@@ -320,14 +320,14 @@ _process_token_generate_commands:
     test r14, r14
     je .error_command_name_not_found_for_last_command
 
-    ; Add aNULL to argc and envp array
+    ; Add aNULL to argc but not to envp array
     lea rdi, [rsp + COMMAND_STRUCT_ARGV_OBJ_OFF]
     lea rsi, [rel null_qword]
     call _dynamic_array_add_element
 
-    lea rdi, [rsp + COMMAND_STRUCT_ENVP_OBJ_OFF]
-    lea rsi, [rel null_qword]
-    call _dynamic_array_add_element
+    ; lea rdi, [rsp + COMMAND_STRUCT_ENVP_OBJ_OFF]
+    ; lea rsi, [rel null_qword]
+    ; call _dynamic_array_add_element
 
 
     ; add_command_struct_into_array

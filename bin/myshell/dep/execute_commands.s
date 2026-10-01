@@ -21,7 +21,7 @@ section .rodata
     dollar_sign_with_space db "$ ", 0
     new_line db 0x0a, 0
     null_qword dq 0
-
+    export_command db "export", 0
 
 
 
@@ -62,6 +62,8 @@ extern shell_env_array_object
 
 extern _itoa
 extern _cmp_equal_memory
+extern _strcmp
+
 
 extern print_error_command_not_found
 extern print_error_getting_pipes
@@ -96,9 +98,12 @@ global _set_last_command_exit_code
 
 ; rdi: the command exit code
 _update_last_command_exit_code:
+    mov qword [rel exit_status_code], rdi
+
     mov rax, rdi
     lea rdi, [rel last_command_exit_code_ascii]
     call _itoa
+
     mov qword [rel last_command_exit_code_ascii_len], rax
     ret
 
@@ -462,11 +467,19 @@ _execute_commands:
         mov rax, sys_wait4   ;syscall number
         mov rdi, [rel pgid_commands] 
         neg rdi                 ; -ve pid means i have given it a pgid
-        xor rsi, rsi     ;where to store exit status(For simply waiting, NULL/0 is fine)
+        lea rsi, [rel exit_status_code]     ;where to store exit status(For simply waiting, NULL/0 is fine)
         xor rdx, rdx     ;how to wait
         xor r10, r10      ;where to store resource usage
         syscall
 
+        test rax, rax           ; todo: proper error handling
+        jl .loopback
+
+        mov rdi, [rel exit_status_code]
+        call _update_last_command_exit_code
+
+
+    .loopback:
         dec r13
         jmp .loop_reap_all_children
 
@@ -520,11 +533,22 @@ _execute_commands:
 
 
     .execute_single_bic_command:
+        ; if bic is 'export'
+        ; they need the "foo=bar" as a argument, not as envp_var
+        ; so as a special case, i will only pass the env variables provided by user in envp_Array
+        ; the bic function will iterate through all the envp_var given by user and update them in shell env
+
+        mov r13, [r12 + DYNAMICARRAY_POINTER_OFF]        ; r14: address of current command struct
+
+        mov rax, [r13 + COMMAND_STRUCT_NAME_OFF]        ; rcx has name for command
+        lea rdi, [rel export_command]
+        call _strcmp
+        test rax, rax   ; if it is export, dont add the shell env 
+        je .done_adding
 
         ; if it's len > 0: add the shell env variables from general array created above. including null
         ; if len = 0: continue
 
-        mov r13, [r12 + DYNAMICARRAY_POINTER_OFF]        ; r14: address of current command struct
 
         ; add the common shell env inside the command struct envp onject
 
@@ -837,11 +861,15 @@ _execute_commands:
         ; final check: if command it can be found in $PATH
         mov rdi, r12
         call _execute_if_built_in
-        ; if it's builtin, it will directly execute and exit, so part after of this doesn't matter
+        ; if it's builtin, it will directly execute and send signal if it 
 
         test rax, rax
-        je _exit
+        jne .check_if_cmd_in_path_env_var
 
+        mov rdi, [rel exit_status_code]
+        call _exit_with_status_code
+
+        .check_if_cmd_in_path_env_var:
         mov rdi, [r12 + COMMAND_STRUCT_NAME_OFF]
         call _check_if_cmd_is_in_path
 

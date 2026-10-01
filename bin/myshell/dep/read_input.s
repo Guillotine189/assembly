@@ -1675,5 +1675,5 @@ _read_input:
         mov byte [rax], 0x0a                        ; replace the 0 with \n
         inc rax
         mov byte [rax], 0                           ; add a NULL
-
+        inc qword [rel filled_size_input_buffer_len]
         ret

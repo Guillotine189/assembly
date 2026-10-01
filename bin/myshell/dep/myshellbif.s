@@ -118,7 +118,7 @@ _execute_if_built_in:
 	mov r13, rdi
 	mov r12, [r13 + COMMAND_STRUCT_NAME_OFF] 		; r12 has the address for name of command
 	lea r15, [r13 + COMMAND_STRUCT_ARGV_OBJ_OFF]    ; r15:object for argc includes null
-
+	lea r14, [r13 + COMMAND_STRUCT_ENVP_OBJ_OFF]     ; r14: the object argv array address
 
     mov rax, r12
     lea rdi, [rel cd_]
@@ -311,25 +311,24 @@ _execute_if_built_in:
 
 
 	.update_shell_env:
-
+		; r14: the address of envp array object
 		; the array conains a NULL as an argument
-		mov r13, r15   ; 2nd argument is the path name
+		mov r13, r14   
         mov r13, [r13 + DYNAMICARRAY_POINTER_OFF]
-
-        ; 0th argument is command name, last argument is NULL
-     	mov r14, 1
+        mov r15, [r14 + DYNAMICARRAY_SIZE_OFF]
+        ; the env variables are stored in env array, all the ones user provided
+        ; followed by null, no other env variables are present in this case
+     	mov r14, 0
 		.loop_set_env_vars:
-	        mov r12, [r13 + r14*8] 					; read the actual argument address
-			cmp r12, 0  				; if i have reached the null arg
-			je .return_built_in
+	        cmp r14, r15  				; if idx = size
+			je .done2
 
-			; r12 is the address of env var
-			; ex : "FOO=BAR" - > r13 points to 'F'
-			mov rdi, r12
+			mov rdi, [r13]
 			call _update_var_in_shell_env
-
 			test rax, rax
 			jl .error_invalid_var
+
+			add r13, 8 					; move check the next address
 
 		    xor rdi, rdi
 		    call _update_last_command_exit_code
@@ -375,7 +374,6 @@ _execute_if_built_in:
 
 			inc r14
 			jmp .loop_unset_env_vars
-
 
         .done2:
         xor rdi, rdi
