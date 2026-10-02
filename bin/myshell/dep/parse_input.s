@@ -111,6 +111,14 @@ _expand_double_exclaimation_and_add_to_history:
     xor r11, r11                                    ; weather i am inside SQ
     xor r12, r12                                        ; len of parse buffer
     lea r13, [rel parse_buffer]
+
+    .loop_skip_initial_spaces:
+        cmp byte [r9 + r8], ' '
+        jne .loop_till_new_line
+
+        inc r8
+        jmp .loop_skip_initial_spaces
+    
     .loop_till_new_line:
 
        cmp byte [r9 + r8], 0x22            ; for : double quotes ""
@@ -340,6 +348,14 @@ _parse_expanded_string:
     xor r11, r11                        ; weather inside single quotes or not
     xor rcx, rcx                        ; weater last byte was '\' or not
     xor rdx, rdx                        ; weather last byte copied was NULL or not
+
+    .loop_skip_initial_spaces:
+        cmp byte [r9 + r8], ' '
+        jne .loop_till_new_line
+
+        inc r8
+        jmp .loop_skip_initial_spaces
+
     .loop_till_new_line:
         cmp byte [r9 + r8], 0x0a            ; if the byte is \n
         je .buffer_parsed

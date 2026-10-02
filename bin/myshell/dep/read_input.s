@@ -1634,7 +1634,21 @@ _read_input:
         ret
 
     .return:
-        
+        mov rax, [rel filled_size_input_buffer_len]
+        xor rcx, rcx
+        mov rdx, [rel input_buffer_address]
+
+        .loop_check_if_input_is_not_just_spaces:
+            cmp rcx, rax
+            je .just_spaces_in_input
+
+            cmp byte [rdx + rcx], ' '
+            jne .complete_input
+
+            inc rcx
+            jmp .loop_check_if_input_is_not_just_spaces
+
+        .complete_input:
         ; move cursor to end / after the last byte
 
         mov rax, [rel filled_size_input_buffer_len]
@@ -1664,7 +1678,7 @@ _read_input:
 
         syscall
 
-        ;add_char_to_input_buffer
+        ; add_char_to_input_buffer
 
         ; i have atleast 8 bytes of free memory
         ; add char at end of input_buffer
@@ -1677,3 +1691,35 @@ _read_input:
         mov byte [rax], 0                           ; add a NULL
         inc qword [rel filled_size_input_buffer_len]
         ret
+
+        .just_spaces_in_input:  
+        ; move cursor to end / after the last byte
+        mov rax, [rel filled_size_input_buffer_len]
+        sub rax, [rel cursor_idx]
+
+        .move_cursor_end1:
+        test rax,  rax
+        jz .move_cursor_down_colum2
+        push rax
+
+        mov rax, 1
+        mov rdi, 1
+        lea rsi, [rel move_cur_right]
+        mov rdx, 3
+        syscall
+
+        pop rax
+        dec rax
+        jmp .move_cursor_end1
+
+        .move_cursor_down_colum2:
+        
+        mov rax, 1
+        mov rdi, 1
+        lea rsi, [rel new_line]
+        mov rdx, 1
+
+        syscall
+
+        mov qword [rel filled_size_input_buffer_len], 1
+        ret   ; the next part will look at len first, if it's 1, it will skip

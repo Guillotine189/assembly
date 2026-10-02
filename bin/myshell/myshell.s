@@ -519,7 +519,7 @@ _handle_input:
 
     call _generate_tokens
     test rax, rax
-    jl .error_parsing_input
+    jl .error_generating_tokens
 
     call _process_token_generate_commands
     test rax, rax
@@ -535,9 +535,16 @@ _handle_input:
 
     ret
 
-    .empty_line:
+      ; TODO: print error and exit
+    .error_generating_tokens:
+    cmp rax, -2
+    je .empty_line
+
+    ;else print error
+
     .error_parocessing_token:
-    .error_parsing_input:  ; TODO: print error and exit
+
+    .empty_line:
         ret
     
 
