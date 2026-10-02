@@ -1654,29 +1654,10 @@ _read_input:
         mov rax, [rel filled_size_input_buffer_len]
         sub rax, [rel cursor_idx]
 
-        .move_cursor_end:
-        test rax,  rax
-        jz .move_cursor_down_colum1
-        push rax
-
-        mov rax, 1
-        mov rdi, 1
-        lea rsi, [rel move_cur_right]
-        mov rdx, 3
-        syscall
-
-        pop rax
-        dec rax
-        jmp .move_cursor_end
-
-        .move_cursor_down_colum1:
-        
         mov rax, 1
         mov rdi, 1
         lea rsi, [rel new_line]
-        mov rdx, 1
-
-        syscall
+        call _print
 
         ; add_char_to_input_buffer
 
@@ -1693,33 +1674,11 @@ _read_input:
         ret
 
         .just_spaces_in_input:  
-        ; move cursor to end / after the last byte
-        mov rax, [rel filled_size_input_buffer_len]
-        sub rax, [rel cursor_idx]
-
-        .move_cursor_end1:
-        test rax,  rax
-        jz .move_cursor_down_colum2
-        push rax
-
-        mov rax, 1
-        mov rdi, 1
-        lea rsi, [rel move_cur_right]
-        mov rdx, 3
-        syscall
-
-        pop rax
-        dec rax
-        jmp .move_cursor_end1
-
-        .move_cursor_down_colum2:
         
         mov rax, 1
         mov rdi, 1
         lea rsi, [rel new_line]
-        mov rdx, 1
-
-        syscall
+        call _print
 
         mov qword [rel filled_size_input_buffer_len], 1
         ret   ; the next part will look at len first, if it's 1, it will skip

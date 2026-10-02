@@ -66,7 +66,7 @@ section .rodata
 
 section .bss
 
-	malloc_info_buffer resb 256 		; detailed info line
+	malloc_info_buffer resb 512 		; detailed info line
 	number_buffer resb 32
 
 
@@ -962,10 +962,9 @@ _print_more_malloc_info:
 		mov rcx, rax
 		rep movsb
 
-
 		; copy a dash between the 2 segments
 		lea rsi, [rel dash]
-		mov rcx, rax
+		mov rcx, 1
 		rep movsb
 
 		push rdi 				; save the next position for insertion
@@ -1400,7 +1399,7 @@ itoa:
 		jmp .loop
 
 	.move_data_to_buffer:
-		cmp r9, 0
+		test r9, r9
 		je .done
 
 		; read 1 byte from stack
