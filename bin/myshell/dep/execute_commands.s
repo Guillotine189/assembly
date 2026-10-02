@@ -34,6 +34,7 @@ section .bss
     child_pid resq 0
     child_pgid resq 0
 
+
     pipe_for_command resd 2             ; 2fd:  4bytes each, [read, write]
     pipe_read_buffer_child resb 8
 
@@ -52,6 +53,8 @@ section .bss
     common_shell_env_var_array_object resb DYNAMICARRAY_OBJECT_SIZE
 
     sync_pipe_buffer resb 10
+
+    last_child_exit_mask resb 4         ; wait4 write 4bytes of value into exit code variable
 
 extern shell_pgid
 extern exit_status_code
@@ -98,12 +101,15 @@ global _set_last_command_exit_code
 
 ; rdi: the command exit code
 _update_last_command_exit_code:
-    mov qword [rel exit_status_code], rdi
+    ; Make sure the code returned here is a 64bit value
+    ; eg: os returns 4byte value, make it compatible with 8byte register
+
+    ; i know last_child_exit_mask has the value (not always like if single command and bic), but i use this var in other part of program
+    mov [rel exit_status_code], rdi
 
     mov rax, rdi
     lea rdi, [rel last_command_exit_code_ascii]
     call _itoa
-
     mov qword [rel last_command_exit_code_ascii_len], rax
     ret
 
@@ -467,25 +473,49 @@ _execute_commands:
         mov rax, sys_wait4   ;syscall number
         mov rdi, [rel pgid_commands] 
         neg rdi                 ; -ve pid means i have given it a pgid
-        lea rsi, [rel exit_status_code]     ;where to store exit status(For simply waiting, NULL/0 is fine)
+        lea rsi, [rel last_child_exit_mask]     ;where to store exit status, 1byte will be written to this address
         xor rdx, rdx     ;how to wait
         xor r10, r10      ;where to store resource usage
         syscall
+        ; TODO: handle error for waiting
 
-        test rax, rax           ; todo: proper error handling
-        jl .loopback
-
-        mov rdi, [rel exit_status_code]
-        call _update_last_command_exit_code
-
+        ; if i want to add pipe fail, cehck the exit code here and if it's != 0, update it, then don't update the exit code after all_child_exited
 
     .loopback:
         dec r13
         jmp .loop_reap_all_children
 
     .all_children_exited:
-    ; TODO: handle error for waiting
+    
+    ; only care about exit code of last child reaped
+    ; update command wants exit code to be 8byte value
+    ; the code inside last_child_exit_mask is only 1 byte and if -ve, i need to make it compatible with rdi
+    ; 4bytes in last_child_exit_mask: [irrelevant_2_bytes | exit_code_1_byte | irrelevant_1_byte]
 
+    mov eax, [rel last_child_exit_mask]
+
+    ; if the child was terminated by a signal
+    mov edx, eax
+    and edx, 0x7f
+    jnz .child_exited_because_of_signal
+
+    ; normal exit
+    shr eax, 8                          ; the code has 1byte of padding/irrelevant data at end, then it has 1byte for exit code, then 2 bytes of irrelevant data
+    and eax, 0xff                       ; i only need the first 1 byte of eax register which has exit code
+    mov edi, eax
+    call _update_last_command_exit_code
+    jmp .put_shell_in_fg
+
+    .child_exited_because_of_signal:
+    ; eax contains the raw wait status
+    and eax, 0x7f          ; signal number
+    add eax, 128           ; Bash-style $? = 128 + signal
+    mov edi, eax
+    call _update_last_command_exit_code
+    jmp .put_shell_in_fg
+
+
+    .put_shell_in_fg:
     ; child finished, now take the shell back to foreground
     mov rax, sys_ioctl
     xor rdi, rdi
@@ -904,11 +934,45 @@ _execute_commands:
         syscall
 
         ; this part only executes when execve fails inside child process
-        mov [rel exit_status_code], rax
+
+        ; here the exit code is returned in rax not in al, so -1 is 1111111...1110
         mov [rel error_code], rax
         mov rdi, [r12 + COMMAND_STRUCT_NAME_OFF]
         call child_print_error_executing_process
-        call _exit_with_status_code
+
+        ; map the error code from execve to exit code that will be displayed by my shell
+        ; rn i am using bash like mapping
+
+        mov rax, [rel error_code]
+
+        ; 2   ENOENT   No such file/directory   127
+        ; 13  EACCES   Permission denied        126
+        ; 8   ENOEXEC  Exec format error        126
+        ; 21  EISDIR   Is a directory           126
+        ; 20  ENOTDIR  Not a directory          126
+        ; 40  ELOOP    Too many symbolic links  126
+        ; 36  ENAMETOOLONG  Filename too long   126
+        ; 12  ENOMEM   Cannot allocate memory   126
+        ; 7   E2BIG    Argument list too long   126
+        ; 14  EFAULT   Bad address              126
+        ; 26  ETXTBSY  Text file busy           126
+
+        cmp rax, -ENOENT
+        je .exit_code_127
+
+        mov [rel exit_status_code], 126
+        jmp .exit_
+
+        .exit_code_127:
+            mov [rel exit_status_code], 127
+            jmp .exit_
+
+
+        .exit_:
+        mov rax, 60
+        mov rdi, [rel exit_status_code]
+        syscall
+
 
 
 

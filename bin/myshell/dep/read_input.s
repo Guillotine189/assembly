@@ -128,7 +128,7 @@ _read_input:
         mov rdx, 1                      ; len to put into key_buffer
         syscall
         
-        cmp rax, EINTR          ; -4, ctrl+c interrupted
+        cmp rax, -EINTR          ; -4, ctrl+c interrupted
         je .interrupted
 
         test rax, rax

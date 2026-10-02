@@ -866,9 +866,10 @@ _classify_and_generate_tokens:
 
 
     .token_ended:
+        ; expects r8 to point to NULL
         inc r13                         ; total tokens ++
 
-        inc r8                          ; expects r8 to point to NULL
+        inc r8
         mov r10, r8                     ; index of neginning of next token 
 
         dec r8                          ; because loopback will increase r8 again

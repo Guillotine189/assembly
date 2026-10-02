@@ -67,11 +67,9 @@ extern curr_cwd
 extern curr_cwd_len
 extern old_cwd
 extern old_cwd_len
-extern last_command_exit_code_ascii
 
 extern _exit_with_status_code
 
-extern command_argc_dynamic_array_object
 
 extern _find_var_in_shell_env
 extern _update_var_in_shell_env

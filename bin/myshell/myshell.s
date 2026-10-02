@@ -23,7 +23,6 @@ section .data
     filled_size_input_buffer_len dq 0               ; includes \n
     input_buffer_address dq 0         ; address from malloc
 
-
     address_command dq 1
 
     og_envp_stack_array_address dq 1
