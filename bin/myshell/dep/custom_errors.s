@@ -83,7 +83,6 @@ section .rodata
     error_getting_pipes db "MyShell: Error executing process: Error creating pipe: ", 0
     error_getting_pipes_len equ $ - error_getting_pipes 
 
-
     child_error_executing_process db "MyShell: Error executing ", 0
     child_error_executing_process_len equ $ - child_error_executing_process
 
@@ -121,10 +120,10 @@ section .rodata
     error_getting_pipe_array_element db "MyShell: Error executing command. Error getting pipe array element:", 0
     error_getting_pipe_array_element_len equ $ - error_getting_pipe_array_element
 
-    error_appending_pipe_array db "MyShell: Error executing command. Error appengin pipe array:", 0
+    error_appending_pipe_array db "MyShell: Error executing command. Error appending pipe array:", 0
     error_appending_pipe_array_len equ $ - error_appending_pipe_array
 
-    error_changing_child_pgid db "MyShell: Error executing command. Error changing gpid for child process:", 0
+    error_changing_child_pgid db "MyShell: Error executing command. Shell unable to change gpid for child process:", 0
     error_changing_child_pgid_len equ $ - error_changing_child_pgid
 
     error_forking db "MyShell: Error executing command. Error forking:",0
@@ -138,6 +137,7 @@ section .rodata
 
     error_putting_shell_into_fg db "MyShell: Error putting shell into foreground: ", 0
     error_putting_shell_into_fg_len equ $ - error_putting_shell_into_fg
+
 
 
 section .bss

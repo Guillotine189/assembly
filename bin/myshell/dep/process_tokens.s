@@ -4,7 +4,7 @@
 
 global command_array
 section .bss
-    command_array resb DYNAMICARRAY_SIZE_OFF
+    command_array resb DYNAMICARRAY_OBJECT_SIZE
 
 section .rodata
     null_qword dq 0

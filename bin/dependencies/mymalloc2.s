@@ -203,7 +203,7 @@ _malloc:
 		; i know the required space is bigger than empty space of the last segment
 
 	.get_more_heap_space_when_last_seg_reused:
-
+		inc qword [rel times_asked_os_for_more_memory]
 		mov r12, [rel malloc_address_last_segment]
 		
 		; get more size for this size segment
