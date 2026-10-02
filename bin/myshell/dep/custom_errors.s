@@ -41,30 +41,7 @@ section .rodata
     error_increasing_input_buffer_mem_len equ $ - error_increasing_input_buffer_mem
 
 
-    ; ---------------------------- EXECUTE PROCESS ---------------------------------
-    error_getting_pipes db "MyShell: Error executing process: Error creating pipe: ", 0
-    error_getting_pipes_len equ $ - error_getting_pipes 
 
-    error_forking db "MyShell: Error forking",0
-    error_forking_len equ $ - error_forking
-
-    child_error_executing_process db "MyShell: Error executing ", 0
-    child_error_executing_process_len equ $ - child_error_executing_process
-
-    parent_error_closing_read_pipe db "MyShell: Error creating pipe for child:", 0
-    parent_error_closing_read_pipe_len equ $ - parent_error_closing_read_pipe
-
-    parent_error_setting_gpid_for_child db "MyShell: Error setting gpid for child process:", 0
-    parent_error_setting_gpid_for_child_len equ $ - parent_error_setting_gpid_for_child
-
-    parent_error_moving_child_to_fg db "MyShell: Error moving child to foreground:", 0
-    parent_error_moving_child_to_fg_len equ $ - parent_error_moving_child_to_fg
-
-    parent_error_synchronizing_with_child db "MyShell: Error synchronizing with child process:", 0
-    parent_error_synchronizing_with_child_len equ $ - parent_error_synchronizing_with_child
-
-    parent_error_closing_write_pipe db "MyShell: Error closing parent write pipe: ", 0
-    parent_error_closing_write_pipe_len equ $ - parent_error_closing_write_pipe
 
 
     ; --------------------------- PROCESS TOKENS ---------------------------------
@@ -101,6 +78,66 @@ section .rodata
 
     error_unknow_token db "MyShell: Error executing command. Error unknown token value", 0
     error_unknow_token_len equ $ - error_unknow_token
+
+    ; ---------------------------- EXECUTE PROCESS ---------------------------------
+    error_getting_pipes db "MyShell: Error executing process: Error creating pipe: ", 0
+    error_getting_pipes_len equ $ - error_getting_pipes 
+
+
+    child_error_executing_process db "MyShell: Error executing ", 0
+    child_error_executing_process_len equ $ - child_error_executing_process
+
+    parent_error_closing_read_pipe db "MyShell: Error creating pipe for child:", 0
+    parent_error_closing_read_pipe_len equ $ - parent_error_closing_read_pipe
+
+    parent_error_setting_gpid_for_child db "MyShell: Error setting gpid for child process:", 0
+    parent_error_setting_gpid_for_child_len equ $ - parent_error_setting_gpid_for_child
+
+    parent_error_moving_child_to_fg db "MyShell: Error moving child to foreground:", 0
+    parent_error_moving_child_to_fg_len equ $ - parent_error_moving_child_to_fg
+
+    parent_error_synchronizing_with_child db "MyShell: Error synchronizing with child process:", 0
+    parent_error_synchronizing_with_child_len equ $ - parent_error_synchronizing_with_child
+
+    parent_error_closing_write_pipe db "MyShell: Error closing parent write pipe: ", 0
+    parent_error_closing_write_pipe_len equ $ - parent_error_closing_write_pipe
+
+    ; ---------------------------- EXECUTE PROCESS ---------------------------------
+    error_initializing_common_env_array_obj db "MyShell: Error executing command. Error initializing common env array obj:", 0
+    error_initializing_common_env_array_obj_len equ $ - error_initializing_common_env_array_obj
+
+    error_initializing_pipe_array db "MyShell: Error executing command. Error initializing pipe array obj:", 0
+    error_initializing_pipe_array_len equ $ - error_initializing_pipe_array
+
+    error_adding_to_common_env_array db "MyShell: Error executing command. Error adding shell env var to common env array:", 0
+    error_adding_to_common_env_array_len equ $ - error_adding_to_common_env_array
+
+    error_getting_sync_pipes db "MyShell: Error executing process: Error getting sync pipe:", 0
+    error_getting_sync_pipes_len equ $ - error_getting_sync_pipes
+
+    error_getting_redirection_pipe db "MyShell: Error executing command. Error getting redirectionn pipe:", 0
+    error_getting_redirection_pipe_len equ $ - error_getting_redirection_pipe
+
+    error_getting_pipe_array_element db "MyShell: Error executing command. Error getting pipe array element:", 0
+    error_getting_pipe_array_element_len equ $ - error_getting_pipe_array_element
+
+    error_appending_pipe_array db "MyShell: Error executing command. Error appengin pipe array:", 0
+    error_appending_pipe_array_len equ $ - error_appending_pipe_array
+
+    error_changing_child_pgid db "MyShell: Error executing command. Error changing gpid for child process:", 0
+    error_changing_child_pgid_len equ $ - error_changing_child_pgid
+
+    error_forking db "MyShell: Error executing command. Error forking:",0
+    error_forking_len equ $ - error_forking
+
+    error_moving_child_to_fg db "MyShell: Error executing command. Error moving child to foreground:", 0
+    error_moving_child_to_fg_len equ $ - error_moving_child_to_fg
+
+    error_writing_to_pipe_for_syncing db "MyShell: Error executing command. Error writing bytes to pipe for sync: ", 0
+    error_writing_to_pipe_for_syncing_len equ $ - error_writing_to_pipe_for_syncing
+
+    error_putting_shell_into_fg db "MyShell: Error putting shell into foreground: ", 0
+    error_putting_shell_into_fg_len equ $ - error_putting_shell_into_fg
 
 
 section .bss
@@ -150,6 +187,21 @@ global print_error_adding_command_stuct
 global print_error_invalid_token_after_pipe
 global print_error_command_name_not_found_for_last_command
 global print_error_unknow_token
+
+; ---- Execute commands
+global print_error_initializing_common_env_array_obj
+global print_error_initializing_pipe_array
+global print_error_adding_to_common_env_array
+global print_error_getting_sync_pipes
+global print_error_getting_redirection_pipe
+global print_error_getting_pipe_array_element
+global print_error_appending_pipe_array
+global print_error_changing_child_pgid
+global print_error_forking
+global print_error_moving_child_to_fg
+global print_error_writing_to_pipe_for_syncing
+global print_error_putting_shell_into_fg
+
 
 print_error_input_init_memory:
     mov rax, error_input_init_memory_len
@@ -226,7 +278,137 @@ print_error_getting_cwd:
     ret
 
 
+; ------------------------------ EXECUTE PROCESS NEW---------------
+
+
+
+print_error_initializing_common_env_array_obj:
+    mov rax, error_initializing_common_env_array_obj_len
+    mov rdi, 1
+    lea rsi , [rel error_initializing_common_env_array_obj]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+print_error_initializing_pipe_array:
+    mov rax, error_initializing_pipe_array_len
+    mov rdi, 1
+    lea rsi , [rel error_initializing_pipe_array]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+print_error_adding_to_common_env_array:
+    mov rax, error_adding_to_common_env_array_len
+    mov rdi, 1
+    lea rsi , [rel error_adding_to_common_env_array]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+print_error_getting_sync_pipes:
+    mov rax, error_getting_sync_pipes_len
+    mov rdi, 1
+    lea rsi , [rel error_getting_sync_pipes]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+print_error_getting_redirection_pipe:
+    mov rax, error_getting_redirection_pipe_len
+    mov rdi, 1
+    lea rsi , [rel error_getting_redirection_pipe]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+print_error_getting_pipe_array_element:
+    mov rax, error_getting_pipe_array_element_len
+    mov rdi, 1
+    lea rsi , [rel error_getting_pipe_array_element]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+print_error_appending_pipe_array:
+    mov rax, error_appending_pipe_array_len
+    mov rdi, 1
+    lea rsi , [rel error_appending_pipe_array]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+print_error_changing_child_pgid:
+    mov rax, error_changing_child_pgid_len
+    mov rdi, 1
+    lea rsi, [rel error_changing_child_pgid]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
 print_error_forking:
+    mov rax, error_forking_len
+    mov rdi, 1
+    lea rsi , [rel error_forking]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+print_error_moving_child_to_fg:
+    mov rax, error_moving_child_to_fg_len
+    mov rdi, 1
+    lea rsi, [rel error_moving_child_to_fg]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+print_error_writing_to_pipe_for_syncing:
+    mov rax, error_writing_to_pipe_for_syncing_len
+    mov rdi, 1
+    lea rsi, [rel error_writing_to_pipe_for_syncing]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+print_error_putting_shell_into_fg:
+    mov rax, error_putting_shell_into_fg_len
+    mov rdi, 1
+    lea rsi, [rel error_putting_shell_into_fg]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+
+
+
+; ------------------------------ EXECUTE PROCESS OLD---------------
+
+
+print_error_forking2:
     mov rax, error_forking_len
     mov rdi, 1
     lea rsi , [rel error_forking]

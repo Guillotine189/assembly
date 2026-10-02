@@ -37,15 +37,14 @@ extern _free
 
 extern _add_cmd_into_history
 
-global _generate_tokens
 global parsed_string_object
+global _generate_tokens
+global _cleanup_generate_tokens_on_success
 
 ; i have a parsed_string_object that stores the final parsed string
 ; i have a parse_buffer where i add bytes
 ; when that parse_buffer is full, i copy the contents into the parsed_string_object,
 ; the parsed_string_object grows dynamically
-
-
 
 _generate_tokens:
 
@@ -86,6 +85,11 @@ _generate_tokens:
         ret
 
 
+_cleanup_generate_tokens_on_success:
+    call _free_parsed_buffer_string_object
+    call _free_token_array
+    ret
+
 
 ; i can use r12-15 freely here
 _expand_double_exclaimation_and_add_to_history:
@@ -118,7 +122,7 @@ _expand_double_exclaimation_and_add_to_history:
 
         inc r8
         jmp .loop_skip_initial_spaces
-    
+
     .loop_till_new_line:
 
        cmp byte [r9 + r8], 0x22            ; for : double quotes ""
@@ -348,13 +352,6 @@ _parse_expanded_string:
     xor r11, r11                        ; weather inside single quotes or not
     xor rcx, rcx                        ; weater last byte was '\' or not
     xor rdx, rdx                        ; weather last byte copied was NULL or not
-
-    .loop_skip_initial_spaces:
-        cmp byte [r9 + r8], ' '
-        jne .loop_till_new_line
-
-        inc r8
-        jmp .loop_skip_initial_spaces
 
     .loop_till_new_line:
         cmp byte [r9 + r8], 0x0a            ; if the byte is \n

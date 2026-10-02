@@ -140,6 +140,9 @@ _malloc:
 	push r13
 
 	mov rbx, rdi 						;store requested size in callee-saved reg rbx
+	add rbx, 7
+	and rbx, -8  						; i will not allocate for odd bytes
+
 
 	cmp qword [rel malloc_total_segments], 0
 	je .get_new_brk
@@ -255,6 +258,7 @@ _malloc:
 
 	.get_more_heap_space:
 	inc qword [rel times_asked_os_for_more_memory]
+
 	; move brk up, try to get more heap space
 	mov rax, 12
 	mov rdi, r12 						; address of old brk

@@ -163,11 +163,13 @@ extern _get_and_set_mem_for_history_array
 extern _read_input
 
 extern _generate_tokens
+extern _cleanup_generate_tokens_on_success
+
 extern _process_token_generate_commands
+extern _cleanup_process_token_generate_commands_on_success
+
 extern _execute_commands
 extern _set_last_command_exit_code
-
-
 
 
 extern _default_dynamic_array_constructor
@@ -525,24 +527,20 @@ _handle_input:
     test rax, rax
     jl .error_parocessing_token
 
-    call _execute_commands
+    call _execute_commands   ; this cleans up after itself, both on success and failure
 
-
-
-    ; DEALLOCATE THE parsed_string_object
-    lea rdi, [rel parsed_string_object]
-    call _destructor_mystring
-
+    ; clean up the generate token and process_token leftover
+    call _cleanup_generate_tokens_on_success
+    call _cleanup_process_token_generate_commands_on_success
     ret
 
-      ; TODO: print error and exit
     .error_generating_tokens:
-    cmp rax, -2
-    je .empty_line
-
-    ;else print error
+        ; print error
+        ret
 
     .error_parocessing_token:
+        call _cleanup_generate_tokens_on_success
+        ret
 
     .empty_line:
         ret

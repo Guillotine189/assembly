@@ -172,7 +172,6 @@ _itoa:
 		ret
 
 	.zero_length:
-		mov rcx, rdi
 		mov byte [rdi], '0'
 		inc rdi
 		mov byte [rdi], 0

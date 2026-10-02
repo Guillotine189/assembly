@@ -39,22 +39,22 @@ section .bss
     pipe_read_buffer_child resb 8
 
 
-    last_command_exit_code_ascii resb 32
-    last_command_exit_code_ascii_len resq 1
 
     command_argc_dynamic_array_object resb DYNAMICARRAY_OBJECT_SIZE
     command_argv_dynamic_array_object resb DYNAMICARRAY_OBJECT_SIZE
 
     address_command resb 8
-
     ; ------------
+
     pipe_array resb DYNAMICARRAY_OBJECT_SIZE      ; the array that contain info about redirection
     temp_pipe_buffer resd 2
     common_shell_env_var_array_object resb DYNAMICARRAY_OBJECT_SIZE
 
     sync_pipe_buffer resb 10
-
     last_child_exit_mask resb 4         ; wait4 write 4bytes of value into exit code variable
+
+    last_command_exit_code_ascii resb 32
+    last_command_exit_code_ascii_len resq 1
 
 extern shell_pgid
 extern exit_status_code
@@ -77,6 +77,19 @@ extern parent_print_error_setting_gpid_for_child
 extern parent_print_error_moving_child_to_fg
 extern parent_print_error_synchronizing_with_child
 extern parent_print_error_closing_write_pipe
+
+extern print_error_initializing_common_env_array_obj
+extern print_error_initializing_pipe_array
+extern print_error_adding_to_common_env_array
+extern print_error_getting_sync_pipes
+extern print_error_getting_redirection_pipe
+extern print_error_getting_pipe_array_element
+extern print_error_appending_pipe_array
+extern print_error_changing_child_pgid
+extern print_error_forking
+extern print_error_moving_child_to_fg
+extern print_error_writing_to_pipe_for_syncing
+extern print_error_putting_shell_into_fg
 
 
 extern _execute_if_built_in
@@ -225,7 +238,7 @@ _execute_commands:
     call _default_dynamic_array_constructor
 
     test rax,  rax
-    jl .error_initializing_common_env_array
+    jl .error_initializing_common_env_array_obj
 
     .loop_shell_env_array:
 
@@ -246,18 +259,22 @@ _execute_commands:
         ; i want to copy the address of string inside array. so i need to give the address of address of string
         lea rdi, [rel common_shell_env_var_array_object]
         call _dynamic_array_add_element
-        ; todo: handld error
+
+        test rax, rax
+        js .error_adding_common_env_array
 
         inc r12
         jmp .loop_shell_env_array
 
     .done_adding_shell_env_var:
     ; add a null address after them
-    ; r13 is shell_env_array_object
     lea rdi, [rel common_shell_env_var_array_object]
     lea rsi, [rel null_qword]
     call _dynamic_array_add_element
-    ;todo: handle error
+    
+    test rax, rax
+    js .error_adding_common_env_array
+
 
 
     REDIRECT_STRUCT_SIZE            equ 16
@@ -292,7 +309,7 @@ _execute_commands:
 
 
     .continue:
-    ; get pipe
+    ; get sync pipe
     mov rax, sys_pipe
     lea rdi, [rel pipe_for_sync]
     syscall 
@@ -309,7 +326,9 @@ _execute_commands:
     mov qword [rdi + DYNAMICARRAY_POINTER_OFF], 0
     mov qword [rdi + DYNAMICARRAY_SIZE_OFF], 0
     call _default_dynamic_array_constructor
-    ;todo: handle error
+    
+    test rax, rax
+    jl .error_initializing_pipe_array
 
     call _set_old_termios
 
@@ -331,7 +350,9 @@ _execute_commands:
         lea rdi, [rel pipe_array]
         mov rsi, rax
         call _dynamic_array_get_element_address             ; get the pipe pair for this index
-        ; todo: handle error
+        
+        test rax, rax
+        jl .error_getting_pipe_array_element
 
         mov r14, rax                                   ; save element address is r14
 
@@ -339,9 +360,13 @@ _execute_commands:
         mov rax, sys_close
         syscall
 
+        mov dword [r14], -1         ; mark them as closed
+
         mov edi, [r14 + 4]          ; the write end of the pipe, [4bytes for each pipe]
         mov rax, sys_close
         syscall
+
+        mov dword [r14 + 4], -1         ; mark them as closed
 
         .no_pipe_pair_to_close:
         ; now check the redirect_out for this command
@@ -349,7 +374,10 @@ _execute_commands:
         mov rdi, r12                                    ; r12: address of command_arr_obj
         mov rsi, r13                                    ; r13: idx of current command
         call _dynamic_array_get_element_address         ; get the current command address struct in rax
-        ; todo: handle error
+
+        test rax, rax
+        jl .error_getting_pipe_array_element
+
 
         lea rax, [rax + COMMAND_STRUCT_ROUT_STRUCT_OFF]    ; rax: the address of redirect struct
         mov rax, [rax + REDIRECT_STRUCT_TYPE_OFF]          ; rax: the type of redirect out
@@ -363,13 +391,15 @@ _execute_commands:
         syscall
 
         test rax, rax
-        jl .error_getting_pipe
+        jl .error_getting_redirection_pipe
 
         ; add the pipes into pipe array
         lea rdi, [rel pipe_array]
         lea rsi, [rel temp_pipe_buffer]
         call _dynamic_array_add_element
-        ; todo: handle error
+        
+        test rax, rax
+        jl .error_appending_pipe_array
 
         .no_pipe_needed:
 
@@ -392,14 +422,14 @@ _execute_commands:
 
         .pgid_already_set:
 
-
         ; make sure child is in the process group. This is done here to avoid race
         mov rdi, rax                    ; the pid who you want to add
         mov rsi, [rel pgid_commands]    ; the pgid you want to be added in
         mov rax, sys_setpgid
         syscall
-        ; todo: handle error
-
+    
+        test rax, rax
+        jl .error_changing_child_pgid
 
         inc r13
         jmp .loop_parent_setup_child
@@ -417,16 +447,22 @@ _execute_commands:
     lea rdi, [rel pipe_array]
     mov rsi, rax
     call _dynamic_array_get_element_address         ; get the 2 pipes
-    ; todo: handle error
+    
+    test rax, rax
+    jl .error_getting_pipe_array_element
 
     mov r13, rax                        ; r13: save address of pipes 
     mov rax, sys_close
     mov edi, [r13]
     syscall
 
+    mov dword [r13], -1
+
     mov rax, sys_close
     mov edi, [r13 + 4]
     syscall
+
+    mov dword [r13 + 4], -1
 
     .no_pipe_to_close:
 
@@ -436,7 +472,9 @@ _execute_commands:
     mov rsi, TIOCSPGRP          ; 0x5410
     lea rdx, [rel pgid_commands]
     syscall
-    ; TODO: handle error for moving child to foreground
+    
+    test rax, rax
+    jl .error_moving_child_to_fg
 
 
     lea r13, [rel command_array]
@@ -452,7 +490,8 @@ _execute_commands:
         mov rdx, 1                  ; write 1 bytes '.' for every command
         syscall 
 
-        ; todo: error writing to pipe
+        test rax, rax
+        jl .error_writing_to_pipe_for_syncing
 
         dec r13
         jmp .loop_put_bytes_into_write_sync_pipe
@@ -477,9 +516,18 @@ _execute_commands:
         xor rdx, rdx     ;how to wait
         xor r10, r10      ;where to store resource usage
         syscall
-        ; TODO: handle error for waiting
 
-        ; if i want to add pipe fail, cehck the exit code here and if it's != 0, update it, then don't update the exit code after all_child_exited
+        test rax, rax               ; if rax >= 0 -> child successfully reaped
+        jns .loopback
+
+        cmp rax, -EINTR             ; if wait4 was interrupted, retry
+        je .loop_reap_all_children
+
+        cmp rax, -ECHILD            ; if no child process, it sends ECHILD. This is a defensive approach. I don't really need it.
+        je .all_child_process_reaped
+
+        ; TODO: if there is an error reaping child, exit probably, or retry sometimes
+        ; jmp .error_reaping_child
 
     .loopback:
         dec r13
@@ -504,7 +552,7 @@ _execute_commands:
     and eax, 0xff                       ; i only need the first 1 byte of eax register which has exit code
     mov edi, eax
     call _update_last_command_exit_code
-    jmp .put_shell_in_fg
+    jmp .retry_shell_fg
 
     .child_exited_because_of_signal:
     ; eax contains the raw wait status
@@ -512,54 +560,195 @@ _execute_commands:
     add eax, 128           ; Bash-style $? = 128 + signal
     mov edi, eax
     call _update_last_command_exit_code
-    jmp .put_shell_in_fg
+    jmp .retry_shell_fg
 
 
-    .put_shell_in_fg:
     ; child finished, now take the shell back to foreground
-    mov rax, sys_ioctl
-    xor rdi, rdi
-    mov rsi, TIOCSPGRP
-    lea rdx, [rel shell_pgid]
-    syscall
+    .retry_shell_fg:
+        
+        mov rax, sys_ioctl
+        xor rdi, rdi
+        mov rsi, TIOCSPGRP
+        lea rdx, [rel shell_pgid]
+        syscall
+
+        cmp rax, -EINTR
+        je .retry_shell_fg
+
+        test rax, rax
+        js .error_putting_shell_into_fg
+
 
     ; TODO: dont reset non-canonical, save the old state and apply it
     call _set_noncanonical_mode
     call .cleanup
+    call .reset
     ret
 
-
     .cleanup:
-        mov qword [rel pgid_commands], 0
-        mov qword [rel pipe_for_sync], 0     ; i know it's 8 bytes long
-        lea rdi, [rel common_shell_env_var_array_object]
-        call _dynamic_array_clear
+        call _free_common_env_var_array_object
+        call .close_both_sync_pipes
+        call _free_pipe_array_object
         ret
 
 
+    .reset:
+        mov qword [rel pgid_commands], 0
+        mov qword [rel pipe_for_sync], 0     ; i know it's 8 bytes long
+        ret
+
+    .error_initializing_common_env_array_obj:
+        mov [rel error_code], rax
+        call print_error_initializing_common_env_array_obj
+        jmp .return_failure
+
+    .error_adding_common_env_array:
+        mov [rel error_code], rax
+        call print_error_adding_to_common_env_array
+        call _free_common_env_var_array_object
+        jmp .return_failure
 
     .error_getting_sync_pipe:
         mov [rel error_code], rax
-        call print_error_getting_pipes  ;TODO: change error to say sync pipe
-        ret
+        call print_error_getting_sync_pipes  ;TODO: change error to say sync pipe
+        call _free_common_env_var_array_object
+        jmp .return_failure
 
-    .error_initializing_common_env_array:
-        ; TODO: PROPER ERROR HANDLING
-        mov rax, -1
-        ret
-
-    .error_getting_pipe:
-        ; TODO: PROPER ERROR
+    .error_initializing_pipe_array:
         mov [rel error_code], rax
-        call print_error_getting_pipes
-        ret
-        
+        call print_error_initializing_pipe_array
+        call _free_common_env_var_array_object
+        call .close_both_sync_pipes
+        jmp .return_failure
+
+    .error_getting_pipe_array_element:
+        mov [rel error_code], rax
+        call print_error_getting_pipe_array_element
+        call .kill_and_reap_child_processes
+        call _free_common_env_var_array_object
+        call .close_both_sync_pipes
+        call _free_pipe_array_object
+        jmp .return_failure
+
+    .error_appending_pipe_array:
+        mov [rel error_code], rax
+        call print_error_appending_pipe_array
+        call .kill_and_reap_child_processes
+        call _free_common_env_var_array_object
+        call .close_both_sync_pipes
+        call _free_pipe_array_object
+        jmp .return_failure
+
+
+    .error_getting_redirection_pipe:
+        mov [rel error_code], rax
+        call print_error_getting_redirection_pipe
+        call .kill_and_reap_child_processes
+        call _free_common_env_var_array_object
+        call .close_both_sync_pipes
+        call _free_pipe_array_object
+        jmp .return_failure
+
+    .error_changing_child_pgid:
+        mov [rel error_code], rax
+        call print_error_changing_child_pgid
+        call .kill_and_reap_child_processes
+        call _free_common_env_var_array_object
+        call .close_both_sync_pipes
+        call _free_pipe_array_object
+        jmp .return_failure
+
     .error_forking:
-        ; TODO: proper error handling
+        ; r13: the idx of command which failed
         mov [rel error_code], rax
         call print_error_forking
-        ret
+        call .kill_and_reap_child_processes
+        call _free_common_env_var_array_object
+        call .close_both_sync_pipes
+        call _free_pipe_array_object
+        jmp .return_failure
 
+
+
+    .error_moving_child_to_fg:
+        mov [rel error_code], rax
+        call print_error_moving_child_to_fg
+        call .kill_and_reap_child_processes
+        call _free_common_env_var_array_object
+        call .close_both_sync_pipes
+        call _free_pipe_array_object
+        jmp .return_failure
+
+    .error_writing_to_pipe_for_syncing:
+        mov [rel error_code], rax
+        call print_error_writing_to_pipe_for_syncing
+
+        ; kill_and_reap expects r13 to contains the total child forked and needs to be reaped
+        lea r13, [rel command_array]
+        mov r13, [r13 + DYNAMICARRAY_SIZE_OFF]
+        call .kill_and_reap_child_processes
+
+        call _free_common_env_var_array_object
+        call .close_both_sync_pipes
+        call _free_pipe_array_object
+        jmp .return_failure
+    
+    .kill_and_reap_child_processes:
+        ; r13: already has the idx of commmand which failed
+        ; kill and reap all the child processes
+        mov rax, [rel pgid_commands]
+        test rax, rax                          ; if pgid not set, no child process exists
+        je .all_child_process_reaped
+        ; else i must kill the pgid, and reap all childrens
+
+        mov rax, sys_kill
+        mov rdi, [rel pgid_commands]  
+        neg rdi
+        mov rsi, SIGKILL
+        syscall
+
+        ; whether kill succeeded or not,  doesn't matter
+        ; try to reap all the child processes.
+
+        ; r13: already has the idx of commmand which failed
+        .loop_reap_all_children2:
+            test r13, r13
+            je .all_child_process_reaped   ; all child process reaped
+
+            ; reap child group
+            mov rax, sys_wait4   ;syscall number
+            mov rdi, [rel pgid_commands] 
+            neg rdi                 ; -ve pid means i have given it a pgid
+            lea rsi, [rel last_child_exit_mask]     ;where to store exit status, 4bytes will be written to this address
+            xor rdx, rdx     ;how to wait
+            xor r10, r10      ;where to store resource usage
+            syscall
+
+            test rax, rax               ; if rax > 0 -> child successfully reaped
+            jns .child_reaped
+
+            cmp rax, -EINTR             ; if wait4 was interrupted, retry
+            je .loop_reap_all_children2
+
+            cmp rax, -ECHILD            ; if no child process, it sends ECHILD. This is a defensive approach. I don't really need it.
+            je .all_child_process_reaped
+
+            ; TODO: if there is an error reaping child, exit probably, or retry sometimes
+            ; jmp .error_reaping_child
+
+        .child_reaped:
+            dec r13
+            jmp .loop_reap_all_children2
+
+        .all_child_process_reaped:
+            ret
+
+        .error_putting_shell_into_fg:
+            mov [rel error_code], rax
+            call print_error_putting_shell_into_fg
+            ; at this point i must exit
+            mov [rel exit_status_code], 1
+            call _exit_with_status_code
 
 
     .execute_single_bic_command:
@@ -614,7 +803,8 @@ _execute_commands:
         .done_adding:
         mov rdi, r13
         call _execute_if_built_in   ; i know it's built in
-        call .cleanup
+        call _free_common_env_var_array_object
+        call .reset
         ret
 
 
@@ -976,27 +1166,35 @@ _execute_commands:
 
 
 
-    .close_sync_pipes:
-        mov rax, sys_close
-        mov edi, [rel pipe_for_sync]
-        syscall
-
-        mov rax, sys_close
-        mov edi, [rel pipe_for_sync + 4]
-        syscall
+    .close_both_sync_pipes:
+        call .close_read_sync_pipe
+        call .close_write_sync_pipe
         ret
 
 
     .close_read_sync_pipe:
-        mov rax, sys_close
         mov edi, [rel pipe_for_sync]
+        test edi, edi
+        jl .read_already_closed
+
+        mov rax, sys_close
         syscall
+        mov dword [rel pipe_for_sync], -1   ; mark this as closed
+
+        .read_already_closed:
         ret
 
     .close_write_sync_pipe:
+        lea r8, [rel pipe_for_sync]
+        mov edi, [r8 + 4]
+        test edi, edi
+        jl .write_already_closed
+
         mov rax, sys_close
-        mov edi, [rel pipe_for_sync + 4]
         syscall
+
+        mov dword [r8 + 4], -1   ; mark this as closed
+        .write_already_closed:
         ret
 
 
@@ -1015,14 +1213,63 @@ _execute_commands:
         call .close_read_sync_pipe
         ret
 
+    .return_success:
+        xor rax, rax
+        ret
 
+    .return_failure:
+        mov rax, -1
+        ret
 
+_free_common_env_var_array_object:
+    lea rdi, [rel common_shell_env_var_array_object]
+    call _default_dynamic_array_destructor
+    ret
 
+_free_pipe_array_object:
+    ; i have to close all the pipes inside this array, (it's ok it some are already closed)
 
+    lea r15, [rel pipe_array]
 
+    mov r12, [r15 + DYNAMICARRAY_SIZE_OFF]
+    mov r13, [r15 + DYNAMICARRAY_POINTER_OFF]
+    xor r14, r14                ; idx for getting element
+    .loop_close_pipes_inside_pipe_array:
+        cmp r14, r12
+        je .free_pipe_array_object
 
+        mov rdi, r15
+        mov rsi, r14
+        call _dynamic_array_get_element_address     ; rax willl have the pipes [read, write]
+        ; todo: what to do if this gives error
 
+        mov r8, rax
 
+        mov edi, [r8]
+        test edi, edi
+        js .close_write      ; if it's -ve, i have already close it 
+        ;[i usually close both pipes together(above) so i can actually go to .loopback here, but maybe in future i might change it, so this is a safety net]
+
+        mov rax, sys_close
+        syscall
+
+        .close_write:
+        
+        mov edi, [r8 + 4]
+        test edi, edi
+        js .loopback      ; if it's -ve, i have already close it
+
+        mov rax, sys_close
+        syscall
+
+    .loopback:
+        inc r14
+        jmp .loop_close_pipes_inside_pipe_array
+
+    .free_pipe_array_object:
+    lea rdi, [rel pipe_array]
+    call _default_dynamic_array_destructor
+    ret
 
 
 _execute_commands_old:

@@ -13,12 +13,6 @@ section .rodata
 
 
 section .text
-; old
-extern parsed_string_object
-extern address_command
-extern shell_env_array_object
-extern command_argc_dynamic_array_object
-extern command_argv_dynamic_array_object
 
 ; error
 extern error_code
@@ -35,13 +29,10 @@ extern print_error_command_name_not_found_for_last_command
 extern print_error_unknow_token
 
 
-extern shell_env_array_object
-
 extern token_array
 
 global _process_token_generate_commands
-global _free_command_array
-
+global _cleanup_process_token_generate_commands_on_success
 
 ; token type enum
 TOKEN_TYPE_END                    equ 0
@@ -93,7 +84,9 @@ COMMAND_STRUCT_ROUT_STRUCT_OFF  equ COMMAND_STRUCT_RIN_STRUCT_OFF + REDIRECT_STR
 ; redirection in is alwasys from 1 source so thats fine
 ; right now only 1 redirection output is allowed, or you will overwrite which to redirect out to
 
-
+_cleanup_process_token_generate_commands_on_success:
+    call _free_command_array
+    ret
 
 _process_token_generate_commands:
     push rbp
