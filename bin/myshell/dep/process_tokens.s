@@ -292,6 +292,7 @@ _process_token_generate_commands:
         cmp rdi, TOKEN_TYPE_END
         je .error_invalid_token_after_pipe
 
+        inc r13
         ; mark redirect out as pipe, or not if > already did it
         test r15, r15                               ; weather redirect out was there
         jne .go_to_next_command
@@ -299,7 +300,6 @@ _process_token_generate_commands:
         lea rdi, [rsp + COMMAND_STRUCT_ROUT_STRUCT_OFF]  ; rdi: address of redirect out struct
         mov [rdi + REDIRECT_STRUCT_TYPE_OFF], REDIRECT_TYPE_PIPE
         mov qword [rdi + REDIRECT_STRUCT_ADDRESS_OFF], 0       ; for redirect to pipe, address is null
-        inc r13
         jmp .go_to_next_command
 
     .process_next_token:

@@ -145,6 +145,11 @@ section .rodata
     child_error_getting_command_array_element1 db ", Error getting data from command array:", 0
     child_error_getting_command_array_element1_len equ $ - child_error_getting_command_array_element1
 
+    child_error_getting_pipe_array_element0 db "MyShell: Error executing command ", 0
+    child_error_getting_pipe_array_element0_len equ $ - child_error_getting_pipe_array_element0
+    child_error_getting_pipe_array_element1 db ", Error getting pipe from Pipe array:", 0
+    child_error_getting_pipe_array_element1_len equ $ - child_error_getting_pipe_array_element1
+
     child_error_changing_redirect_in_fd0 db "MyShell: Error executing command ", 0
     child_error_changing_redirect_in_fd0_len equ $ - child_error_changing_redirect_in_fd0
     child_error_changing_redirect_in_fd1 db ", Error changing redirect in fd:", 0
@@ -243,6 +248,7 @@ global print_error_putting_shell_into_fg
 global print_child_error_closing_write_pipe
 global print_child_error_setting_gpid
 global print_child_error_getting_command_array_element
+global print_child_error_getting_pipe_array_element
 global print_child_error_changing_redirect_in_fd
 global print_child_error_opening_redirect_in_dest
 global print_child_error_changing_redirect_out_fd
@@ -619,6 +625,7 @@ print_error_unknow_token:
 
 
 ; --------------------------  EXECUTE PROCESS -------
+
 ; rdi : the address of command name
 print_child_error_closing_write_pipe:
     push rdi
@@ -697,6 +704,33 @@ print_child_error_getting_command_array_element:
     mov rdi, [rel error_code]
     call _print_error_with_new_line
     ret
+
+; rdi : the address of command name
+print_child_error_getting_pipe_array_element:
+    push rdi
+
+    call _strlen
+    push rax
+
+    mov rax, child_error_getting_pipe_array_element0_len
+    mov rdi, 2
+    lea rsi, [rel child_error_getting_pipe_array_element0]
+    call _print
+
+    pop rax
+    mov rdi, 2
+    pop rsi
+    call _print 
+
+    mov rax, child_error_getting_pipe_array_element1_len
+    mov rdi, 2
+    lea rsi, [rel child_error_getting_pipe_array_element1]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
 
 ; rdi : the address of command name
 print_child_error_changing_redirect_in_fd:    

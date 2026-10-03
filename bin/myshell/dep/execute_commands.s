@@ -24,7 +24,6 @@ section .rodata
     export_command db "export", 0
 
 
-
 global last_command_exit_code_ascii
 global last_command_exit_code_ascii_len
 section .bss
@@ -67,6 +66,7 @@ extern print_error_putting_shell_into_fg
 extern print_child_error_closing_write_pipe
 extern print_child_error_setting_gpid
 extern print_child_error_getting_command_array_element
+extern print_child_error_getting_pipe_array_element
 extern print_child_error_changing_redirect_in_fd
 extern print_child_error_opening_redirect_in_dest
 extern print_child_error_changing_redirect_out_fd
@@ -361,11 +361,13 @@ _execute_commands:
         jl .error_getting_pipe_array_element
 
 
-        lea rax, [rax + COMMAND_STRUCT_ROUT_STRUCT_OFF]    ; rax: the address of redirect struct
-        mov rax, [rax + REDIRECT_STRUCT_TYPE_OFF]          ; rax: the type of redirect out
+        ; check if current command is the last command, else create a pipe
+        lea rax, [rel command_array]
+        mov rax, [rax + DYNAMICARRAY_SIZE_OFF]          ; rax: total commands
+        dec rax                                         ; rax: total commands - 1
 
-        cmp rax, REDIRECT_TYPE_PIPE
-        jne .no_pipe_needed
+        cmp r13, rax
+        je .no_pipe_needed
 
         ; else i need to create a pipe for this command to send output to
         lea rdi, [rel temp_pipe_buffer]     ; i will temporarily get pipes in this array, the add this to the pipe array
@@ -865,7 +867,7 @@ _execute_commands:
         dec rsi         ; only command with idx > 0 will have type_pipe, so i can safely subtract 1
         call _dynamic_array_get_element_address
         test rax, rax
-        jl .child_error_getting_command_array_element
+        jl .child_error_getting_pipe_array_element
 
 
         ; rax has the address of pipe_Array[n-1]
@@ -951,7 +953,7 @@ _execute_commands:
         mov rsi, r13
         call _dynamic_array_get_element_address
         test rax, rax
-        jl .child_error_getting_command_array_element
+        jl .child_error_getting_pipe_array_element
 
         ; rax has the address of pipe_Array[n]
         mov r14, rax                                    ; save this address of pipe_array[n-1]
@@ -1249,6 +1251,24 @@ _execute_commands:
 
         mov rdi, [rax + COMMAND_STRUCT_NAME_OFF]
         call print_child_error_getting_command_array_element
+
+        call .close_read_sync_pipe
+        call _exit_with_status_code
+
+    .child_error_getting_pipe_array_element:
+
+        mov [rel error_code], rax
+        mov [rel exit_status_code], 1
+        
+        lea rdi, [rel command_array]
+        mov rsi, r13
+        call _dynamic_array_get_element_address
+
+        test rax, rax
+        jl _exit_with_status_code  ; if i fail to get this just exit child forcefully
+
+        mov rdi, [rax + COMMAND_STRUCT_NAME_OFF]
+        call print_child_error_getting_pipe_array_element
 
         call .close_read_sync_pipe
         call _exit_with_status_code
