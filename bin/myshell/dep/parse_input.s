@@ -5,7 +5,6 @@ section .rodata
     new_line db 0x0a, 0
 
 global token_array
-
 section .bss
     ; DO not make this less than 32 bytes, i copy that many bytes as exit code status
     ; directly into the buffer without checking and expanding
@@ -36,6 +35,10 @@ extern _malloc
 extern _free
 
 extern _add_cmd_into_history
+
+
+extern print_error_dq_left_open
+extern print_error_sq_left_open
 
 global parsed_string_object
 global _generate_tokens
@@ -225,10 +228,10 @@ _expand_double_exclaimation_and_add_to_history:
 
     .check_and_replace_with_prev_command:
         test r11, r11                   ; if inside single quotes treat this as a normal char
-        jne .copy_byte_and_loop         ; if only single time !, copy
+        jne .copy_byte_and_loop
 
         cmp byte [r9 + r8 + 1], '!'      ; i know there is always a next byte available
-        jne .copy_byte_and_loop         ; if only single time !, copy
+        jne .copy_byte_and_loop         ; if only single time '!', copy it and move on
 
         push rdx
         push r8
@@ -273,6 +276,8 @@ _expand_double_exclaimation_and_add_to_history:
 
     .done:
         ; i did not copy the \n, so currently i have scattered data in buffer and string object
+        push r10
+        push r11
 
         mov byte [r13 + rsi], 0    ; i know i have atleast 1 space left
         call .copy_buffer_into_string
@@ -290,9 +295,30 @@ _expand_double_exclaimation_and_add_to_history:
         lea rsi, [rel new_line]
         call _append_string_mystring
 
+        ; if the command ends with sq or dq open, give errro and exit
+        pop r11
+        pop r10
+        
+        test r10, r10
+        jne .error_dq_left_open
+
+        test r11, r11
+        jne .error_sq_left_open
+
+        jmp .return_success
+    
     .return_success:
         xor rax, rax
         ret
+
+
+    .error_dq_left_open:
+        call print_error_dq_left_open
+        jmp .return_failure
+
+    .error_sq_left_open:
+        call print_error_sq_left_open
+        jmp .return_failure
 
     .error_appending_to_string:
     .error_creating_string_for_input_buffer:

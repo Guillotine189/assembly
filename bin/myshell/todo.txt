@@ -15,7 +15,7 @@ BASIC------
 5.4) Change the env functions (they use command_argc_dynamic_array_object and command_argv_dynamic_array_object) ✅
 
 5.5) update exit code after command finishes⏳
-5.7) empty input, input with no words/lettes just space results in weird behaviour.
+5.7) empty input, input with no words/lettes just space results in weird behaviour. ✅
 5.8) empty argument cannot be resolved, it just ignores them rn
 
 
@@ -25,9 +25,8 @@ BASIC------
 5) Add auto complete for installed command name only (like ls, grep etc).
 5.1) '!!' is replaced by the old command, but the old command is not processed. So it just goes in as 1 big argument. Fix that. ✅
 
-5.1.1) give error when SQ/DQ remains open after pressing enter.
+5.1.1) give error when SQ/DQ remains open after pressing enter. ✅
 5.2) After fork, the children should not be forced to be in canonical mode, store and restore the old termios at shell start and put it so
-5.2) In auto complete, if it matches a single bic, it skips other possible outcomes. Fix that.
 5.3) "env | grep --color=auto USER" -> does not work, but 'printenv' will print it
 
 6) visual fix, when command overflows into next line.

@@ -4,6 +4,9 @@ section .data
     error_code dq 0
     
 section .rodata
+    
+    single_quote db "'", 0
+    double_quote db '"', 0
 
     ; --------------------------------  MAIN ---------------------------------
     error_input_init_memory db "MyShell: Error allocating memory for input buffer: ",0
@@ -45,6 +48,16 @@ section .rodata
 
 
     ; --------------------------- PROCESS TOKENS ---------------------------------
+
+    error_dq_left_open0 db "MyShell: Expected a closing '", 0
+    error_dq_left_open0_len equ $ - error_dq_left_open0
+    error_dq_left_open1 db "' in the end.", 0
+    error_dq_left_open1_len equ $ - error_dq_left_open1
+    
+    error_sq_left_open0 db 'MyShell: Expected a closing "', 0
+    error_sq_left_open0_len equ $ - error_sq_left_open0
+    error_sq_left_open1 db '" in the end.', 0
+    error_sq_left_open1_len equ $ - error_sq_left_open1
 
     error_initializing_command_array db "MyShell: Error executing command. Error initializing command array:", 0
     error_initializing_command_array_len equ $ - error_initializing_command_array
@@ -140,6 +153,7 @@ section .rodata
 
 
 
+
 section .bss
     reusable_buffer_error resb 1024
 
@@ -176,6 +190,8 @@ global parent_print_error_synchronizing_with_child
 global parent_print_error_closing_write_pipe
 
 ; ---- process token
+global print_error_dq_left_open
+global print_error_sq_left_open
 global print_error_initializing_command_array
 global print_error_initializing_argv_array
 global print_error_initializing_envp_array
@@ -556,6 +572,41 @@ print_error_getting_pgid:
 
 
 ; ---------------------- PROCESS TOKENS ----------------------
+
+print_error_dq_left_open:
+    mov rax, error_dq_left_open0_len
+    mov rdi, 1
+    lea rsi, [rel error_dq_left_open0]
+    call _print
+
+    mov rax, 1
+    mov rdi, 1
+    lea rsi, [rel double_quote]
+    call _print
+
+    mov rax, error_dq_left_open1_len
+    mov rdi, 1
+    lea rsi, [rel error_dq_left_open1]
+    call _print_with_new_line
+    ret
+
+
+print_error_sq_left_open:
+    mov rax, error_sq_left_open0_len
+    mov rdi, 1
+    lea rsi, [rel error_sq_left_open0]
+    call _print
+
+    mov rax, 1
+    mov rdi, 1
+    lea rsi, [rel single_quote]
+    call _print
+
+    mov rax, error_sq_left_open1_len
+    mov rdi, 1
+    lea rsi, [rel error_sq_left_open1]
+    call _print_with_new_line
+    ret
 
 print_error_initializing_command_array:
     mov rax, error_initializing_command_array_len
