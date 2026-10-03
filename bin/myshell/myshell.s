@@ -535,7 +535,6 @@ _handle_input:
     ret
 
     .error_generating_tokens:
-        ; print error
         ret
 
     .error_parocessing_token:

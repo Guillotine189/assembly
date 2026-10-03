@@ -221,7 +221,7 @@ global print_error_putting_shell_into_fg
 
 print_error_input_init_memory:
     mov rax, error_input_init_memory_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi, [rel error_input_init_memory]
     call _print
 
@@ -232,7 +232,7 @@ print_error_input_init_memory:
 
 print_error_reading_input:
     mov rax, error_reading_input_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi, [rel error_reading_input]
     call _print
 
@@ -243,7 +243,7 @@ print_error_reading_input:
 
 print_error_increasing_input_mem:
     mov rax, error_increasing_input_buffer_mem_len    
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_increasing_input_buffer_mem]
     call _print
 
@@ -254,7 +254,7 @@ print_error_increasing_input_mem:
 
 print_error_overriding_custom_handler:
     mov rax, error_overriding_custom_handler_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_overriding_custom_handler]
     call _print
 
@@ -262,7 +262,7 @@ print_error_overriding_custom_handler:
     lea rdi, [rel reusable_buffer_error]
     call _itoa                          ; rax has len of number in bytes
 
-    mov rdi, 1
+    mov rdi, 2
     lea rsi, [rel reusable_buffer_error]
     call _print
 
@@ -273,7 +273,7 @@ print_error_overriding_custom_handler:
 
 print_error_setting_non_con_mode:
     mov rax, error_setting_non_con_mode_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_setting_non_con_mode]
     call _print
 
@@ -285,7 +285,7 @@ print_error_setting_non_con_mode:
 
 print_error_getting_cwd:
     mov rax, error_getting_cwd_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_getting_cwd]
     call _print
 
@@ -300,7 +300,7 @@ print_error_getting_cwd:
 
 print_error_initializing_common_env_array_obj:
     mov rax, error_initializing_common_env_array_obj_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_initializing_common_env_array_obj]
     call _print
 
@@ -310,7 +310,7 @@ print_error_initializing_common_env_array_obj:
 
 print_error_initializing_pipe_array:
     mov rax, error_initializing_pipe_array_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_initializing_pipe_array]
     call _print
 
@@ -320,7 +320,7 @@ print_error_initializing_pipe_array:
 
 print_error_adding_to_common_env_array:
     mov rax, error_adding_to_common_env_array_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_adding_to_common_env_array]
     call _print
 
@@ -330,7 +330,7 @@ print_error_adding_to_common_env_array:
 
 print_error_getting_sync_pipes:
     mov rax, error_getting_sync_pipes_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_getting_sync_pipes]
     call _print
 
@@ -340,7 +340,7 @@ print_error_getting_sync_pipes:
 
 print_error_getting_redirection_pipe:
     mov rax, error_getting_redirection_pipe_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_getting_redirection_pipe]
     call _print
 
@@ -350,7 +350,7 @@ print_error_getting_redirection_pipe:
 
 print_error_getting_pipe_array_element:
     mov rax, error_getting_pipe_array_element_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_getting_pipe_array_element]
     call _print
 
@@ -360,7 +360,7 @@ print_error_getting_pipe_array_element:
 
 print_error_appending_pipe_array:
     mov rax, error_appending_pipe_array_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_appending_pipe_array]
     call _print
 
@@ -370,7 +370,7 @@ print_error_appending_pipe_array:
 
 print_error_changing_child_pgid:
     mov rax, error_changing_child_pgid_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi, [rel error_changing_child_pgid]
     call _print
 
@@ -380,7 +380,7 @@ print_error_changing_child_pgid:
 
 print_error_forking:
     mov rax, error_forking_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_forking]
     call _print
 
@@ -390,7 +390,7 @@ print_error_forking:
 
 print_error_moving_child_to_fg:
     mov rax, error_moving_child_to_fg_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi, [rel error_moving_child_to_fg]
     call _print
 
@@ -400,7 +400,7 @@ print_error_moving_child_to_fg:
 
 print_error_writing_to_pipe_for_syncing:
     mov rax, error_writing_to_pipe_for_syncing_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi, [rel error_writing_to_pipe_for_syncing]
     call _print
 
@@ -410,7 +410,7 @@ print_error_writing_to_pipe_for_syncing:
 
 print_error_putting_shell_into_fg:
     mov rax, error_putting_shell_into_fg_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi, [rel error_putting_shell_into_fg]
     call _print
 
@@ -426,7 +426,7 @@ print_error_putting_shell_into_fg:
 
 print_error_forking2:
     mov rax, error_forking_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_forking]
     call _print
 
@@ -440,14 +440,14 @@ child_print_error_executing_process:
     mov r12, rdi
     
     mov rax, child_error_executing_process_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel child_error_executing_process]
     call _print
 
     mov rdi, r12
     call _strlen
     
-    mov rdi, 1
+    mov rdi, 2
     mov rsi, r12
     call _print
 
@@ -459,7 +459,7 @@ child_print_error_executing_process:
 
 parent_print_error_closing_read_pipe:
     mov rax, parent_error_closing_read_pipe_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi, [rel parent_error_closing_read_pipe]
     call _print
 
@@ -469,7 +469,7 @@ parent_print_error_closing_read_pipe:
 
 parent_print_error_setting_gpid_for_child:
     mov rax, parent_error_setting_gpid_for_child_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi, [rel parent_error_setting_gpid_for_child]
     call _print
 
@@ -479,7 +479,7 @@ parent_print_error_setting_gpid_for_child:
 
 parent_print_error_moving_child_to_fg:
     mov rax, parent_error_moving_child_to_fg_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi, [rel parent_error_moving_child_to_fg]
     call _print
 
@@ -489,7 +489,7 @@ parent_print_error_moving_child_to_fg:
 
 parent_print_error_synchronizing_with_child:
     mov rax, parent_error_synchronizing_with_child_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi, [rel parent_error_synchronizing_with_child]
     call _print
 
@@ -499,7 +499,7 @@ parent_print_error_synchronizing_with_child:
 
 parent_print_error_closing_write_pipe:
     mov rax, parent_error_closing_write_pipe_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi, [rel parent_error_closing_write_pipe]
     call _print
 
@@ -510,19 +510,19 @@ parent_print_error_closing_write_pipe:
 
 print_error_command_not_found:
     mov rax, error_command_not_found0_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi, [rel error_command_not_found0]
     call _print
 
     mov rdi, [rel address_command]
     call _strlen
     
-    mov rdi, 1
+    mov rdi, 2
     mov rsi, [rel address_command]
     call _print
 
     mov rax, error_command_not_found1_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi, [rel error_command_not_found1]
     call _print_with_new_line
     ret
@@ -530,7 +530,7 @@ print_error_command_not_found:
 
 print_error_allocating_memory_for_history:
     mov rax, error_allocating_memory_for_history_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_allocating_memory_for_history]
     call _print
 
@@ -540,7 +540,7 @@ print_error_allocating_memory_for_history:
 
 print_error_getting_mem_for_cmd_in_history:
     mov rax, error_getting_mem_for_cmd_in_history_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_getting_mem_for_cmd_in_history]
     call _print
 
@@ -550,7 +550,7 @@ print_error_getting_mem_for_cmd_in_history:
 
 print_error_getting_pipes:
     mov rax, error_getting_pipes_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_getting_pipes]
     call _print
 
@@ -561,7 +561,7 @@ print_error_getting_pipes:
 
 print_error_getting_pgid:
     mov rax, error_getting_pgid_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_getting_pgid]
     call _print
 
@@ -575,17 +575,17 @@ print_error_getting_pgid:
 
 print_error_dq_left_open:
     mov rax, error_dq_left_open0_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi, [rel error_dq_left_open0]
     call _print
 
     mov rax, 1
-    mov rdi, 1
+    mov rdi, 2
     lea rsi, [rel double_quote]
     call _print
 
     mov rax, error_dq_left_open1_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi, [rel error_dq_left_open1]
     call _print_with_new_line
     ret
@@ -593,24 +593,24 @@ print_error_dq_left_open:
 
 print_error_sq_left_open:
     mov rax, error_sq_left_open0_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi, [rel error_sq_left_open0]
     call _print
 
     mov rax, 1
-    mov rdi, 1
+    mov rdi, 2
     lea rsi, [rel single_quote]
     call _print
 
     mov rax, error_sq_left_open1_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi, [rel error_sq_left_open1]
     call _print_with_new_line
     ret
 
 print_error_initializing_command_array:
     mov rax, error_initializing_command_array_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_initializing_command_array]
     call _print
 
@@ -621,7 +621,7 @@ print_error_initializing_command_array:
 
 print_error_initializing_argv_array:
     mov rax, error_initializing_argv_array_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_initializing_argv_array]
     call _print
 
@@ -631,7 +631,7 @@ print_error_initializing_argv_array:
 
 print_error_initializing_envp_array:
     mov rax, error_initializing_envp_array_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_initializing_envp_array]
     call _print
 
@@ -642,21 +642,21 @@ print_error_initializing_envp_array:
 
 print_error_redirect_in_expects_word:
     mov rax, error_redirect_in_expects_word_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_redirect_in_expects_word]
     call _print_with_new_line
     ret
 
 print_error_redirect_out_expects_word:
     mov rax, error_redirect_out_expects_word_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_redirect_out_expects_word]
     call _print_with_new_line
     ret
 
 print_error_adding_to_argc:
     mov rax, error_adding_to_argc_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_adding_to_argc]
     call _print
 
@@ -666,7 +666,7 @@ print_error_adding_to_argc:
 
 print_error_adding_custom_env_var:
     mov rax, error_adding_custom_env_var_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_adding_custom_env_var]
     call _print
 
@@ -676,7 +676,7 @@ print_error_adding_custom_env_var:
 
 print_error_adding_command_stuct:
     mov rax, error_adding_command_stuct_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_adding_command_stuct]
     call _print
 
@@ -686,14 +686,14 @@ print_error_adding_command_stuct:
 
 print_error_invalid_token_after_pipe:
     mov rax, error_invalid_token_after_pipe_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_invalid_token_after_pipe]
     call _print_with_new_line
     ret
 
 print_error_command_name_not_found_for_last_command:
     mov rax, error_command_name_not_found_for_last_command_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_command_name_not_found_for_last_command]
     call _print_with_new_line
     ret
@@ -701,7 +701,7 @@ print_error_command_name_not_found_for_last_command:
     
 print_error_unknow_token:
     mov rax, error_unknow_token_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi , [rel error_unknow_token]
     call _print_with_new_line
     ret

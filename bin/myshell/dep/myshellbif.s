@@ -263,21 +263,21 @@ _execute_if_built_in:
         .error_cd_too_many_args:
 
         	mov rax, error_cd_too_many_args_len
-		    mov rdi, 1
+		    mov rdi, 2
 		    lea rsi, [rel error_cd_too_many_args]
 		    call _print_with_new_line
 
-		    mov rdi, 1
+		    mov rdi, 2
 		    call _update_last_command_exit_code
 		    jmp .return_built_in
 
 		.error_home_env_not_set:
 			mov rax, error_home_env_not_set_len
-		    mov rdi, 1
+		    mov rdi, 2
 		    lea rsi, [rel error_home_env_not_set]
 		    call _print_with_new_line
 
-		    mov rdi, 1
+		    mov rdi, 2
 		    call _update_last_command_exit_code
 		    jmp .return_built_in
 		    
@@ -339,18 +339,18 @@ _execute_if_built_in:
 			; TODO: print invaid env supplied
 
 			mov rax, error_adding_path_var_len
-			mov rdi, 1
+			mov rdi, 2
 			lea rsi, [rel error_adding_path_var]
 			call _print
 
 			mov rdi, r12
 			call _strlen
 
-			mov rdi, 1
+			mov rdi, 2
 			mov rsi, r12
 			call _print_with_new_line
 
-		    mov rdi, 1
+		    mov rdi, 2
 		    call _update_last_command_exit_code
 			jmp .loopback
 
@@ -447,7 +447,7 @@ _builtin_cd:
 	.error_changing_dir:
 		mov [rel error_code], rax
 		mov rax, error_changing_dir_len
-		mov rdi, 1
+		mov rdi, 2
 		lea rsi, [rel error_changing_dir]
 		call _print
 
@@ -457,7 +457,7 @@ _builtin_cd:
 		mov rdi, [rdi]
 		call _strlen
 
-		mov rdi, 1
+		mov rdi, 2
 		mov rsi, r15
 		mov rsi, [rsi + DYNAMICARRAY_POINTER_OFF]
 		add rsi, 8

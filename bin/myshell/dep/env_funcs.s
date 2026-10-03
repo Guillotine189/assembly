@@ -690,7 +690,7 @@ _check_if_cmd_is_in_path:
 	.error_path_env_not_found:
 		pop r12
 		mov rax, error_path_env_not_found_len
-		mov rdi, 1
+		mov rdi, 2
 		lea rsi, [rel error_path_env_not_found]
 		call _print_with_new_line
 

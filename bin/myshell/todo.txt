@@ -27,7 +27,7 @@ BASIC------
 
 5.1.1) give error when SQ/DQ remains open after pressing enter. ✅
 5.2) After fork, the children should not be forced to be in canonical mode, store and restore the old termios at shell start and put it so
-5.3) "env | grep --color=auto USER" -> does not work, but 'printenv' will print it
+5.3) "env | grep --color=auto USER" -> does not work, but using the binary 'printenv' will make it work
 
 6) visual fix, when command overflows into next line.
 7) Inside shell env, update pwd, old_pwd when chdir. Also check and update other env variables.

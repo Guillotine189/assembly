@@ -641,8 +641,6 @@ _execute_commands:
         call _free_pipe_array_object
         jmp .return_failure
 
-
-
     .error_moving_child_to_fg:
         mov [rel error_code], rax
         call print_error_moving_child_to_fg
@@ -665,6 +663,13 @@ _execute_commands:
         call .close_both_sync_pipes
         call _free_pipe_array_object
         jmp .return_failure
+
+    .error_putting_shell_into_fg:
+        mov [rel error_code], rax
+        call print_error_putting_shell_into_fg
+        ; at this point i must exit
+        mov [rel exit_status_code], 1
+        call _exit_with_status_code
     
     .kill_and_reap_child_processes:
         ; r13: already has the idx of commmand which failed
@@ -716,12 +721,6 @@ _execute_commands:
         .all_child_process_reaped:
             ret
 
-        .error_putting_shell_into_fg:
-            mov [rel error_code], rax
-            call print_error_putting_shell_into_fg
-            ; at this point i must exit
-            mov [rel exit_status_code], 1
-            call _exit_with_status_code
 
 
     .execute_single_bic_command:
@@ -768,8 +767,10 @@ _execute_commands:
             ; i want to copy the address of string inside array. so i need to give the address of address of string
             mov rdi, r15
             call _dynamic_array_add_element
-            ; todo: handle error
 
+            test rax, rax
+            js .error_adding_common_env_array
+            
             inc r12
             jmp .loop_shell_env_array3
 

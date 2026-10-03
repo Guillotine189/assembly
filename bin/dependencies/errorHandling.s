@@ -547,7 +547,7 @@ errorHandling_print_with_new_line:
     push rax
 
     mov rax, 1
-    mov rdi, 1                      ; fd
+    mov rdi, 2                      ; fd
     mov rsi, rsp                    ; buffer address
     mov rdx, 1                      ; bytes to print
     syscall
@@ -567,7 +567,7 @@ errorHandling_print_with_new_line:
 %macro PRINT_ERRNO 1
 .errno_%1:
     mov rax, errno_%1_msg_len
-    mov rdi, 1
+    mov rdi, 2
     lea rsi, [rel errno_%1_msg]
     call errorHandling_print_with_new_line
     ret
