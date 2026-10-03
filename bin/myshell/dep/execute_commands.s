@@ -50,7 +50,6 @@ extern _itoa
 extern _cmp_equal_memory
 extern _strcmp
 
-extern child_print_error_executing_process
 extern print_error_initializing_common_env_array_obj
 extern print_error_initializing_pipe_array
 extern print_error_adding_to_common_env_array
@@ -64,6 +63,16 @@ extern print_error_moving_child_to_fg
 extern print_error_writing_to_pipe_for_syncing
 extern print_error_putting_shell_into_fg
 
+
+extern print_child_error_closing_write_pipe
+extern print_child_error_setting_gpid
+extern print_child_error_getting_command_array_element
+extern print_child_error_changing_redirect_in_fd
+extern print_child_error_opening_redirect_in_dest
+extern print_child_error_changing_redirect_out_fd
+extern print_child_error_opening_redirect_out_dest
+extern print_child_error_adding_shell_env_var_to_arr
+extern child_print_error_executing_process
 
 extern _execute_if_built_in
 extern _check_if_cmd_is_in_path
@@ -770,7 +779,7 @@ _execute_commands:
 
             test rax, rax
             js .error_adding_common_env_array
-            
+
             inc r12
             jmp .loop_shell_env_array3
 
@@ -828,7 +837,9 @@ _execute_commands:
         lea rdi, [rel command_array]
         mov rsi, r13
         call _dynamic_array_get_element_address
-        ; todo: handle error
+        
+        test rax, rax
+        jl .child_error_getting_command_array_element
 
         mov r14, rax                        ; r14: the address of current command struct
 
@@ -853,7 +864,9 @@ _execute_commands:
         mov rsi, r13
         dec rsi         ; only command with idx > 0 will have type_pipe, so i can safely subtract 1
         call _dynamic_array_get_element_address
-        ; todo: error handling
+        test rax, rax
+        jl .child_error_getting_command_array_element
+
 
         ; rax has the address of pipe_Array[n-1]
         mov r14, rax                                    ; save this address of pipe_array[n-1]
@@ -863,7 +876,9 @@ _execute_commands:
         mov edi, [r14]        ; oldfd/the one you want to change = pipe_read
         mov rsi, 0            ; newfd/the one you want to become = stdin
         syscall
-        ; todo: handle error
+        
+        test rax, rax
+        jl .child_error_changing_redirect_in_fd
 
         ; close both pipes, RN: fd0 points to same object the pipe pointed to. I can close the pipes
         mov edi, [r14 + 4]               ; a pipe is 4 bytes long, so pipe write is 4 bytes ahead
@@ -873,7 +888,6 @@ _execute_commands:
         mov rax, sys_close
         syscall
 
-        ; todo: handle error
         jmp .check_redirect_out
 
         .handle_redirect_in_other:
@@ -884,7 +898,9 @@ _execute_commands:
         mov rdi, [r14 + COMMAND_STRUCT_RIN_STRUCT_OFF + REDIRECT_STRUCT_ADDRESS_OFF]
         mov rsi, O_RDONLY
         syscall
-        ; todo: give error if i cannot open this and exit
+        
+        test rax, rax
+        jl .child_error_opening_redirect_in_dest
 
         mov r15, rax
 
@@ -892,14 +908,15 @@ _execute_commands:
         mov rsi, 0                  ; new fd: the one that will point to old fd
         mov rax, sys_dup2
         syscall
-        ; todo: error handling and exit
+        
+        test rax, rax
+        jl .child_error_changing_redirect_in_fd
 
         ; close the fd of file
         mov rax, sys_close
         mov rdi, r15
         syscall
 
-        ; todo: error handling and exit
         jmp .check_redirect_out
 
         .check_redirect_out:
@@ -909,7 +926,8 @@ _execute_commands:
         lea rdi, [rel command_array]
         mov rsi, r13
         call _dynamic_array_get_element_address
-        ; todo: handle error
+        test rax, rax
+        jl .child_error_getting_command_array_element
 
         mov r14, rax                        ; r14: the address of current command struct
 
@@ -932,7 +950,8 @@ _execute_commands:
         lea rdi, [rel pipe_array]
         mov rsi, r13
         call _dynamic_array_get_element_address
-        ; todo: error handling
+        test rax, rax
+        jl .child_error_getting_command_array_element
 
         ; rax has the address of pipe_Array[n]
         mov r14, rax                                    ; save this address of pipe_array[n-1]
@@ -942,7 +961,8 @@ _execute_commands:
         mov edi, [r14 + 4]        ; oldfd/the one you want to change = pipe_read
         mov rsi, 1            ; newfd/the one that will point to the same object as old = stdout
         syscall
-        ; todo: handle error
+        test rax, rax
+        jl .child_error_changing_redirect_out_fd
 
         ; close both pipes, RN: fd1 points to same object the pipe pointed to. I can close the pipes
         mov edi, [r14 + 4]               ; a pipe is 4 bytes long, so pipe write is 4 bytes ahead
@@ -952,7 +972,7 @@ _execute_commands:
         mov edi, [r14]               ; a pipe is 4 bytes long, so pipe write is 4 bytes ahead
         mov rax, sys_close
         syscall
-        ; todo: handle error
+
         jmp .setup_env_array
 
 
@@ -963,13 +983,16 @@ _execute_commands:
         mov rsi, O_WRONLY | O_TRUNC | O_CREAT
         mov rdx, 0666q                    ; read+write
         syscall
-        ; todo: give error if i cannot create this and exit
+        test rax, rax
+        jl .child_error_opening_redirect_out_dest
 
         mov rdi, rax                ; old fd: the one i want to become
         mov rsi, 1            ; newfd/the one that will point to the same object as old = stdout
         mov rax, sys_dup2
         syscall
-        ; todo: error handling and exit
+        test rax, rax
+        jl .child_error_changing_redirect_out_fd
+
         jmp .setup_env_array
 
         .setup_env_array:
@@ -980,7 +1003,8 @@ _execute_commands:
         lea rdi, [rel command_array]
         mov rsi, r13
         call _dynamic_array_get_element_address
-        ; todo: handle error
+        test rax, rax
+        jl .child_error_getting_command_array_element
 
         mov r14, rax                            ; r14: address of current command struct
 
@@ -1016,7 +1040,8 @@ _execute_commands:
             ; i want to copy the address of string inside array. so i need to give the address of address of string
             mov rdi, r15
             call _dynamic_array_add_element
-            ; todo: handle error
+            test rax, rax
+            jl .child_error_adding_shell_env_var_to_arr
 
             inc r12
             jmp .loop_shell_env_array2
@@ -1037,9 +1062,6 @@ _execute_commands:
 
         ; close the read sync pipe
         call .close_read_sync_pipe
-        ; todo: handle error
-
-
 
         ; now i can execve, but i have to decide which envp array to use
         ; the common one or the specialized one
@@ -1048,7 +1070,9 @@ _execute_commands:
         lea rdi, [rel command_array]
         mov rsi, r13
         call _dynamic_array_get_element_address
-        ;todo: handle errror
+        test rax, rax
+        jl .child_error_getting_command_array_element
+
         ; rax: the address of current command struct
         mov r12, rax
 
@@ -1175,17 +1199,156 @@ _execute_commands:
 
 
     .child_error_closing_write_pipe:
-        ; TODO: PROPER ERROR
-        mov [rel exit_status_code], rax
+        ; r13: has idx for command struct in array
+        mov [rel error_code], rax
+        mov [rel exit_status_code], 1
+            
+        lea rdi, [rel command_array]
+        mov rsi, r13
+        call _dynamic_array_get_element_address
+
+        test rax, rax
+        jl _exit_with_status_code  ; if i fail to get this just exit child forcefully
+
+        mov rdi, [rax + COMMAND_STRUCT_NAME_OFF]
+        call print_child_error_closing_write_pipe
+
         call .close_read_sync_pipe
-        ret
+        call _exit_with_status_code
 
 
     .child_error_setting_gpid:
-        ; TODO : ERROR proper
-        mov [rel exit_status_code], rax   ; the og error code why checnging gpid failed
+        mov [rel error_code], rax
+        mov [rel exit_status_code], 1
+        
+        lea rdi, [rel command_array]
+        mov rsi, r13
+        call _dynamic_array_get_element_address
+
+        test rax, rax
+        jl _exit_with_status_code  ; if i fail to get this just exit child forcefully
+
+        mov rdi, [rax + COMMAND_STRUCT_NAME_OFF]
+        call print_child_error_setting_gpid
+
         call .close_read_sync_pipe
-        ret
+        call _exit_with_status_code
+
+
+    .child_error_getting_command_array_element:
+        ; r13: has idx for command struct in array
+        mov [rel error_code], rax
+        mov [rel exit_status_code], 1
+        
+        lea rdi, [rel command_array]
+        mov rsi, r13
+        call _dynamic_array_get_element_address
+
+        test rax, rax
+        jl _exit_with_status_code  ; if i fail to get this just exit child forcefully
+
+        mov rdi, [rax + COMMAND_STRUCT_NAME_OFF]
+        call print_child_error_getting_command_array_element
+
+        call .close_read_sync_pipe
+        call _exit_with_status_code
+
+    .child_error_changing_redirect_in_fd:
+        ; r13: has idx for command struct in array
+        mov [rel error_code], rax
+        mov [rel exit_status_code], 1
+        
+        lea rdi, [rel command_array]
+        mov rsi, r13
+        call _dynamic_array_get_element_address
+
+        test rax, rax
+        jl _exit_with_status_code  ; if i fail to get this just exit child forcefully
+
+        mov rdi, [rax + COMMAND_STRUCT_NAME_OFF]
+        call print_child_error_changing_redirect_in_fd
+
+        call .close_read_sync_pipe
+        call _exit_with_status_code
+
+    .child_error_opening_redirect_in_dest:
+        ; r13: has idx for command struct in array
+        mov [rel error_code], rax
+        mov [rel exit_status_code], 1
+        
+        lea rdi, [rel command_array]
+        mov rsi, r13
+        call _dynamic_array_get_element_address
+
+        test rax, rax
+        jl _exit_with_status_code  ; if i fail to get this just exit child forcefully
+
+        mov rdi, [rax + COMMAND_STRUCT_NAME_OFF]
+        lea rsi, [rax + COMMAND_STRUCT_RIN_STRUCT_OFF]
+        mov rsi, [rsi + REDIRECT_STRUCT_ADDRESS_OFF]
+        call print_child_error_opening_redirect_in_dest
+
+        call .close_read_sync_pipe
+        call _exit_with_status_code
+
+
+    .child_error_changing_redirect_out_fd:
+        ; r13: has idx for command struct in array
+        mov [rel error_code], rax
+        mov [rel exit_status_code], 1
+        
+        lea rdi, [rel command_array]
+        mov rsi, r13
+        call _dynamic_array_get_element_address
+
+        test rax, rax
+        jl _exit_with_status_code  ; if i fail to get this just exit child forcefully
+
+        mov rdi, [rax + COMMAND_STRUCT_NAME_OFF]
+        call print_child_error_changing_redirect_out_fd
+
+        call .close_read_sync_pipe
+        call _exit_with_status_code
+
+    .child_error_opening_redirect_out_dest:
+        ; r13: has idx for command struct in array
+        mov [rel error_code], rax
+        mov [rel exit_status_code], 1
+        
+        lea rdi, [rel command_array]
+        mov rsi, r13
+        call _dynamic_array_get_element_address
+
+        test rax, rax
+        jl _exit_with_status_code  ; if i fail to get this just exit child forcefully
+
+        mov rdi, [rax + COMMAND_STRUCT_NAME_OFF]
+        lea rsi, [rax + COMMAND_STRUCT_ROUT_STRUCT_OFF]
+        mov rsi, [rsi + REDIRECT_STRUCT_ADDRESS_OFF]
+        call print_child_error_opening_redirect_out_dest
+
+        call .close_read_sync_pipe
+        call _exit_with_status_code
+
+    .child_error_adding_shell_env_var_to_arr:
+        ; r13: has idx for command struct in array
+        mov [rel error_code], rax
+        mov [rel exit_status_code], 1
+        
+        lea rdi, [rel command_array]
+        mov rsi, r13
+        call _dynamic_array_get_element_address
+
+        test rax, rax
+        jl _exit_with_status_code  ; if i fail to get this just exit child forcefully
+
+        mov rdi, [rax + COMMAND_STRUCT_NAME_OFF]
+        call print_child_error_adding_shell_env_var_to_arr
+
+        call .close_read_sync_pipe
+        call _exit_with_status_code
+
+
 
     .return_success:
         xor rax, rax

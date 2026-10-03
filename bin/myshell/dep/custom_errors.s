@@ -92,27 +92,6 @@ section .rodata
     error_unknow_token db "MyShell: Error executing command. Error unknown token value", 0
     error_unknow_token_len equ $ - error_unknow_token
 
-    ; ---------------------------- EXECUTE PROCESS ---------------------------------
-    error_getting_pipes db "MyShell: Error executing process: Error creating pipe: ", 0
-    error_getting_pipes_len equ $ - error_getting_pipes 
-
-    child_error_executing_process db "MyShell: Error executing ", 0
-    child_error_executing_process_len equ $ - child_error_executing_process
-
-    parent_error_closing_read_pipe db "MyShell: Error creating pipe for child:", 0
-    parent_error_closing_read_pipe_len equ $ - parent_error_closing_read_pipe
-
-    parent_error_setting_gpid_for_child db "MyShell: Error setting gpid for child process:", 0
-    parent_error_setting_gpid_for_child_len equ $ - parent_error_setting_gpid_for_child
-
-    parent_error_moving_child_to_fg db "MyShell: Error moving child to foreground:", 0
-    parent_error_moving_child_to_fg_len equ $ - parent_error_moving_child_to_fg
-
-    parent_error_synchronizing_with_child db "MyShell: Error synchronizing with child process:", 0
-    parent_error_synchronizing_with_child_len equ $ - parent_error_synchronizing_with_child
-
-    parent_error_closing_write_pipe db "MyShell: Error closing parent write pipe: ", 0
-    parent_error_closing_write_pipe_len equ $ - parent_error_closing_write_pipe
 
     ; ---------------------------- EXECUTE PROCESS ---------------------------------
     error_initializing_common_env_array_obj db "MyShell: Error executing command. Error initializing common env array obj:", 0
@@ -150,6 +129,49 @@ section .rodata
 
     error_putting_shell_into_fg db "MyShell: Error putting shell into foreground: ", 0
     error_putting_shell_into_fg_len equ $ - error_putting_shell_into_fg
+
+    child_error_closing_write_pipe0 db "MyShell: Error executing command ", 0
+    child_error_closing_write_pipe0_len equ $ - child_error_closing_write_pipe0
+    child_error_closing_write_pipe1 db ", Error closing childs write sync pipe:", 0
+    child_error_closing_write_pipe1_len equ $ - child_error_closing_write_pipe1
+
+    child_error_setting_gpid0 db "MyShell: Error executing command ", 0
+    child_error_setting_gpid0_len equ $ - child_error_setting_gpid0
+    child_error_setting_gpid1 db ", Error changing child gpid:", 0
+    child_error_setting_gpid1_len equ $ - child_error_setting_gpid1
+
+    child_error_getting_command_array_element0 db "MyShell: Error executing command ", 0
+    child_error_getting_command_array_element0_len equ $ - child_error_getting_command_array_element0
+    child_error_getting_command_array_element1 db ", Error getting data from command array:", 0
+    child_error_getting_command_array_element1_len equ $ - child_error_getting_command_array_element1
+
+    child_error_changing_redirect_in_fd0 db "MyShell: Error executing command ", 0
+    child_error_changing_redirect_in_fd0_len equ $ - child_error_changing_redirect_in_fd0
+    child_error_changing_redirect_in_fd1 db ", Error changing redirect in fd:", 0
+    child_error_changing_redirect_in_fd1_len equ $ - child_error_changing_redirect_in_fd1
+
+    child_error_opening_redirect_in_dest0 db "MyShell: Error executing command ", 0
+    child_error_opening_redirect_in_dest0_len equ $ - child_error_opening_redirect_in_dest0
+    child_error_opening_redirect_in_dest1 db ", Error opening source for redirect in: ", 0
+    child_error_opening_redirect_in_dest1_len equ $ - child_error_opening_redirect_in_dest1
+
+    child_error_changing_redirect_out_fd0 db "MyShell: Error executing command ", 0
+    child_error_changing_redirect_out_fd0_len equ $ - child_error_changing_redirect_out_fd0
+    child_error_changing_redirect_out_fd1 db ", Error changing redirect out fd:", 0
+    child_error_changing_redirect_out_fd1_len equ $ - child_error_changing_redirect_out_fd1
+
+    child_error_opening_redirect_out_dest0 db "MyShell: Error executing command ", 0
+    child_error_opening_redirect_out_dest0_len equ $ - child_error_opening_redirect_out_dest0
+    child_error_opening_redirect_out_dest1 db ", Error opening destination for redirect out: ", 0
+    child_error_opening_redirect_out_dest1_len equ $ - child_error_opening_redirect_out_dest1
+
+    child_error_adding_shell_env_var_to_arr0 db "MyShell: Error executing command ", 0
+    child_error_adding_shell_env_var_to_arr0_len equ $ - child_error_adding_shell_env_var_to_arr0
+    child_error_adding_shell_env_var_to_arr1 db ", Error adding shell env into envp array:", 0
+    child_error_adding_shell_env_var_to_arr1_len equ $ - child_error_adding_shell_env_var_to_arr1
+
+    child_error_executing_process db "MyShell: Error executing ", 0
+    child_error_executing_process_len equ $ - child_error_executing_process
 
 
 
@@ -217,6 +239,15 @@ global print_error_forking
 global print_error_moving_child_to_fg
 global print_error_writing_to_pipe_for_syncing
 global print_error_putting_shell_into_fg
+
+global print_child_error_closing_write_pipe
+global print_child_error_setting_gpid
+global print_child_error_getting_command_array_element
+global print_child_error_changing_redirect_in_fd
+global print_child_error_opening_redirect_in_dest
+global print_child_error_changing_redirect_out_fd
+global print_child_error_opening_redirect_out_dest
+global print_child_error_adding_shell_env_var_to_arr
 
 
 print_error_input_init_memory:
@@ -420,111 +451,14 @@ print_error_putting_shell_into_fg:
 
 
 
-
-; ------------------------------ EXECUTE PROCESS OLD---------------
-
-
-print_error_forking2:
-    mov rax, error_forking_len
+print_error_getting_pgid:
+    mov rax, error_getting_pgid_len
     mov rdi, 2
-    lea rsi , [rel error_forking]
+    lea rsi , [rel error_getting_pgid]
     call _print
 
     mov rdi, [rel error_code]
     call _print_error_with_new_line
-    ret
-
-; rdi: expects the addres of command name
-child_print_error_executing_process:
-    push r12
-    mov r12, rdi
-    
-    mov rax, child_error_executing_process_len
-    mov rdi, 2
-    lea rsi , [rel child_error_executing_process]
-    call _print
-
-    mov rdi, r12
-    call _strlen
-    
-    mov rdi, 2
-    mov rsi, r12
-    call _print
-
-    mov rdi, [rel error_code]
-    call _print_error_with_new_line
-
-    pop r12
-    ret
-
-parent_print_error_closing_read_pipe:
-    mov rax, parent_error_closing_read_pipe_len
-    mov rdi, 2
-    lea rsi, [rel parent_error_closing_read_pipe]
-    call _print
-
-    mov rdi, [rel error_code]
-    call _print_error_with_new_line
-    ret
-
-parent_print_error_setting_gpid_for_child:
-    mov rax, parent_error_setting_gpid_for_child_len
-    mov rdi, 2
-    lea rsi, [rel parent_error_setting_gpid_for_child]
-    call _print
-
-    mov rdi, [rel error_code]
-    call _print_error_with_new_line
-    ret
-
-parent_print_error_moving_child_to_fg:
-    mov rax, parent_error_moving_child_to_fg_len
-    mov rdi, 2
-    lea rsi, [rel parent_error_moving_child_to_fg]
-    call _print
-
-    mov rdi, [rel error_code]
-    call _print_error_with_new_line
-    ret
-
-parent_print_error_synchronizing_with_child:
-    mov rax, parent_error_synchronizing_with_child_len
-    mov rdi, 2
-    lea rsi, [rel parent_error_synchronizing_with_child]
-    call _print
-
-    mov rdi, [rel error_code]
-    call _print_error_with_new_line
-    ret
-
-parent_print_error_closing_write_pipe:
-    mov rax, parent_error_closing_write_pipe_len
-    mov rdi, 2
-    lea rsi, [rel parent_error_closing_write_pipe]
-    call _print
-
-    mov rdi, [rel error_code]
-    call _print_error_with_new_line
-    ret
-
-
-print_error_command_not_found:
-    mov rax, error_command_not_found0_len
-    mov rdi, 2
-    lea rsi, [rel error_command_not_found0]
-    call _print
-
-    mov rdi, [rel address_command]
-    call _strlen
-    
-    mov rdi, 2
-    mov rsi, [rel address_command]
-    call _print
-
-    mov rax, error_command_not_found1_len
-    mov rdi, 2
-    lea rsi, [rel error_command_not_found1]
-    call _print_with_new_line
     ret
 
 
@@ -547,29 +481,6 @@ print_error_getting_mem_for_cmd_in_history:
     mov rdi, [rel error_code]
     call _print_error_with_new_line
     ret
-
-print_error_getting_pipes:
-    mov rax, error_getting_pipes_len
-    mov rdi, 2
-    lea rsi , [rel error_getting_pipes]
-    call _print
-
-    mov rdi, [rel error_code]
-    call _print_error_with_new_line
-    ret
-
-
-print_error_getting_pgid:
-    mov rax, error_getting_pgid_len
-    mov rdi, 2
-    lea rsi , [rel error_getting_pgid]
-    call _print
-
-    mov rdi, [rel error_code]
-    call _print_error_with_new_line
-    ret
-
-
 
 ; ---------------------- PROCESS TOKENS ----------------------
 
@@ -705,3 +616,259 @@ print_error_unknow_token:
     lea rsi , [rel error_unknow_token]
     call _print_with_new_line
     ret
+
+
+; --------------------------  EXECUTE PROCESS -------
+; rdi : the address of command name
+print_child_error_closing_write_pipe:
+    push rdi
+
+    call _strlen
+    push rax
+
+    mov rax, child_error_closing_write_pipe0_len
+    mov rdi, 2
+    lea rsi, [rel child_error_closing_write_pipe0]
+    call _print
+
+    pop rax
+    mov rdi, 2
+    pop rsi
+    call _print 
+
+    mov rax, child_error_closing_write_pipe1_len
+    mov rdi, 2
+    lea rsi, [rel child_error_closing_write_pipe1]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+; rdi : the address of command name
+print_child_error_setting_gpid:
+    push rdi
+
+    call _strlen
+    push rax
+
+    mov rax, child_error_setting_gpid0_len
+    mov rdi, 2
+    lea rsi, [rel child_error_setting_gpid0]
+    call _print
+
+    pop rax
+    mov rdi, 2
+    pop rsi
+    call _print 
+
+    mov rax, child_error_setting_gpid1_len
+    mov rdi, 2
+    lea rsi, [rel child_error_setting_gpid1]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+; rdi : the address of command name
+print_child_error_getting_command_array_element:
+    
+    push rdi
+
+    call _strlen
+    push rax
+
+    mov rax, child_error_getting_command_array_element0_len
+    mov rdi, 2
+    lea rsi, [rel child_error_getting_command_array_element0]
+    call _print
+
+    pop rax
+    mov rdi, 2
+    pop rsi
+    call _print 
+
+    mov rax, child_error_getting_command_array_element1_len
+    mov rdi, 2
+    lea rsi, [rel child_error_getting_command_array_element1]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+; rdi : the address of command name
+print_child_error_changing_redirect_in_fd:    
+    push rdi
+
+    call _strlen
+    push rax
+
+    mov rax, child_error_changing_redirect_in_fd0_len
+    mov rdi, 2
+    lea rsi, [rel child_error_changing_redirect_in_fd0]
+    call _print
+
+    pop rax
+    mov rdi, 2
+    pop rsi
+    call _print 
+
+    mov rax, child_error_changing_redirect_in_fd1_len
+    mov rdi, 2
+    lea rsi, [rel child_error_changing_redirect_in_fd1]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+; rdi : the address of command name
+; rsi : address of the filename that was unable to open
+print_child_error_opening_redirect_in_dest:
+    push rsi
+    push rdi
+    call _strlen
+    push rax
+
+    mov rax, child_error_opening_redirect_in_dest0_len
+    mov rdi, 2
+    lea rsi, [rel child_error_opening_redirect_in_dest0]
+    call _print
+
+    pop rax
+    mov rdi, 2
+    pop rsi
+    call _print 
+
+    mov rax, child_error_opening_redirect_in_dest1_len
+    mov rdi, 2
+    lea rsi, [rel child_error_opening_redirect_in_dest1]
+    call _print
+
+    pop rdi
+    push rdi
+    call _strlen
+
+    mov rdi, 2
+    pop rsi
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+
+; rdi : the address of command name
+print_child_error_changing_redirect_out_fd:
+    push rdi
+
+    call _strlen
+    push rax
+
+    mov rax, child_error_changing_redirect_out_fd0_len
+    mov rdi, 2
+    lea rsi, [rel child_error_changing_redirect_out_fd0]
+    call _print
+
+    pop rax
+    mov rdi, 2
+    pop rsi
+    call _print 
+
+    mov rax, child_error_changing_redirect_out_fd1_len
+    mov rdi, 2
+    lea rsi, [rel child_error_changing_redirect_out_fd1]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+; rdi : the address of command name
+; rsi : address of the filename that was unable to open
+print_child_error_opening_redirect_out_dest:
+    push rsi
+    push rdi
+
+    call _strlen
+    push rax
+
+    mov rax, child_error_opening_redirect_out_dest0_len
+    mov rdi, 2
+    lea rsi, [rel child_error_opening_redirect_out_dest0]
+    call _print
+
+    pop rax
+    mov rdi, 2
+    pop rsi
+    call _print 
+
+    mov rax, child_error_opening_redirect_out_dest1_len
+    mov rdi, 2
+    lea rsi, [rel child_error_opening_redirect_out_dest1]
+    call _print
+
+    pop rdi
+    push rdi
+    call _strlen
+
+    mov rdi, 2
+    pop rsi
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret
+
+; rdi : the address of command name
+print_child_error_adding_shell_env_var_to_arr:
+    push rdi
+
+    call _strlen
+    push rax
+
+    mov rax, child_error_adding_shell_env_var_to_arr0_len
+    mov rdi, 2
+    lea rsi, [rel child_error_adding_shell_env_var_to_arr0]
+    call _print
+
+    pop rax
+    mov rdi, 2
+    pop rsi
+    call _print 
+
+    mov rax, child_error_adding_shell_env_var_to_arr1_len
+    mov rdi, 2
+    lea rsi, [rel child_error_adding_shell_env_var_to_arr1]
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+    ret    
+
+
+; rdi: expects the addres of command name
+child_print_error_executing_process:
+    push r12
+    mov r12, rdi
+    
+    mov rax, child_error_executing_process_len
+    mov rdi, 2
+    lea rsi , [rel child_error_executing_process]
+    call _print
+
+    mov rdi, r12
+    call _strlen
+    
+    mov rdi, 2
+    mov rsi, r12
+    call _print
+
+    mov rdi, [rel error_code]
+    call _print_error_with_new_line
+
+    pop r12
+    ret
+
