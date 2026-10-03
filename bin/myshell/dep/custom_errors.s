@@ -43,9 +43,9 @@ section .rodata
     error_increasing_input_buffer_mem db "MyShell: Error increasing input buffer storage: ", 0
     error_increasing_input_buffer_mem_len equ $ - error_increasing_input_buffer_mem
 
-
-
-
+    ; ----------------------------PARSE INPUT ---------------------------------
+    error_invalid_number_for_history db "MyShell: Error invalid number for history.", 0
+    error_invalid_number_for_history_len equ $ - error_invalid_number_for_history
 
     ; --------------------------- PROCESS TOKENS ---------------------------------
 
@@ -210,11 +210,8 @@ global print_error_getting_pgid
 global print_error_allocating_memory_for_history
 global print_error_getting_mem_for_cmd_in_history
 global print_error_getting_pipes
-global parent_print_error_closing_read_pipe
-global parent_print_error_setting_gpid_for_child
-global parent_print_error_moving_child_to_fg
-global parent_print_error_synchronizing_with_child
-global parent_print_error_closing_write_pipe
+
+global print_error_invalid_number_for_history
 
 ; ---- process token
 global print_error_dq_left_open
@@ -328,6 +325,14 @@ print_error_getting_cwd:
 
     mov rdi, [rel error_code]
     call _print_error_with_new_line
+    ret
+
+
+print_error_invalid_number_for_history:
+    mov rax, error_invalid_number_for_history_len
+    mov rdi, 2
+    lea rsi , [rel error_invalid_number_for_history]
+    call _print_with_new_line
     ret
 
 

@@ -1,3 +1,4 @@
+global filled_history_array_size
 section .data
 	history_arr_address dq 0
 	filled_history_array_size dq 0

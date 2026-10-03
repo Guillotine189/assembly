@@ -14,6 +14,7 @@ section .bss
     input_buffer_string_object resb MYSTRING_OBJECT_SIZE
     parsed_string_object resb MYSTRING_OBJECT_SIZE
     token_array resb DYNAMICARRAY_OBJECT_SIZE
+    special_char_state_arr_obj resb DYNAMICARRAY_OBJECT_SIZE
 
 
 section .text
@@ -26,6 +27,7 @@ extern last_command_exit_code_ascii_len
 
 extern _itoa
 extern _print
+extern _atoi
 
 extern _find_var_in_shell_env
 
@@ -35,7 +37,8 @@ extern _malloc
 extern _free
 
 extern _add_cmd_into_history
-
+extern filled_history_array_size
+extern print_error_invalid_number_for_history
 
 extern print_error_dq_left_open
 extern print_error_sq_left_open
@@ -231,21 +234,85 @@ _expand_double_exclaimation_and_add_to_history:
         jne .copy_byte_and_loop
 
         cmp byte [r9 + r8 + 1], '!'      ; i know there is always a next byte available
-        jne .copy_byte_and_loop         ; if only single time '!', copy it and move on
+        je .ask_for_last_command         ; if only single time '!', copy it and move on
 
+        ; else check what the number is 
+        
+        mov rax, r8
+    .loop_until_next_char_not_a_number:
+        cmp [r9 + rax + 1], '0'
+        jb .check_if_number_is_valid
+
+        cmp [r9 + rax + 1], '9'
+        jg .check_if_number_is_valid
+
+        inc rax
+        jmp .loop_until_next_char_not_a_number
+
+    .check_if_number_is_valid:
+    ; r8 is at ! 
+    ; rax is the byte where last number is supposed to be
+    ; if rax and r8 at same position,  then no digit after ! was a number   
+    cmp rax, r8           
+    je .copy_byte_and_loop
+    
+    ; now after !, i have found digits 
+    sub rax, r8
+
+    cmp rax, 20             ; if the difference is bigger than 20 not possible
+    jge .invalid_number_for_history
+
+    inc r8
+    lea rdi, [r9 + r8]
+    add r8, rax
+
+
+    push rdx
+    push r8
+    push r9
+    push r10
+    push r11
+    push rsi
+
+    ; i need to ascii to conver number
+
+    ; increase r8 by 2 positions because of double slash in input buffer
+
+    mov rsi, rax
+    call _atoi
+    mov rcx, [rel filled_history_array_size]
+    sub rcx, rax
+    inc rcx
+    mov rdi, rcx
+
+    pop rsi
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rdx
+
+    jmp .ask_for_custom_command
+
+    .ask_for_last_command:
+        mov rdi, 1
+        ; increase r8 by 2 positions because of double slash in input buffer
+        add r8, 2
+
+    .ask_for_custom_command:
+        ; else now i have to replace the two with older command
+        ; 1 is prev command
         push rdx
         push r8
         push r9
         push r10
         push r11
-
-        ; else now i have to replace the two with older command
-        ; 1 is prev command
-        mov rdi, 1
+        push rsi
         call _return_address_of_command_from_newest
+        pop rsi
 
         test rax, rax
-        jl .no_more_old_commands
+        jl .pop_and_print_invalid_and_ret
         mov r14, rax                    ; save the address of old command
 
         ; copy old data into string first, this function preserves all registers and reset r12, rsi
@@ -269,9 +336,19 @@ _expand_double_exclaimation_and_add_to_history:
         pop r8
         pop rdx
 
-        ; increase r8 by 2 positions because of double slash in input buffer
-        add r8, 2
         jmp .loop_till_new_line
+
+    .pop_and_print_invalid_and_ret:
+        mov r15, 1                  ; still have to mark this command as somethign that needs to be printed
+        pop r11
+        pop r10
+        pop r9
+        pop r8
+        pop rdx
+
+    .invalid_number_for_history:
+        call print_error_invalid_number_for_history
+        jmp .return_failure
 
 
     .done:
@@ -298,7 +375,7 @@ _expand_double_exclaimation_and_add_to_history:
         ; if the command ends with sq or dq open, give errro and exit
         pop r11
         pop r10
-        
+
         test r10, r10
         jne .error_dq_left_open
 
@@ -365,6 +442,23 @@ _parse_expanded_string:
 
     test rax, rax
     jl .error_creating_string_for_parsing
+
+    STATE_DEFAULT                   equ 0
+    STATE_INSIDE_SINGLE_QUOTE       equ 1
+    STATE_INSIDE_DOUBLE_QUOTE       equ 2
+
+    ; ; create the array that stores the state of special chars like for >, <, |
+    ; lea rax, [rel special_char_state_arr_obj]
+    ; mov qword [rax + DYNAMICARRAY_CAPACITY_OFF], 10  ; space for 10 special char
+    ; mov qword [rax + DYNAMICARRAY_SIZE_OFF], 0
+    ; mov qword [rax + DYNAMICARRAY_ELEMENT_SIZE_OFF], 8 ; each state is 8bytes, (i can make it 1byte as well)
+    ; mov qword [rax + DYNAMICARRAY_POINTER_OFF], 0
+    ; mov rdi, rax
+    ; call _default_dynamic_array_constructor
+
+    ; test rax, rax
+    ; jl .error_initializing_token_array   ; TODO: fix wrong error 
+ 
 
 
     ;xor r15, r15                        ; weather to print the parsed command or not

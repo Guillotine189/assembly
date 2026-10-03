@@ -11,7 +11,7 @@ global _strcmp
 global _cmp_equal_memory
 global _memcpy_with_end_char
 global _strcpy_add_space_before_backslash
-
+global _atoi
 
 ; rax: number of bytes to print 
 ; rdi: fd to write to
@@ -368,4 +368,44 @@ _strcpy_add_space_before_backslash:
 
 	.done:
 		add rdi, rdx
+		ret
+
+
+; rdi : address of string
+; rsi: number of bytes to compare
+; returns the interger for of string in rax, max 4 bytes(2^32)
+_atoi:
+	push r12
+	push r13
+
+	mov r12, rsi
+	xor r13, r13
+
+	mov rsi, rdi
+	xor rcx, rcx									; just to empty rcx
+
+	xor rax, rax									; rax stores the final result
+	xor r9, r9										; index for bytes counting
+
+	mov r10, 10 									; mutiple constant
+
+	.loop:
+		; check weather i have to add another number
+		mov cl, [rsi + r9]
+
+		cmp r13, r12
+		je .done
+
+		; convert to integer, multiply old result by 10, add new number, loop
+		sub cl, 48
+		mul r10											; rax*rbx output stored in rax, rdx CHNAGED HERE
+		add rax, rcx
+		inc r9
+
+		inc r13
+		jmp .loop
+
+	.done:
+		pop r13
+		pop r12
 		ret

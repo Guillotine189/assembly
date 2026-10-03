@@ -14,7 +14,7 @@ BASIC------
   inside parser metain weather these are inside quotes or not
 5.4) Change the env functions (they use command_argc_dynamic_array_object and command_argv_dynamic_array_object) ✅
 
-5.5) update exit code after command finishes⏳
+5.5) update exit code after command finishes ✅
 5.7) empty input, input with no words/lettes just space results in weird behaviour. ✅
 5.8) empty argument cannot be resolved, it just ignores them rn
 
