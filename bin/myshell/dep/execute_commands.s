@@ -802,7 +802,7 @@ _execute_commands:
         call _dynamic_array_add_element
 
         mov rdi, r15
-        lea rdi, [rel null_qword]
+        lea rsi, [rel null_qword]
         call _dynamic_array_add_element
 
         .done_adding:
@@ -1047,7 +1047,7 @@ _execute_commands:
         .loop_shell_env_array2:
 
             cmp r12, [r14 + DYNAMICARRAY_SIZE_OFF]
-            je .add_underscore_env_var_and_null             ; the common one already includes a NULL qword
+            je .add_underscore_env_var_and_null             ; the common one dos not includes a NULL qword
 
             mov rax, r12
             mov rcx, [r14 + DYNAMICARRAY_ELEMENT_SIZE_OFF]
