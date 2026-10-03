@@ -33,6 +33,7 @@ BASIC------
 7) Inside shell env, update pwd, old_pwd when chdir. Also check and update other env variables.
 8) right now only 1 redirection output is allowed, or you will overwrite which to redirect out to.
 9) add aliases
+10) check if history circular works with malloc2
 
 
 EFFICIENCY------

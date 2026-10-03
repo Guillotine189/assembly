@@ -64,6 +64,10 @@ section .rodata
 	null db "NULL", 0
 	null_len equ $ - null
 
+	invalid_addres_provided_line db "mymalloc: Error invalid address provided: ", 0
+	invalid_addres_provided_line_len equ $ - invalid_addres_provided_line
+
+
 section .bss
 
 	malloc_info_buffer resb 512 		; detailed info line
@@ -323,6 +327,28 @@ _malloc:
 		ret
 
 
+; rdi: address provided by user
+; very very basic check for now
+_check_address_validity:
+	; if address of segment is < first segment or > last segment => error
+
+	sub rdi, METADATA_SIZE  			; rdi: the address of begining of malloc segment
+
+	mov rax, [rel malloc_address_first_segment]
+	cmp rdi, rax
+	jl .invalid_address
+
+	mov rax, [rel malloc_address_last_segment]
+	cmp rdi, rax
+	jg .invalid_address
+
+	; else it's a valid address
+	xor rax, rax
+	ret
+
+	.invalid_address:
+		mov rax, -1
+		ret
 
 ; TODO: maybe when last segment is freed, unmap them?
 ; rdi : address received from malloc
@@ -333,15 +359,20 @@ _free:
 	push rbx
 	push r12
 
+	inc qword [rel free_called]
 	sub rdi, METADATA_SIZE
 	mov rbx, rdi  					;store the address of og segment
+	
+	; rdi has the address provided by user
+	call _check_address_validity
+	test rax, rax
+	jl .invalid_address
 
-	inc qword [rel free_called]
 	test rbx, rbx
-	jz .invalid_pointer
+	jz .invalid_address
 
 	cmp qword [rbx + MYMALLOC_USED_OFF], 1
-	jne .invalid_pointer
+	jne .invalid_address
 	    
 
 	; the idea for freeing a segmenet
@@ -463,7 +494,12 @@ _free:
 			ret
 
 
-	.invalid_pointer:
+	.invalid_address:
+		mov rax, invalid_addres_provided_line_len
+		mov rdi, 2
+		lea rsi, [rel invalid_addres_provided_line]
+		call print
+
 		pop r12
 		pop rbx
 		mov rax, -1

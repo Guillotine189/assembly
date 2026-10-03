@@ -17,6 +17,8 @@ section .rodata
 	dash db '-',0
 	path_env_var db "PATH", 0
 
+	underscore_env_var db "_", 0
+
 
 global shell_env_array_object
 section .bss
@@ -150,6 +152,10 @@ _initialize_shell_env_array:
 		jmp .loop_populate_env_array
 
 	.done_populating:
+		; i will remove the _=./myshell fron my env var, so i can add a new one for every command
+		lea rdi, [rel underscore_env_var]
+		call _unset_var_in_shell_env
+
 		pop r12
 		mov rsp, rbp
 		pop rbp

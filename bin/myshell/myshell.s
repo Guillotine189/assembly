@@ -423,8 +423,6 @@ _get_and_set_cwd:
     jl .set_error_getting_pwd_and_exit          ; sys_getcwd return error with NULL
     dec rax                                     ; og len included NULL, so i removed it
     mov [rel curr_cwd_len], rax                 ; update curr_cwd_len
-
-
     ret
 
     .set_error_getting_pwd_and_exit:
@@ -519,10 +517,12 @@ _handle_input:
     cmp rax, 1             ; when enter was presses. "\n" was written in buffer
     je .empty_line
 
+    ; cleanups after itself only on failure
     call _generate_tokens
     test rax, rax
     jl .error_generating_tokens
 
+    ; cleanups after itself only on failure
     call _process_token_generate_commands
     test rax, rax
     jl .error_parocessing_token

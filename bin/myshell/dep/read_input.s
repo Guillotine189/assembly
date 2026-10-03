@@ -37,6 +37,7 @@ section .rodata
     double_dot db "..", 0
     back_slash db "/", 0
     space_char db ' ', 0
+    new_line_exit_word_new_line db 10, "exit", 10, 0
 
     
 section .bss
@@ -81,7 +82,6 @@ extern _print_more_malloc_info
 extern _print_free_list_info
 
 extern _mem_copy
-extern _print
 extern _strlen
 extern _strcmp
 extern _memcpy_with_end_char
@@ -1624,10 +1624,10 @@ _read_input:
         cmp qword [rel filled_size_input_buffer_len], 0
         jne .read_key
 
-        ; print new line and exit
-        mov rax, 1
+
+        mov rax, 6    ; len of '\nexit\n'
         mov rdi, 1
-        lea rsi, [rel new_line]
+        lea rsi, [rel new_line_exit_word_new_line]
         call _print
 
         mov [rel exit_flag], 1

@@ -22,6 +22,7 @@ section .rodata
     new_line db 0x0a, 0
     null_qword dq 0
     export_command db "export", 0
+    underscore_equals_to_word db "_=", 0
 
 
 global last_command_exit_code_ascii
@@ -38,6 +39,8 @@ section .bss
     last_command_exit_code_ascii resb 32
     last_command_exit_code_ascii_len resq 1
 
+    reusable_buffer_execute_command resb 512
+
 extern shell_pgid
 extern exit_status_code
 extern error_code
@@ -48,6 +51,7 @@ extern shell_env_array_object
 extern _itoa
 extern _cmp_equal_memory
 extern _strcmp
+extern _string_copy_including_null
 
 extern print_error_initializing_common_env_array_obj
 extern print_error_initializing_pipe_array
@@ -248,16 +252,6 @@ _execute_commands:
         inc r12
         jmp .loop_shell_env_array
 
-    .done_adding_shell_env_var:
-    ; add a null address after them
-    lea rdi, [rel common_shell_env_var_array_object]
-    lea rsi, [rel null_qword]
-    call _dynamic_array_add_element
-    
-    test rax, rax
-    js .error_adding_common_env_array
-
-
 
     REDIRECT_STRUCT_SIZE            equ 16
     REDIRECT_STRUCT_TYPE_OFF        equ 0
@@ -275,6 +269,7 @@ _execute_commands:
     COMMAND_STRUCT_ROUT_STRUCT_OFF  equ COMMAND_STRUCT_RIN_STRUCT_OFF + REDIRECT_STRUCT_SIZE
 
 
+    .done_adding_shell_env_var:
 
     lea r12, [rel command_array]              ; r12: commmand array object address
 
@@ -740,7 +735,7 @@ _execute_commands:
         ; so as a special case, i will only pass the env variables provided by user in envp_Array
         ; the bic function will iterate through all the envp_var given by user and update them in shell env
 
-        mov r13, [r12 + DYNAMICARRAY_POINTER_OFF]        ; r14: address of current command struct
+        mov r13, [r12 + DYNAMICARRAY_POINTER_OFF]        ; r13: address of current command struct
 
         mov rax, [r13 + COMMAND_STRUCT_NAME_OFF]        ; rcx has name for command
         lea rdi, [rel export_command]
@@ -758,12 +753,10 @@ _execute_commands:
         lea r15, [r13 + COMMAND_STRUCT_ENVP_OBJ_OFF]        ; r15: the address of envp array inside command struct
         lea r14, [rel common_shell_env_var_array_object]    ; r14 is the common envp array object
 
-        ; go through common shell_env_array and add everythign into this envp array
-
+        ; go through common shell_env_array and add everythign into this envp array, common does not contain NULL
         .loop_shell_env_array3:
-
             cmp r12, [r14 + DYNAMICARRAY_SIZE_OFF]
-            je .done_adding             ; the common one already includes a NULL qword
+            je .add_underscore_env_var             ; the common one already includes a NULL qword
 
             mov rax, r12
             mov rcx, [r14 + DYNAMICARRAY_ELEMENT_SIZE_OFF]
@@ -784,6 +777,33 @@ _execute_commands:
 
             inc r12
             jmp .loop_shell_env_array3
+
+        .add_underscore_env_var:
+        ; i need to add the _=command_name into env var
+
+        ; buffer = [_=./program,NULL,ADDRESS_8_BYTES]
+        ;           | address of this 
+        ; copy "_=" into buffer, then append the command name and add this as env var
+        lea rdi, [rel reusable_buffer_execute_command]
+        lea rsi, [rel underscore_equals_to_word]
+        mov rcx, 2
+        rep movsb
+
+        ; rdi is at next address
+        mov rsi, [r13 + COMMAND_STRUCT_NAME_OFF]        ; r12: the address of name of command
+        call _string_copy_including_null
+
+        inc rdi
+        lea rsi, [rel reusable_buffer_execute_command]
+        mov [rdi], rsi
+
+        mov rsi, rdi
+        mov rdi, r15
+        call _dynamic_array_add_element
+
+        mov rdi, r15
+        lea rdi, [rel null_qword]
+        call _dynamic_array_add_element
 
         .done_adding:
         mov rdi, r13
@@ -1008,18 +1028,18 @@ _execute_commands:
         test rax, rax
         jl .child_error_getting_command_array_element
 
-        mov r14, rax                            ; r14: address of current command struct
+        mov rbx, rax                            ; rbx: address of current command struct
 
-        lea rax, [r14 + COMMAND_STRUCT_ENVP_OBJ_OFF]
+        lea rax, [rbx + COMMAND_STRUCT_ENVP_OBJ_OFF]
         mov rax, [rax + DYNAMICARRAY_SIZE_OFF]  ; rax: size of envp array
 
         test rax, rax
-        je .no_change_in_envp_array
+        je .use_commmon_envp_array
 
         ; else i have added a temp env into the array, i now need to add the common envp array into this array
 
         xor r12, r12                                        ; which env struct am i checking
-        lea r15, [r14 + COMMAND_STRUCT_ENVP_OBJ_OFF]        ; r15: the address of envp array object i want to add into
+        lea r15, [rbx + COMMAND_STRUCT_ENVP_OBJ_OFF]        ; r15: the address of envp array object i want to add into
         lea r14, [rel common_shell_env_var_array_object]    ; r14 is the shell array object i an adding from
 
         ; go through common shell_env_array and add everythign into this envp array
@@ -1027,7 +1047,7 @@ _execute_commands:
         .loop_shell_env_array2:
 
             cmp r12, [r14 + DYNAMICARRAY_SIZE_OFF]
-            je .no_change_in_envp_array             ; the common one already includes a NULL qword
+            je .add_underscore_env_var_and_null             ; the common one already includes a NULL qword
 
             mov rax, r12
             mov rcx, [r14 + DYNAMICARRAY_ELEMENT_SIZE_OFF]
@@ -1048,10 +1068,63 @@ _execute_commands:
             inc r12
             jmp .loop_shell_env_array2
 
-        .no_change_in_envp_array:
+        .add_underscore_env_var_and_null:
+        lea rdi, [rel reusable_buffer_execute_command]
+        lea rsi, [rel underscore_equals_to_word]
+        mov rcx, 2
+        rep movsb
 
-        ; restore signal handling
-        call _reset_child_signals         ; childs signals have been restored to default
+        ; rdi is at next address
+        mov rsi, [rbx + COMMAND_STRUCT_NAME_OFF]        ; rsi: the address of name of command
+        call _string_copy_including_null
+
+        inc rdi
+        lea rsi, [rel reusable_buffer_execute_command]
+        mov [rdi], rsi
+
+        mov rsi, rdi
+        mov rdi, r15
+        call _dynamic_array_add_element
+        test rax, rax
+        jl .child_error_adding_shell_env_var_to_arr
+
+        mov rdi, r15
+        lea rsi, [rel null_qword]
+        call _dynamic_array_add_element
+        test rax, rax
+        jl .child_error_adding_shell_env_var_to_arr
+
+        jmp .wait_for_signal
+
+        .use_commmon_envp_array:
+
+        lea rdi, [rel reusable_buffer_execute_command]
+        lea rsi, [rel underscore_equals_to_word]
+        mov rcx, 2
+        rep movsb
+
+        ; rdi is at next address
+        mov rsi, [rbx + COMMAND_STRUCT_NAME_OFF]        ; rsi: the address of name of command
+        call _string_copy_including_null
+
+        inc rdi
+        lea rsi, [rel reusable_buffer_execute_command]
+        mov [rdi], rsi
+
+        mov rsi, rdi
+        lea rdi, [rel common_shell_env_var_array_object]
+        call _dynamic_array_add_element
+        test rax, rax
+        jl .child_error_adding_shell_env_var_to_arr
+
+        lea rdi, [rel common_shell_env_var_array_object]
+        lea rsi, [rel null_qword]
+        call _dynamic_array_add_element
+        test rax, rax
+        jl .child_error_adding_shell_env_var_to_arr
+
+
+        .wait_for_signal:
 
         ; wait for signal from shell
         ; it will put the pgid into fg before i do anything
@@ -1068,6 +1141,10 @@ _execute_commands:
         ; now i can execve, but i have to decide which envp array to use
         ; the common one or the specialized one
         ; r13: the idx of current command
+
+        ; i am not in the foreground, so now i can safely reset the signal
+        ; restore signal handling
+        call _reset_child_signals         ; childs signals have been restored to default
 
         lea rdi, [rel command_array]
         mov rsi, r13
