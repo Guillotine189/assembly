@@ -385,6 +385,11 @@ _expand_double_exclaimation_and_add_to_history:
         jmp .return_success
     
     .return_success:
+        test r15, r15
+        jz .no_printing          ; no need to print the command
+        call _print_line_before_parsing
+
+    .no_printing:
         xor rax, rax
         ret
 
@@ -461,7 +466,6 @@ _parse_expanded_string:
  
 
 
-    ;xor r15, r15                        ; weather to print the parsed command or not
     xor r12, r12                        ; length of parse_buffer
     lea r13, [rel parse_buffer]         ; always contains the parse buffer
     xor rsi, rsi                        ; index for dst to copy bytes to
@@ -477,7 +481,7 @@ _parse_expanded_string:
         cmp byte [r9 + r8], 0x0a            ; if the byte is \n
         je .buffer_parsed
 
-        cmp byte [r9 + r8], 0x5c            ; '\' front slash
+        cmp byte [r9 + r8], '\'
         je .front_slash_was_seen
 
         cmp byte [r9 + r8], 0x20            ; space
@@ -510,6 +514,8 @@ _parse_expanded_string:
             test rcx, rcx
             jz .mark_as_seen_and_continue
             ; last byte was \, so now i can append this
+            ; but after this i will change state to say that i last byte was not front slash
+            xor rcx, rcx            ; not \ anymore
             jmp .copy_byte_and_loop
 
             .mark_as_seen_and_continue:
@@ -564,7 +570,7 @@ _parse_expanded_string:
             inc r8
             inc rsi
             inc r12                               ; increase the size of parse buffer
-            xor rdx, rdx                          ; last byte coped was not \n
+            xor rdx, rdx                          ; last byte coped was not \n, i will never copy a null byte from here that's why it's ok
             jmp .loop_till_new_line
 
         .handle_dq:
@@ -619,6 +625,7 @@ _parse_expanded_string:
 
 
         .handle_space:
+
             test r10, r10
             jnz .copy_byte_and_loop   ; if inside dq, just append this pace
             
@@ -659,11 +666,13 @@ _parse_expanded_string:
 
         .last_byte_was_front_slash_allow_this_space:
             xor rcx, rcx                        ; last byte no longer \
-
+            xor rdx, rdx
+            ; when 1st \ is encountered, it does not change rsi, do i can juts move the space into that rsi position
             ; replace the slash with this space
 
-            mov byte [r13 + rsi - 1], ' '           ; replace last dst byte wiht space
+            mov byte [r13 + rsi], ' '           ; replace last dst byte wiht space
             inc r8                                  ; check next byte
+            inc rsi
             jmp .loop_till_new_line
 
 
@@ -868,9 +877,6 @@ _parse_expanded_string:
         ; DO NOT DEALLOCATE THE STRING RIGHT NOW
         ; DEALLOCATE IT AFTER EXECUTION
         ; or dealllocate it just after failure to parse
-        test r15, r15
-        jz .return_success          ; no need to print the command
-        call _print_line_before_parsing
         jmp .return_success
 
     .error_creating_string_for_parsing:

@@ -4,30 +4,16 @@ BASIC------
 2) Better parser, make it handle pipes, redirection etc. ⏳
 3) Decide how to store the commands, args, envp for every single command.⏳
 4) Run chained commands (ls | grep "data.txt" > output.txt).⏳
-
-5) redirect in "<" does not work, messes up execve  ✅
 5) fix how bic are executed. ⏳
-5) if single command is also Bic, it executes without proper env var  ✅
-5.3) adding a temp env varibale when running a command results in removal of 1st shell env in final envp arr. Fix that.  ✅
-
+5.1) fix parsing logic when spaces with \ is there
 5) ">", "<", "|", inside double/single quotes should not be considered as redirection.
   inside parser metain weather these are inside quotes or not
-5.4) Change the env functions (they use command_argc_dynamic_array_object and command_argv_dynamic_array_object) ✅
-
-5.5) update exit code after command finishes ✅
-5.7) empty input, input with no words/lettes just space results in weird behaviour. ✅
-5.8) empty argument cannot be resolved, it just ignores them rn
-
-
-5.6) if command doesn't exists/not found then, print error ✅
 9 ) add ">>", "&&", "&"
-
+5.8) empty argument cannot be resolved, it just ignores them rn
 5) Add auto complete for installed command name only (like ls, grep etc).
-5.1) '!!' is replaced by the old command, but the old command is not processed. So it just goes in as 1 big argument. Fix that. ✅
-
-5.1.1) give error when SQ/DQ remains open after pressing enter. ✅
 5.2) After fork, the children should not be forced to be in canonical mode, store and restore the old termios at shell start and put it so
 5.3) "env | grep --color=auto USER" -> does not work, but using the binary 'printenv' will make it work
+5.4) "../astro\ lec/" auto complete will not work if this is given
 
 6) visual fix, when command overflows into next line.
 7) Inside shell env, update pwd, old_pwd when chdir. Also check and update other env variables.
@@ -35,6 +21,16 @@ BASIC------
 9) add aliases
 10) check if history circular works with malloc2
 
+11) fix error with spaces/front_slash when parsing ✅
+5) redirect in "<" does not work, messes up execve  ✅
+5) if single command is also Bic, it executes without proper env var  ✅
+5.3) adding a temp env varibale when running a command results in removal of 1st shell env in final envp arr. Fix that.  ✅
+5.4) Change the env functions (they use command_argc_dynamic_array_object and command_argv_dynamic_array_object) ✅
+5.5) update exit code after command finishes ✅
+5.7) empty input, input with no words/lettes just space results in weird behaviour. ✅
+5.6) if command doesn't exists/not found then, print error ✅
+5.1) '!!' is replaced by the old command, but the old command is not processed. So it just goes in as 1 big argument. Fix that. ✅
+5.1.1) give error when SQ/DQ remains open after pressing enter. ✅
 
 EFFICIENCY------
 6) change malloc to find free segment faster, try free list ✅
