@@ -62,13 +62,14 @@ _generate_tokens:
     call _parse_expanded_string
     test rax, rax
     jl .error_parsing_string
-
-    ; after parsing the string, i no longer need it
-    call _free_input_buffer_string_object
+    
+    call _free_input_buffer_string_object ; after parsing the string, i no longer need it
 
     call _classify_and_generate_tokens
     test rax, rax
     jl .error_classifying_tokens
+
+    call _free_special_char_state_arr_obj  ; no longer needed after token generation
 
     jmp .return_success
 
@@ -79,6 +80,7 @@ _generate_tokens:
         jmp .return_failure
     .error_classifying_tokens:
         call _free_parsed_buffer_string_object
+        call _free_special_char_state_arr_obj
         jmp .return_failure
 
 
@@ -410,6 +412,15 @@ _expand_double_exclaimation_and_add_to_history:
         ret
 
 
+_print_line_before_parsing:
+    lea rcx, [rel input_buffer_string_object]
+    mov rax, [rcx + MYSTRING_SIZE_OFF]
+    mov rdi, 1
+    mov rsi, [rcx + MYSTRING_POINTER_OFF]
+    call _print
+    ret
+
+
 
 ; TODO: "", empty argumets are ignored
 ; because its basically NULL followed by NULL in parser
@@ -452,17 +463,18 @@ _parse_expanded_string:
     STATE_INSIDE_SINGLE_QUOTE       equ 1
     STATE_INSIDE_DOUBLE_QUOTE       equ 2
 
-    ; ; create the array that stores the state of special chars like for >, <, |
-    ; lea rax, [rel special_char_state_arr_obj]
-    ; mov qword [rax + DYNAMICARRAY_CAPACITY_OFF], 10  ; space for 10 special char
-    ; mov qword [rax + DYNAMICARRAY_SIZE_OFF], 0
-    ; mov qword [rax + DYNAMICARRAY_ELEMENT_SIZE_OFF], 8 ; each state is 8bytes, (i can make it 1byte as well)
-    ; mov qword [rax + DYNAMICARRAY_POINTER_OFF], 0
-    ; mov rdi, rax
-    ; call _default_dynamic_array_constructor
+    ; create the array that stores the state of special chars like for >, <, |
+    ; it only stores weather these char are inside a sq/dq or not
+    lea rax, [rel special_char_state_arr_obj]
+    mov qword [rax + DYNAMICARRAY_CAPACITY_OFF], 10  ; space for 10 special char
+    mov qword [rax + DYNAMICARRAY_SIZE_OFF], 0
+    mov qword [rax + DYNAMICARRAY_ELEMENT_SIZE_OFF], 8 ; each state is 8bytes, (i can make it 1byte as well)
+    mov qword [rax + DYNAMICARRAY_POINTER_OFF], 0
+    mov rdi, rax
+    call _default_dynamic_array_constructor
 
-    ; test rax, rax
-    ; jl .error_initializing_token_array   ; TODO: fix wrong error 
+    test rax, rax
+    jl .error_initializing_special_char_state_array   ; TODO: fix wrong error 
  
 
 
@@ -810,10 +822,10 @@ _parse_expanded_string:
 
             ; check if i am inside sq or dq
             test r10, r10               ; for dq
-            jne .copy_byte_and_loop
+            jne .special_char_was_iniside_dq
 
             test r11, r11               ; for sq
-            jne .copy_byte_and_loop
+            jne .special_char_was_iniside_sq
 
             ; now i have to copy the "|", ">", "<" with a null before and after it
             call .copy_buffer_into_string
@@ -842,8 +854,91 @@ _parse_expanded_string:
                 inc rsi
                 mov rdx, 1              ; last byte copied was null
                 xor rcx, rcx            ; last byte clpied was not '\'
+
+                ; update the state of this special char
+                push rdx
+                push rcx
+                push rsi
+                push r8
+                push r9
+                push r10
+                push r11
+                
+                mov rax, STATE_DEFAULT
+                push rax
+                lea rdi, [rel special_char_state_arr_obj]
+                mov rsi, rsp
+                call _dynamic_array_add_element
+                pop rdi
+
+                pop r11
+                pop r10
+                pop r9
+                pop r8
+                pop rsi
+                pop rcx
+                pop rdx
+
+                test rax, rax
+                jl .error_adding_state_to_special_char
+
                 jmp .loop_till_new_line
-            
+
+            .special_char_was_iniside_dq:
+                push rdx
+                push rcx
+                push rsi
+                push r8
+                push r9
+                push r10
+                push r11
+                
+                mov rax, STATE_INSIDE_DOUBLE_QUOTE
+                push rax
+                lea rdi, [rel special_char_state_arr_obj]
+                mov rsi, rsp
+                call _dynamic_array_add_element
+                pop rdi
+
+                pop r11
+                pop r10
+                pop r9
+                pop r8
+                pop rsi
+                pop rcx
+                pop rdx
+
+                test rax, rax
+                jl .error_adding_state_to_special_char
+                jmp .copy_byte_and_loop
+
+            .special_char_was_iniside_sq:
+                push rdx
+                push rcx
+                push rsi
+                push r8
+                push r9
+                push r10
+                push r11
+                
+                mov rax, STATE_INSIDE_SINGLE_QUOTE
+                push rax
+                lea rdi, [rel special_char_state_arr_obj]
+                mov rsi, rsp
+                call _dynamic_array_add_element
+                pop rdi
+
+                pop r11
+                pop r10
+                pop r9
+                pop r8
+                pop rsi
+                pop rcx
+                pop rdx
+
+                test rax, rax
+                jl .error_adding_state_to_special_char
+                jmp .copy_byte_and_loop
 
     .buffer_parsed:
         ; the latest byte comapred was \n, i have to add a null char to copy my bufffer into string
@@ -877,14 +972,20 @@ _parse_expanded_string:
         ; DO NOT DEALLOCATE THE STRING RIGHT NOW
         ; DEALLOCATE IT AFTER EXECUTION
         ; or dealllocate it just after failure to parse
+
         jmp .return_success
 
     .error_creating_string_for_parsing:
         jmp .return_failure
 
-    .error_classifying_tokens:
+    .error_initializing_special_char_state_array:
+        call _free_parsed_buffer_string_object
+        jmp .return_failure
+
+    .error_adding_state_to_special_char:
     .error_appending_to_string:
         call _free_parsed_buffer_string_object
+        call _free_special_char_state_arr_obj
         jmp .return_failure
 
     .return_success:
@@ -906,16 +1007,6 @@ _parse_expanded_string:
         pop rbp
         ret
 
-
-
-
-_print_line_before_parsing:
-    lea rcx, [rel input_buffer_string_object]
-    mov rax, [rcx + MYSTRING_SIZE_OFF]
-    mov rdi, 1
-    mov rsi, [rcx + MYSTRING_POINTER_OFF]
-    call _print
-    ret
 
 ; Stage 2 PARSER output:
 ; 1. Words are NULL terminated.
@@ -979,6 +1070,7 @@ _classify_and_generate_tokens:
     mov r9, [r9 + MYSTRING_POINTER_OFF]
     xor r10, r10                        ; start index of token
     xor r13, r13                        ; total tokens
+    xor r14, r14                        ; idx for traversing through the special char array
     .loop_till_double_new_line:
         cmp r8, r12
         jge .all_tokens_classified
@@ -1003,6 +1095,9 @@ _classify_and_generate_tokens:
         inc r8
         jmp .loop_till_double_new_line
 
+    .special_token_was_inside_quotes:
+        inc r14                     ; idx for checking special token ++
+        jmp .loopback
 
     .token_ended:
         ; expects r8 to point to NULL
@@ -1166,21 +1261,49 @@ _classify_and_generate_tokens:
     .check_pipe:
         cmp byte [r9 + r8 + 1], 0
         je .add_pipe_token
+        inc r14                 ; even if it didnt have null after it, the array had a state for this
         jmp .loopback
 
 
     .check_redirect_out:
         cmp byte [r9 + r8 + 1], 0
         je .add_redirect_out_token
+        inc r14                 ; even if it didnt have null after it, the array had a state for this
         jmp .loopback
 
 
     .check_redirect_in:
         cmp byte [r9 + r8 + 1], 0
         je .add_redirect_in_token
+        inc r14                 ; even if it didnt have null after it, the array had a state for this
         jmp .loopback
 
     .add_pipe_token:
+        ; if this was inside a dq/sq, this is a word, so loopback
+        push r8
+        push r9
+        push r10
+        lea rdi, [rel special_char_state_arr_obj]
+        mov rsi, r14
+        call _dynamic_array_get_element_address
+        pop r10
+        pop r9
+        pop r8
+
+        test rax, rax
+        jl .error_getting_element_from_state_array
+
+        mov rax, [rax]          ; rax had the address, now rax: the state value
+
+        cmp rax, STATE_INSIDE_DOUBLE_QUOTE
+        je .special_token_was_inside_quotes
+
+        cmp rax, STATE_INSIDE_SINGLE_QUOTE
+        je .special_token_was_inside_quotes
+
+        inc r14                     ; ut still increment this so i can check the next index
+
+        ; if it wasn't then create a token for this
         inc r8                  ; move r8 to point to NULL
         push r8
         push r9
@@ -1218,6 +1341,30 @@ _classify_and_generate_tokens:
 
 
     .add_redirect_out_token:
+        ; if this was inside a dq/sq, this is a word, so loopback
+        push r8
+        push r9
+        push r10
+        lea rdi, [rel special_char_state_arr_obj]
+        mov rsi, r14
+        call _dynamic_array_get_element_address
+        pop r10
+        pop r9
+        pop r8
+
+        test rax, rax
+        jl .error_getting_element_from_state_array
+
+        mov rax, [rax]          ; rax had the address, now rax: the state value
+
+        cmp rax, STATE_INSIDE_DOUBLE_QUOTE
+        je .special_token_was_inside_quotes
+
+        cmp rax, STATE_INSIDE_SINGLE_QUOTE
+        je .special_token_was_inside_quotes
+        inc r14                     ; ut still increment this so i can check the next index
+
+        ; if it wasn't then create a token for this
         inc r8                  ; move r8 to point to NULL
         push r8
         push r9
@@ -1252,6 +1399,30 @@ _classify_and_generate_tokens:
         jmp .token_ended
 
     .add_redirect_in_token:
+        ; if this was inside a dq/sq, this is a word, so loopback
+        push r8
+        push r9
+        push r10
+        lea rdi, [rel special_char_state_arr_obj]
+        mov rsi, r14
+        call _dynamic_array_get_element_address
+        pop r10
+        pop r9
+        pop r8
+
+        test rax, rax
+        jl .error_getting_element_from_state_array
+
+        mov rax, [rax]          ; rax had the address, now rax: the state value
+
+        cmp rax, STATE_INSIDE_DOUBLE_QUOTE
+        je .special_token_was_inside_quotes
+
+        cmp rax, STATE_INSIDE_SINGLE_QUOTE
+        je .special_token_was_inside_quotes
+        inc r14                     ; ut still increment this so i can check the next index
+
+        ; if it wasn't then create a token for this
         inc r8                  ; move r8 to point to NULL
         push r8
         push r9
@@ -1312,6 +1483,8 @@ _classify_and_generate_tokens:
     .error_initializing_token_array:
         jmp .return_failure
 
+
+    .error_getting_element_from_state_array:
     .error_appending_to_token:
         call _free_token_array
         jmp .return_failure
@@ -1329,6 +1502,10 @@ _classify_and_generate_tokens:
         xor rax, rax
         ret
 
+_free_special_char_state_arr_obj:
+    lea rdi, [rel special_char_state_arr_obj]
+    call _default_dynamic_array_destructor
+    ret
 
 _free_input_buffer_string_object:
     lea rdi, [rel input_buffer_string_object]
