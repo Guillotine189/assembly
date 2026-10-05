@@ -31,6 +31,7 @@ global _destructor_mystring
 global _append_string_mystring
 global _append_bytes_mystring
 global _mystring_clear
+global _mystring_truncate
 
 ; remember to redefine them in mystring.inc if changed
 MYSTRING_OBJECT_SIZE 		equ 24
@@ -314,6 +315,24 @@ _mystring_clear:
 	mov byte [rdi], 0
 	xor rax, rax
 	ret
+
+; rdi: address of string object
+; rsi: len after truncate
+_mystring_truncate:
+	
+	mov rax, [rdi + MYSTRING_SIZE_OFF]
+	cmp rsi, rax
+	jg .error_len_greater_than_size
+
+	mov qword [rdi + MYSTRING_SIZE_OFF], rsi
+	mov rdi, [rdi + MYSTRING_POINTER_OFF]
+	mov byte [rdi + rsi], 0
+	xor rax, rax
+	ret	
+
+	.error_len_greater_than_size:
+		mov rax, -1
+		ret
 
 
 ; rdi: address of string

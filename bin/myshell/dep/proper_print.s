@@ -1,4 +1,5 @@
 %include "./dep/constants.inc"
+%include "../dependencies/mystring.inc"
 
 section .data
 	longest_word_len dq 0
@@ -33,7 +34,7 @@ extern _append_string_mystring
 
 
 global _print_proper_layout
-
+global _find_common
 
 
 
@@ -250,4 +251,148 @@ _print_proper_layout:
 		pop rbp
 		ret
 
+; rdi: the address of string object that has the string
+; rsi: the length that have already been comapred (og: filename, if rsi: 3 "fil" is common in all the words)
+; changes the string from
+; "projects/\nprojects2\nprojects3/\n" -> "projects"
+; "projects/\n.zrr/\neasy-spicetify-arch/\nubuntu-gdm-set-background-main/\n" -> no changes
+; returns rax: 0 if string was modified to a common string, only when common_len > rsi provided
+; 			   1 if no changes were made/ nothing common was found
+_find_common:
+	; input:rdi: string object ["direc1\ndirec2\ndirectory3\ndirec4\directory5"]
+	; 		rsi : 3 (meaning "dir" is already common in all)
+	; output -> "direc"
 
+	; input:rdi: string object ["direc1\ndirec2\ndirec3\ndirec4\direc5\direcelse\n"]
+	; 		rsi : 5 (meaning "direc" is already common in all)
+	; output -> no chnages because "direc" was common before, and it's the only part thats common after
+
+	push r12
+	push r13
+	push r14
+	push r15
+
+
+	mov r12, [rdi + MYSTRING_POINTER_OFF] 	; r12: the string starting address
+	mov r13, rsi 							; r13: starting idx for word to be compared with 1st
+	xor r14, r14 							; r14: idx for traversing the the string
+	mov r15, -1 							; max length that's common, for now it's -ve
+
+	xor r10, r10
+	add r10, rsi 							; r10: starting idx of 1st word to check from
+	xor r11, r11 							; r11: ending idx of 2nd word
+	.loop_find_first_word_end:
+
+		cmp byte [r12 + r11], 0x0a
+		je .set_starting_idx_to_check_for_first_word
+
+		inc r11
+		jmp .loop_find_first_word_end
+
+	.set_starting_idx_to_check_for_first_word:
+		; r11: pointing at \n of 1st word
+
+		mov r13, r11
+		inc r13
+		mov r14, r13
+
+	.loop_till_null:
+
+		cmp byte [r12 + r14], 0
+		je .end_reached
+
+	.loop_till_new_line:
+
+		cmp byte [r12 + r14], 0x0a
+		je .find_common
+
+		inc r14
+		jmp .loop_till_new_line
+
+	.find_common:
+		; r14: idx of \n for the word to compare with 1st word
+		add r13, rsi 			; r13 now has idx of 1st char of nth word to compare with 1st word
+
+		mov r9, r10 				; r9: idx of starting of 1st word to compare from
+
+		test r15, r15
+		jge .loop_compare_with_first_word
+
+		mov r15, r11
+
+	.loop_compare_with_first_word:
+
+		cmp r9, r15 	            	; if 1st word is done		
+		je .check_common
+
+		mov al, [r12 + r13]
+		cmp [r12 + r9], al
+		jne .check_common
+
+		inc r9
+		inc r13
+		jmp .loop_compare_with_first_word
+
+	.check_common:
+		; r9 is at idx which is not common, or r9 is the len of total common chars
+
+		cmp r9, rsi
+		je .return_no_changes
+
+		; i have found some extra char that are common in 1st and nth word
+		test r15, r15
+		jl .update_common_len
+
+		jmp .check_and_update_common_len
+
+
+	.update_common_len:
+		mov r15, r9
+		jmp .move_to_next_word
+
+	; only after 1st change, i need to check if new vvalue < og value
+	.check_and_update_common_len:
+		cmp r9, r15
+		jge .move_to_next_word
+
+		mov r15, r9
+		jmp .move_to_next_word
+
+	.move_to_next_word:
+		inc r14
+		mov r13, r14 		; move the nth word to n+1th starting index
+		jmp .loop_till_null
+
+
+	.end_reached:
+		cmp r15, rsi
+		jle .return_no_changes
+
+		mov r14, rdi 						; save the adddres of string object
+
+		; rdi already points to string object
+		mov rsi, r15
+		call _mystring_truncate
+
+		; after truncating it, add a new line
+		mov rdi, r14
+		lea rsi, [rel new_line]
+		call _append_string_mystring
+
+		jmp .return_changed
+
+	.return_changed:
+		pop r15
+		pop r14
+		pop r13
+		pop r12
+		xor rax, rax
+		ret
+
+	.return_no_changes:
+		pop r15
+		pop r14
+		pop r13
+		pop r12
+		mov rax, -1
+		ret

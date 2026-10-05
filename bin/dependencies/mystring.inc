@@ -6,7 +6,7 @@ extern _destructor_mystring
 extern _append_string_mystring
 extern _append_bytes_mystring
 extern _mystring_clear
-
+extern _mystring_truncate
 
 MYSTRING_OBJECT_SIZE 		equ 24
 MYSTRING_CAPACITY_OFF 		equ 0

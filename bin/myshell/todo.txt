@@ -20,6 +20,7 @@ BASIC------
 9) add aliases
 10) check if history circular works with malloc2
 
+6) auto complete helf_word ✅
 11) fix error with spaces/front_slash when parsing ✅
 5) redirect in "<" does not work, messes up execve  ✅
 5) if single command is also Bic, it executes without proper env var  ✅

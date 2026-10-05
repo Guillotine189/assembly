@@ -102,6 +102,7 @@ extern _destructor_mystring
 extern _append_string_mystring
 
 extern _print_proper_layout
+extern _find_common
 
 extern _check_and_return_command_if_bic
 
@@ -1253,7 +1254,7 @@ _read_input:
 
         
         mov r13, [rel cursor_idx]
-        sub r13, r12                    ; this is the lenght of "file" in "./file"
+        sub r13, r12                    ; r13: this is the lenght of "file" in "./dir/file"
         ; r13 is the length after directory
 
 
@@ -1403,9 +1404,29 @@ _read_input:
         mov rdi, [rel dir_fd_getdents]
         syscall
 
+
+        ; if the total matches is 1, just autocomplete
         cmp r14, 1
         jl .zeros_the_tab_and_return
         je .auto_complete
+
+        ; else first check how much you can auto complete first
+        ; if 'file1.txt' and 'file2.txt', autocomplete 'file'
+
+        test r13, r13               ; if nothing was provided after "./dir/", no need to check
+        je .print_muliple_files
+
+        ; if it changed the string inside, it means it found a common thing
+        ; so send it to auto complete
+        .before_finding_common:
+        mov rdi, rsp                ; address of string object
+        mov rsi, r13                ; already common words in all of them
+        call _find_common
+
+        test rax, rax
+        je .auto_complete
+
+        ; else, print all the possibilites
         jmp .print_muliple_files
 
         .zeros_the_tab_and_return:
@@ -1427,7 +1448,7 @@ _read_input:
         call _print
 
         mov rdi, [rel double_tab_string_object_address]
-        mov rdi, [rdi + 16]                 ; address of the actual string
+        mov rdi, [rdi + MYSTRING_POINTER_OFF]
         call _print_proper_layout           ; this will add a new line
 
         ;restore the cursor back
@@ -1467,7 +1488,7 @@ _read_input:
         ; move the data after the cursor ahead first
 
         mov rdi, [rel double_tab_string_object_address]
-        mov r8, [rdi + 8]          ; 8 is the offset for size of string
+        mov r8, [rdi + MYSTRING_SIZE_OFF]
         dec r8                     ; string has a \n at the end bec i constructed string that way
         ; lenght of the full complete word in  : r8
         ; length of the half completed word in : r13
@@ -1504,7 +1525,7 @@ _read_input:
 
         mov rdi, [rel double_tab_string_object_address]
         ; len is just word + 9spaces
-        mov rax, [rdi + 8]          ; 8 is the offset for size of string
+        mov rax, [rdi + MYSTRING_SIZE_OFF]          ; 8 is the offset for size of string
         dec rax                     ; string has a \n at the end
 
         sub rax, r13                ; remaining len of word
@@ -1514,7 +1535,7 @@ _read_input:
         add rdi, [rel cursor_idx]
 
         mov rsi, [rel double_tab_string_object_address]
-        mov rsi, [rsi + 16]
+        mov rsi, [rsi + MYSTRING_POINTER_OFF]
         add rsi, r13
 
         mov rcx, rax

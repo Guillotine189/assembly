@@ -252,7 +252,8 @@ _malloc:
 		call _add_to_free_list
 
 
-		inc [rel malloc_total_segments]
+		inc qword [rel malloc_total_segments]
+		inc qword [rel malloc_occupied_segments]
 
 	    mov rax, r12
 	    add rax, METADATA_SIZE
