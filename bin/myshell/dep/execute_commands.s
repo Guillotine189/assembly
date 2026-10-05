@@ -260,6 +260,7 @@ _execute_commands:
     REDIRECT_TYPE_DEFAULT           equ 0
     REDIRECT_TYPE_PIPE              equ 1
     REDIRECT_TYPE_OTHER             equ 2
+    REDIRECT_TYPE_OTHER_APPEND      equ 3
 
     COMMAND_STRUCT_SIZE             equ 104
     COMMAND_STRUCT_NAME_OFF         equ 0
@@ -962,6 +963,9 @@ _execute_commands:
         cmp rax, REDIRECT_TYPE_OTHER
         je .handle_redirect_out_other
 
+        cmp rax, REDIRECT_TYPE_OTHER_APPEND
+        je .handle_redirect_out_other_append
+
         ; if type_default, continue
         jmp .setup_env_array
 
@@ -1017,6 +1021,24 @@ _execute_commands:
 
         jmp .setup_env_array
 
+        .handle_redirect_out_other_append:
+        ; if type_other: check if i can open(o_wonly, o_create, O_APPEND). Error->exit, else change fd1 to the fd of that.
+        mov rax, sys_open
+        mov rdi, [r14 + COMMAND_STRUCT_ROUT_STRUCT_OFF + REDIRECT_STRUCT_ADDRESS_OFF]
+        mov rsi, O_WRONLY | O_CREAT | O_APPEND
+        mov rdx, 0666q                    ; read+write
+        syscall
+        test rax, rax
+        jl .child_error_opening_redirect_out_dest
+
+        mov rdi, rax                ; old fd: the one i want to become
+        mov rsi, 1            ; newfd/the one that will point to the same object as old = stdout
+        mov rax, sys_dup2
+        syscall
+        test rax, rax
+        jl .child_error_changing_redirect_out_fd
+
+        jmp .setup_env_array
         .setup_env_array:
         ; if it's len > 0: add the shell env variables from general array created above. including null
         ; if len = 0: continue

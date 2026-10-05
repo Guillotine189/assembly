@@ -41,6 +41,7 @@ TOKEN_TYPE_PIPE                   equ 2
 TOKEN_TYPE_REDIRECT_OUT           equ 3
 TOKEN_TYPE_REDIRECT_IN            equ 4
 TOKEN_TYPE_ENV_ASSSIGNMENT        equ 5
+TOKEN_TYPE_REDIRECT_OUT_APPEND    equ 6
 
 ; 8 bytes for type, 8 bytes for address
 TOKEN_STRUCT_OBJECT_SIZE    equ 16
@@ -55,6 +56,7 @@ REDIRECT_STRUCT_ADDRESS_OFF     equ 8
 REDIRECT_TYPE_DEFAULT           equ 0
 REDIRECT_TYPE_PIPE              equ 1
 REDIRECT_TYPE_OTHER             equ 2
+REDIRECT_TYPE_OTHER_APPEND      equ 3
 
 
 COMMAND_STRUCT_SIZE             equ 104
@@ -181,6 +183,9 @@ _process_token_generate_commands:
     cmp rcx, TOKEN_TYPE_REDIRECT_OUT
     je .handle_redirect_out
 
+    cmp rcx, TOKEN_TYPE_REDIRECT_OUT_APPEND
+    je .handle_redirect_out_append
+
     cmp rcx, TOKEN_TYPE_REDIRECT_IN
     je .handle_redirect_in
 
@@ -215,6 +220,30 @@ _process_token_generate_commands:
         inc r13
         jmp .process_next_token
 
+    .handle_redirect_out_append:
+
+        ; r13: index for token
+        ; rax: the address of current token struct
+
+        ; check if the next token a word, if not, return failure
+        lea rdx, [rax + TOKEN_STRUCT_OBJECT_SIZE]     ; rdx : the address of next token struct
+        cmp qword [rdx + TOKEN_STRUCT_TYPE_OFF], TOKEN_TYPE_WORD
+        jne .error_redirect_out_expects_word
+
+        ; if the next token is a word, add it to REDIRECT_OUT_STRUCT. MARK REDIRECT_SEEN as true
+        mov r15, 1                      ; mark redirect seen as true
+
+        ; put the redirect out struct into the command array
+        mov rdx, [rdx + TOKEN_STRUCT_ADDRESS_OFF]       ; rdx: value of token(which is address)
+        
+        ; fill the actual redirect struct part of command struct
+        lea rdi, [rsp + COMMAND_STRUCT_ROUT_STRUCT_OFF]        ; rdi: the address of redirect_out struct in command struct
+        mov qword [rdi + REDIRECT_STRUCT_TYPE_OFF], REDIRECT_TYPE_OTHER_APPEND
+        mov [rdi + REDIRECT_STRUCT_ADDRESS_OFF], rdx
+
+        ; because i dont have to check next token, increase r13
+        inc r13
+        jmp .process_next_token
 
     .handle_redirect_in:
         ; almost same as redirect out

@@ -328,12 +328,10 @@ _malloc:
 		ret
 
 
-; rdi: address provided by user
+; rdi: address of the segment, not the one providede by user
 ; very very basic check for now
 _check_address_validity:
 	; if address of segment is < first segment or > last segment => error
-
-	sub rdi, METADATA_SIZE  			; rdi: the address of begining of malloc segment
 
 	mov rax, [rel malloc_address_first_segment]
 	cmp rdi, rax

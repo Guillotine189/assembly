@@ -322,7 +322,10 @@ _mystring_truncate:
 	
 	mov rax, [rdi + MYSTRING_SIZE_OFF]
 	cmp rsi, rax
-	jg .error_len_greater_than_size
+	jg .error_invalid_size
+
+	test rsi, rsi
+	jl .error_invalid_size
 
 	mov qword [rdi + MYSTRING_SIZE_OFF], rsi
 	mov rdi, [rdi + MYSTRING_POINTER_OFF]
@@ -330,7 +333,7 @@ _mystring_truncate:
 	xor rax, rax
 	ret	
 
-	.error_len_greater_than_size:
+	.error_invalid_size:
 		mov rax, -1
 		ret
 

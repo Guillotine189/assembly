@@ -1418,7 +1418,7 @@ _read_input:
 
         ; if it changed the string inside, it means it found a common thing
         ; so send it to auto complete
-        .before_finding_common:
+        
         mov rdi, rsp                ; address of string object
         mov rsi, r13                ; already common words in all of them
         call _find_common

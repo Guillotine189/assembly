@@ -511,11 +511,15 @@ _parse_expanded_string:
         cmp byte [r9 + r8], '|'
         je .handle_pipe
 
+        cmp word [r9 + r8], 0x3E3E              ; ">>", make sure this is above '>'
+        je .handle_redirect_out_append
+
         cmp byte [r9 + r8], '>'
         je .handle_redirect_out
 
         cmp byte [r9 + r8], '<'
         je .handle_redirect_in
+
 
         xor rcx, rcx                        ; last byte was not '\'
 
@@ -940,6 +944,135 @@ _parse_expanded_string:
                 jl .error_adding_state_to_special_char
                 jmp .copy_byte_and_loop
 
+        .handle_redirect_out_append:
+
+            ; check if i am inside sq or dq
+            test r10, r10               ; for dq
+            jne .special_char_was_iniside_dq2
+
+            test r11, r11               ; for sq
+            jne .special_char_was_iniside_sq2
+
+            ; now i have to copy the "|", ">", "<" with a null before and after it
+            call .copy_buffer_into_string
+
+            test rdx, rdx               ; if last byte copied was NULL, i can copy '|' directly
+            jnz .copy_two_byte_and_null
+
+            ;.copy_null_before_byte:
+            ; add null
+            mov byte [r13 + rsi], 0
+            inc rsi
+            inc r12
+
+                
+            .copy_two_byte_and_null:
+                ; add the byte
+                mov al, [r9 + r8]
+                mov byte [r13 + rsi], al
+                inc r12
+                inc rsi
+
+                mov al, [r9 + r8]
+                mov byte [r13 + rsi], al
+                inc r12
+                inc rsi
+                inc r8
+
+                ; add a null after
+                mov byte [r13 + rsi], 0
+                inc r8
+                inc r12
+                inc rsi
+                mov rdx, 1              ; last byte copied was null
+                xor rcx, rcx            ; last byte clpied was not '\'
+
+                ; update the state of this special char
+                push rdx
+                push rcx
+                push rsi
+                push r8
+                push r9
+                push r10
+                push r11
+                
+                mov rax, STATE_DEFAULT
+                push rax
+                lea rdi, [rel special_char_state_arr_obj]
+                mov rsi, rsp
+                call _dynamic_array_add_element
+                pop rdi
+
+                pop r11
+                pop r10
+                pop r9
+                pop r8
+                pop rsi
+                pop rcx
+                pop rdx
+
+                test rax, rax
+                jl .error_adding_state_to_special_char
+
+                jmp .loop_till_new_line
+
+            .special_char_was_iniside_dq2:
+                push rdx
+                push rcx
+                push rsi
+                push r8
+                push r9
+                push r10
+                push r11
+                
+                mov rax, STATE_INSIDE_DOUBLE_QUOTE
+                push rax
+                lea rdi, [rel special_char_state_arr_obj]
+                mov rsi, rsp
+                call _dynamic_array_add_element
+                pop rdi
+
+                pop r11
+                pop r10
+                pop r9
+                pop r8
+                pop rsi
+                pop rcx
+                pop rdx
+
+                test rax, rax
+                jl .error_adding_state_to_special_char
+                jmp .copy_byte_and_loop
+
+            .special_char_was_iniside_sq2:
+                push rdx
+                push rcx
+                push rsi
+                push r8
+                push r9
+                push r10
+                push r11
+                
+                mov rax, STATE_INSIDE_SINGLE_QUOTE
+                push rax
+                lea rdi, [rel special_char_state_arr_obj]
+                mov rsi, rsp
+                call _dynamic_array_add_element
+                pop rdi
+
+                pop r11
+                pop r10
+                pop r9
+                pop r8
+                pop rsi
+                pop rcx
+                pop rdx
+
+                test rax, rax
+                jl .error_adding_state_to_special_char
+                jmp .copy_byte_and_loop
+
+
     .buffer_parsed:
         ; the latest byte comapred was \n, i have to add a null char to copy my bufffer into string
         ; i made sure to have 1 byte left in the end always for this case
@@ -1040,6 +1173,7 @@ _classify_and_generate_tokens:
     TOKEN_TYPE_REDIRECT_OUT           equ 3
     TOKEN_TYPE_REDIRECT_IN            equ 4
     TOKEN_TYPE_ENV_ASSSIGNMENT        equ 5
+    TOKEN_TYPE_REDIRECT_OUT_APPEND    equ 6
 
     ; 8 bytes for type, 8 bytes for address, total 16 bytes
     TOKEN_STRUCT_OBJECT_SIZE    equ 16
@@ -1081,6 +1215,9 @@ _classify_and_generate_tokens:
         cmp byte [r9 + r8], "|"
         je .check_pipe
 
+        cmp word [r9 + r8], 0x3E3E                      ; '>>' does nto work bec it's a string, make sure this is above '>'
+        je .check_redirect_out_apppend
+
         cmp byte [r9 + r8], ">"
         je .check_redirect_out
 
@@ -1089,6 +1226,7 @@ _classify_and_generate_tokens:
 
         cmp byte [r9 + r8], "="
         je .check_env_assignment
+
 
     .loopback:
         xor r15, r15                    ; not new line char
@@ -1271,6 +1409,11 @@ _classify_and_generate_tokens:
         inc r14                 ; even if it didnt have null after it, the array had a state for this
         jmp .loopback
 
+    .check_redirect_out_apppend:
+        cmp byte [r9 + r8 + 2], 0
+        je .add_redirect_out_append_token
+        inc r14                 ; even if it didnt have null after it, the array had a state for this
+        jmp .loopback
 
     .check_redirect_in:
         cmp byte [r9 + r8 + 1], 0
@@ -1375,6 +1518,66 @@ _classify_and_generate_tokens:
 
         lea rcx, [rsp + TOKEN_STRUCT_TYPE_OFF]
         mov qword [rcx], TOKEN_TYPE_REDIRECT_OUT
+        lea rcx, [rsp + TOKEN_STRUCT_ADDRESS_OFF]
+        mov qword [rcx], 0          ; for >, no address
+
+        ; add token struct to array
+        ; r13 has the index in which this token is supposed to go
+
+        lea rdi, [rel token_array]
+        mov rsi, rsp
+        call _dynamic_array_add_element
+
+        ; remove object from stack
+        add rsp, TOKEN_STRUCT_OBJECT_SIZE
+
+        pop r10
+        pop r9
+        pop r8
+
+        ; check if error in appending token
+        test rax, rax
+        jl .error_appending_to_token
+
+        jmp .token_ended
+
+    .add_redirect_out_append_token:
+        ; if this was inside a dq/sq, this is a word, so loopback
+        inc r8                              ; bec it's 2 char, inc 1 here
+
+        push r8
+        push r9
+        push r10
+        lea rdi, [rel special_char_state_arr_obj]
+        mov rsi, r14
+        call _dynamic_array_get_element_address
+        pop r10
+        pop r9
+        pop r8
+
+        test rax, rax
+        jl .error_getting_element_from_state_array
+
+        mov rax, [rax]          ; rax had the address, now rax: the state value
+
+        cmp rax, STATE_INSIDE_DOUBLE_QUOTE
+        je .special_token_was_inside_quotes
+
+        cmp rax, STATE_INSIDE_SINGLE_QUOTE
+        je .special_token_was_inside_quotes
+        inc r14                     ; ut still increment this so i can check the next index
+
+        ; if it wasn't then create a token for this
+        inc r8                  ; move r8 to point to NULL
+        push r8
+        push r9
+        push r10
+
+        ; token_struct : [type][address of token]
+        sub rsp, TOKEN_STRUCT_OBJECT_SIZE
+
+        lea rcx, [rsp + TOKEN_STRUCT_TYPE_OFF]
+        mov qword [rcx], TOKEN_TYPE_REDIRECT_OUT_APPEND
         lea rcx, [rsp + TOKEN_STRUCT_ADDRESS_OFF]
         mov qword [rcx], 0          ; for >, no address
 
