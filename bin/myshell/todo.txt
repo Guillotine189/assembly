@@ -6,7 +6,7 @@ BASIC------
 4) Run chained commands (ls | grep "data.txt" > output.txt).⏳
 5) fix how bic are executed. ⏳
 5) ">", "<", "|", inside double/single quotes should not be considered as redirection. ✅, but do this the ones below as well
-9 ) add ">>", "&&", "&"
+9 ) add ">>", "&&", "&" ⏳
 5.8) empty argument cannot be resolved, it just ignores them rn
 5) Add auto complete for installed command name only (like ls, grep etc).
 5.2) After fork, the children should not be forced to be in canonical mode, store and restore the old termios at shell start and put it so

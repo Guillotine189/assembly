@@ -1177,6 +1177,30 @@ _execute_commands:
         ; rax: the address of current command struct
         mov r12, rax
 
+
+        mov rax, [r12 + COMMAND_STRUCT_NAME_OFF]
+
+        ; if the command starts with './',  '/', '../' direct execution, no checing for builtin or env
+
+        cmp byte [rax], '/'
+        je .final_command_construction         ; 1st char is '/'
+
+        cmp byte [rax], '.'                 ; 1st char not '.'
+        jne .check_if_bic_or_in_path
+
+        cmp byte [rax + 1], '/'             ; 1st char is '.', 2nd char '/'
+        je .final_command_construction
+
+        cmp byte [rax + 1], '.'
+        jne .check_if_bic_or_in_path     ; 1st char '.', 2nd char not '.' or '/'
+
+        cmp byte [rax + 2], '/'
+        je .final_command_construction
+
+        jmp .final_command_construction
+
+        .check_if_bic_or_in_path:
+
         ; final check: if command it can be found in $PATH
         mov rdi, r12
         call _execute_if_built_in
