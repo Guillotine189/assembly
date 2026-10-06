@@ -37,7 +37,6 @@ section .rodata
     export_ 		db "export", 0
     unset_  		db "unset", 0
     clear_ 			db "clear", 0
-    env_  			db "env", 0
     exit_ 			db "exit",0
     history_ 		db "history", 0
 
@@ -153,12 +152,6 @@ _execute_if_built_in:
     call _strcmp
     test rax, rax
     je .unset_shel_env
-
-    mov rax, r12
-    lea rdi, [rel env_]
-    call _strcmp
-    test rax, rax
-    je .print_env
 
     mov rax, r12
     lea rdi, [rel exit_]
@@ -378,13 +371,6 @@ _execute_if_built_in:
         call _update_last_command_exit_code
 		jmp .return_built_in
 
-	.print_env:
-		lea rdi, [r13 + COMMAND_STRUCT_ENVP_OBJ_OFF]
-		call _print_env_from_object
-
-        xor rdi, rdi
-        call _update_last_command_exit_code
-		jmp .return_built_in
 
     .return_built_in:
     	pop r15
@@ -541,14 +527,6 @@ _check_and_return_command_if_bic:
 
 
     mov rax, r13
-    lea rdi, [rel env_]
-    mov rsi, r12
-    call _cmp_equal_memory
-
-    test rax, rax
-    je .return_env
-
-    mov rax, r13
     lea rdi, [rel exit_]
     mov rsi, r12
     call _cmp_equal_memory
@@ -582,10 +560,6 @@ _check_and_return_command_if_bic:
 
 	.return_unset:
 		lea rax, [rel unset_]
-		jmp .return
-
-	.return_env:
-		lea rax, [rel env_]
 		jmp .return
 
 	.return_exit:
@@ -638,12 +612,6 @@ _check_if_cmd_is_built_in:
 
     mov rax, r12
     lea rdi, [rel unset_]
-    call _strcmp
-    test rax, rax
-    je .built_in
-
-    mov rax, r12
-    lea rdi, [rel env_]
     call _strcmp
     test rax, rax
     je .built_in
