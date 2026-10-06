@@ -10,7 +10,7 @@ BASIC------
 5.8) empty argument cannot be resolved, it just ignores them rn
 5) Add auto complete for installed command name only (like ls, grep etc).
 5.2) store and restore the old termios at shell start and put it so
-5.3) "env | grep --color=auto USER" -> does not work, but using the binary 'printenv' solves it
+5.3) "env | grep --color=auto USER" -> does not work, but using the binary 'printenv' solves it ✅, fixed by removing env as a bic and instead using /usr/bin/env
 5.4) "../astro\ lec/" auto complete will not work if this is given
 
 6) visual fix, when command overflows into next line.

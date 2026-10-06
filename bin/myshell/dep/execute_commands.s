@@ -1056,7 +1056,7 @@ _execute_commands:
         mov rax, [rax + DYNAMICARRAY_SIZE_OFF]  ; rax: size of envp array
 
         test rax, rax
-        je .use_commmon_envp_array
+        je .wait_for_signal
 
         ; else i have added a temp env into the array, i now need to add the common envp array into this array
 
@@ -1069,7 +1069,7 @@ _execute_commands:
         .loop_shell_env_array2:
 
             cmp r12, [r14 + DYNAMICARRAY_SIZE_OFF]
-            je .add_underscore_env_var_and_null             ; the common one dos not includes a NULL qword
+            je .wait_for_signal             ; the common one dos not includes a NULL qword
 
             mov rax, r12
             mov rcx, [r14 + DYNAMICARRAY_ELEMENT_SIZE_OFF]
@@ -1089,62 +1089,6 @@ _execute_commands:
 
             inc r12
             jmp .loop_shell_env_array2
-
-        .add_underscore_env_var_and_null:
-        lea rdi, [rel reusable_buffer_execute_command]
-        lea rsi, [rel underscore_equals_to_word]
-        mov rcx, 2
-        rep movsb
-
-        ; rdi is at next address
-        mov rsi, [rbx + COMMAND_STRUCT_NAME_OFF]        ; rsi: the address of name of command
-        call _string_copy_including_null
-
-        inc rdi
-        lea rsi, [rel reusable_buffer_execute_command]
-        mov [rdi], rsi
-
-        mov rsi, rdi
-        mov rdi, r15
-        call _dynamic_array_add_element
-        test rax, rax
-        jl .child_error_adding_shell_env_var_to_arr
-
-        mov rdi, r15
-        lea rsi, [rel null_qword]
-        call _dynamic_array_add_element
-        test rax, rax
-        jl .child_error_adding_shell_env_var_to_arr
-
-        jmp .wait_for_signal
-
-        .use_commmon_envp_array:
-
-        lea rdi, [rel reusable_buffer_execute_command]
-        lea rsi, [rel underscore_equals_to_word]
-        mov rcx, 2
-        rep movsb
-
-        ; rdi is at next address
-        mov rsi, [rbx + COMMAND_STRUCT_NAME_OFF]        ; rsi: the address of name of command
-        call _string_copy_including_null
-
-        inc rdi
-        lea rsi, [rel reusable_buffer_execute_command]
-        mov [rdi], rsi
-
-        mov rsi, rdi
-        lea rdi, [rel common_shell_env_var_array_object]
-        call _dynamic_array_add_element
-        test rax, rax
-        jl .child_error_adding_shell_env_var_to_arr
-
-        lea rdi, [rel common_shell_env_var_array_object]
-        lea rsi, [rel null_qword]
-        call _dynamic_array_add_element
-        test rax, rax
-        jl .child_error_adding_shell_env_var_to_arr
-
 
         .wait_for_signal:
 
@@ -1222,7 +1166,9 @@ _execute_commands:
         ; else the final command was inside PATH
         mov [r12 + COMMAND_STRUCT_NAME_OFF], rax
 
+
         .final_command_construction:
+
 
         lea r8, [r12 + COMMAND_STRUCT_ENVP_OBJ_OFF] ; r8: the address of envp array object 
         mov rcx, [r8 + DYNAMICARRAY_SIZE_OFF]  ; rcx: the size of envp array
@@ -1230,15 +1176,68 @@ _execute_commands:
         test rcx, rcx
         je .use_common_env_array
 
+        ; add _env var and null inside envp_array
+        lea rdi, [rel reusable_buffer_execute_command]
+        lea rsi, [rel underscore_equals_to_word]
+        mov rcx, 2
+        rep movsb
+
+        ; rdi is at next address
+        mov rsi, [rbx + COMMAND_STRUCT_NAME_OFF]        ; rsi: the address of name of command
+        call _string_copy_including_null
+
+        inc rdi
+        lea rsi, [rel reusable_buffer_execute_command]
+        mov [rdi], rsi
+
+        mov rsi, rdi
+        mov rdi, r15
+        call _dynamic_array_add_element
+        test rax, rax
+        jl .child_error_adding_shell_env_var_to_arr
+
+        mov rdi, r15
+        lea rsi, [rel null_qword]
+        call _dynamic_array_add_element
+        test rax, rax
+        jl .child_error_adding_shell_env_var_to_arr
+
         mov rdx, [r8 + DYNAMICARRAY_POINTER_OFF] ; rdx: the address of array of edited envp pointers
         jmp .run_command
 
+
         .use_common_env_array:
+        ; add _env var and null
+        lea rdi, [rel reusable_buffer_execute_command]
+        lea rsi, [rel underscore_equals_to_word]
+        mov rcx, 2
+        rep movsb
+
+        ; rdi is at next address
+        mov rsi, [rbx + COMMAND_STRUCT_NAME_OFF]        ; rsi: the address of name of command
+        call _string_copy_including_null
+
+        inc rdi
+        lea rsi, [rel reusable_buffer_execute_command]
+        mov [rdi], rsi
+
+        mov rsi, rdi
+        lea rdi, [rel common_shell_env_var_array_object]
+        call _dynamic_array_add_element
+        test rax, rax
+        jl .child_error_adding_shell_env_var_to_arr
+
+        lea rdi, [rel common_shell_env_var_array_object]
+        lea rsi, [rel null_qword]
+        call _dynamic_array_add_element
+        test rax, rax
+        jl .child_error_adding_shell_env_var_to_arr
+
+
         lea rdx, [rel common_shell_env_var_array_object]
         mov rdx, [rdx + DYNAMICARRAY_POINTER_OFF]   ; rsi: the address of array or common envp pointers
 
         .run_command:
-
         .execve:
         mov rdi, [r12 + COMMAND_STRUCT_NAME_OFF]        ; this conatins the addres of command name
         lea rsi, [r12 + COMMAND_STRUCT_ARGV_OBJ_OFF]
