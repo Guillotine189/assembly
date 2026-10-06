@@ -17,6 +17,7 @@ global og_envp_stack_array_address
 global input_buffer_address
 global filled_size_input_buffer_len
 global shell_pgid
+global win_resize_flag
 section .data
 
     capacity_input_buffer_len dq 4096
@@ -34,6 +35,8 @@ section .data
     exit_status_code dq 0
     exit_flag dq 0
     error_custom_handler_number dq 1
+
+    win_resize_flag dq 0
 
     align 8
     reset_action_struct:
@@ -56,6 +59,12 @@ section .data
         dq 0                    ; sa_restorer
         times 16 dq 0            ; sa_mask
 
+    align 8
+    signal_win_resize_struct:
+        dq _signal_win_resize_handler                    ; SIG_IGN
+        dq SA_RESTORER                                            ; sa_flags
+        dq _signal_win_resize_restorer                    ; sa_restorer
+        times 16 dq 0                               ; sa_mask
 
 
 
@@ -74,6 +83,11 @@ section .rodata
     clear_screen_len equ $ - clear_screen
     clear_scrollback db 0x1b, '[3J'   ; clear the scrollable part of the screen as well
     clear_scrollback_len equ $ - clear_scrollback
+
+    clear_line_above db 27, '[1A', 27, '[2K'
+    clear_line_above_len equ $ - clear_line_above
+    move_cursor_row_1_col_1 db 27, '[H'
+    move_cursor_row_1_col_1_len equ $ - move_cursor_row_1_col_1
 
     semicolon db ":" , 0
     dollar_sign_with_space db "$ ", 0
@@ -130,6 +144,9 @@ section .bss
     termios     resb 60
     old_termios resb 60
 
+    win_size:
+        resw 2      ; 2bytes row size, 2bytes column size
+        resw 2      ; 2bytes pixel width unavailable/zero, 2bytes pixel height unavai/zero
 
 
 ; variables
@@ -161,6 +178,7 @@ extern _initialize_shell_env_array
 
 extern _get_and_set_mem_for_history_array
 extern _read_input
+extern cursor_idx
 
 extern _generate_tokens
 extern _cleanup_generate_tokens_on_success
@@ -224,6 +242,39 @@ _signal_do_nothing_restorer:
 
 
 
+_signal_win_resize_handler:
+    ; windows size changed, reprint the comand on screen
+    mov [rel win_resize_flag], 1
+
+    ;get the new window size
+    mov rax, sys_ioctl
+    mov rdi, 1              ; fd of terminal
+    mov rsi, TIOCGWINSZ     ; get window size
+    lea rdx, [rel win_size]
+    syscall
+
+    movzx rax, word [rel win_size + 2] ; column width of terminal
+
+    mov rax, sys_write
+    mov rdi, 1
+    lea rsi, [rel clear_screen]
+    mov rdx, clear_screen_len
+    syscall
+
+    mov rax, sys_write
+    mov rdi, 1
+    lea rsi, [rel move_cursor_row_1_col_1]
+    mov rdx, move_cursor_row_1_col_1_len
+    syscall
+
+    ret
+
+_signal_win_resize_restorer:
+    mov rax, sys_rt_sigreturn
+    syscall
+
+
+
 _signal_handling:
     
     ; SIGINT for ctrl+c 
@@ -274,8 +325,19 @@ _signal_handling:
 
     test rax, rax
     jl .set_error_overriding_custom_handler_SIGTTIN_and_exit
-    ret
     
+    
+    ;  SIGWINCH: Terminal sends a signal when it's resized
+    mov rax, sys_rt_sigaction
+    mov rdi, SIGWINCH
+    lea rsi, [rel signal_win_resize_struct]
+    xor rdx, rdx                        ; buffer address for default hanlder, not needed
+    mov r10, 8                          ; expects this in x86_64
+    syscall
+
+    test rax, rax
+    jl .set_error_overriding_custom_handler_SIGWINCH_and_exit
+    ret
 
     .set_error_overriding_custom_handler_SIGINT_and_exit:
         mov [rel error_code], rax
@@ -307,6 +369,13 @@ _signal_handling:
         mov [rel exit_status_code], 1
         jmp _exit_with_status_code
 
+
+    .set_error_overriding_custom_handler_SIGWINCH_and_exit:
+        mov [rel error_code], rax
+        mov [rel error_custom_handler_number], SIGWINCH
+        call print_error_overriding_custom_handler
+        mov [rel exit_status_code], 1
+        jmp _exit_with_status_code
 
 
 ; rdi = signal number like SIGINT

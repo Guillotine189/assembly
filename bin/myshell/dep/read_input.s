@@ -1,6 +1,7 @@
 %include "./dep/constants.inc"
 %include "../dependencies/mystring.inc"
 
+global cursor_idx
 section .data
     cursor_idx dq 0
     history_command_number dq 0
@@ -105,18 +106,37 @@ extern _print_proper_layout
 extern _find_common
 
 extern _check_and_return_command_if_bic
+extern win_resize_flag
+
 
 global _read_input
 
 ; TODO: handle overflow into next line
 _read_input:
     ; make a read call
+    mov rax, [rel win_resize_flag]
+    test rax, rax
+    jz .fresh_sart
 
+    mov qword [rel win_resize_flag], 0
+    ; print the input buffer
+    mov rax, [rel filled_size_input_buffer_len]
+    mov rdi, 1
+    mov rsi, [rel input_buffer_address]
+    call _print
+
+    mov rax, [rel filled_size_input_buffer_len]
+    mov [rel cursor_idx], rax
+    jmp .saved_start
+
+    .fresh_sart:
     mov qword [rel filled_size_input_buffer_len], 0
-    mov qword [rel input_interrupted], 0
-    mov qword [rel cursor_idx], 0
     mov qword [rel history_command_number], 0        ; 0 for current, 1 for older
     mov qword [rel command_latest_restore_buffer], 0
+    mov qword [rel cursor_idx], 0
+    
+    .saved_start:
+    mov qword [rel input_interrupted], 0
 
     ; in non-cononical mode, ctld+d return \4 
 
