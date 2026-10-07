@@ -887,6 +887,8 @@ _check_if_cmd_can_auto_complete_to_cmd_in_path:
 	jmp .inside_path
 
 	.error_path_env_not_found:
+		pop r14
+		pop r13
 		pop r12
 		mov rax, error_path_env_not_found_len
 		mov rdi, 2

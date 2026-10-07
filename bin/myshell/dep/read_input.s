@@ -40,6 +40,10 @@ section .rodata
     space_char db ' ', 0
     new_line_exit_word_new_line db 10, "exit", 10, 0
 
+    display_line db 0x0a, "Display ", 0
+    display_line_len equ $ - display_line
+    options_line db " options? (y or n) ", 0
+    options_line_len equ $ - options_line
     
 section .bss
     key_buffer: resb 10
@@ -53,6 +57,7 @@ section .bss
     dir_get_dent_buffer_len: resq 1
 
     command_latest_restore_buffer resb 4096
+    number_buffer resb 32
 
 
 
@@ -95,6 +100,7 @@ extern _cmp_equal_memory
 extern print_error_reading_input
 extern print_error_increasing_input_mem
 extern _strcpy_add_space_before_backslash
+extern _itoa
 
 extern _print_prefix_line
 
@@ -1127,6 +1133,7 @@ _read_input:
         ; auto complete needs this is 13, dont change 
         mov r13, [rel cursor_idx]
         sub r13, r8                     ; len of half word = cur_idx - start_idx_word
+        mov r14, 0                      ; total matches found
 
         push r8
         push r10
@@ -1136,10 +1143,10 @@ _read_input:
         call _check_and_return_command_if_bic
         test rax, rax
         jl .restore_reg_check_if_in_path          ; not a part of any built in command
-        pop r10
-        pop r8
 
-        ; if it is a part of built in command
+
+        ; TODO: fix matching > 1 commands when checking match inside bic
+        ; if it is a part of built in command, only 1 command is returned right now
         mov r12, rax
 
         mov rdi, [rel double_tab_string_object_address]
@@ -1154,6 +1161,9 @@ _read_input:
         mov rdi, [rel double_tab_string_object_address]
         lea rsi, [rel new_line]
         call _append_string_mystring
+
+        ; only 1 command is returned right now
+        mov r14, 1
 
         .restore_reg_check_if_in_path:
         ; r13: has length of half-word typed
@@ -1174,9 +1184,9 @@ _read_input:
         pop r8
 
         test rax, rax
-        jl .check_from_current_dir          ; not a part of any built in command
+        jl .check_weather_to_print_or_autocomplete          ; not a part of any built in command
 
-        mov r14, rax
+        add r14, rax
         jmp .check_weather_to_print_or_autocomplete
 
         .check_from_current_dir:
@@ -1478,7 +1488,65 @@ _read_input:
 
         mov qword [rel tabs_times_pressed], 2
 
+        ; r14 has the number of possiblities
+        ; if r14 >= 100, ask user if they want to print everything
 
+        cmp r14, 100
+        jl .print_options
+
+        mov rax, display_line_len
+        mov rdi, 1
+        lea rsi, [rel display_line]
+        call _print
+
+        mov rax,  r14
+        lea rdi, [rel number_buffer]
+        call _itoa
+
+        mov rdi, 1
+        lea rsi, [rel number_buffer]
+        call _print
+
+        mov rax, options_line_len
+        mov rdi, 1
+        lea rsi, [rel options_line]
+        call _print
+
+        .loop_read_option:
+
+            mov rax, sys_read
+            mov rdi, 1
+            lea rsi, [rel key_buffer]
+            mov rdx, 1
+            syscall
+
+            test rax, rax
+            jl .no_printing
+
+            lea rcx, [rel key_buffer]
+            cmp byte [rcx], 'y'
+            je .print_options
+
+            lea rcx, [rel key_buffer]
+            cmp byte [rcx], ' '
+            je .print_options
+
+            lea rcx, [rel key_buffer]
+            cmp byte [rcx], 'n'
+            je .no_printing
+
+            jmp .loop_read_option
+
+        .no_printing:
+
+        mov rax, 1
+        mov rdi, 1
+        lea rsi, [rel new_line]
+        call _print
+
+        jmp .print_and_restore_prefix_and_saved_command
+
+        .print_options:
         ; move the cursor to new line
         mov rax, 1
         mov rdi, 1
@@ -1489,6 +1557,8 @@ _read_input:
         mov rdi, [rdi + MYSTRING_POINTER_OFF]
         call _print_proper_layout           ; this will add a new line
 
+
+        .print_and_restore_prefix_and_saved_command:
         ;restore the cursor back
         call _print_prefix_line
 
