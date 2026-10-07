@@ -131,6 +131,8 @@ _reset_child_signals:
     call _reset_signal
     mov rdi, SIGTTIN
     call _reset_signal
+    mov rdi, SIGWINCH
+    call _reset_signal
     ret
 
 

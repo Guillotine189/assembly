@@ -16,7 +16,8 @@ section .rodata
 	dot_back_slash db "./", 0
 	dash db '-',0
 	path_env_var db "PATH", 0
-
+	new_line db 0x0a, 0
+	null_byte db 0
 	underscore_env_var db "_", 0
 	shell_env_var_for_startup db "SHELL=myshell", 0
 	shell_env_var_for_startup_len equ $ - shell_env_var_for_startup
@@ -27,6 +28,7 @@ section .bss
 	struct_for_stat resb 144
 	number_buffer resb 32
 	shell_env_array_object resb DYNAMICARRAY_OBJECT_SIZE
+	stat_buffer_path resb 144
 
 ; funcs
 extern _print
@@ -67,6 +69,7 @@ global _update_var_in_shell_env
 global _unset_var_in_shell_env
 global _print_shell_env
 global _print_env_from_object
+global _check_if_cmd_can_auto_complete_to_cmd_in_path
 global shell_env_array_object
 
 
@@ -716,6 +719,7 @@ _check_if_cmd_is_in_path:
 		pop r12
 		ret
 
+
 ; rdi: the address of command(null terminated)
 ; returns: rax : -1 -> if not exists, address of constructed path if exists
 _parse_path_and_check_if_command_in_path:
@@ -726,7 +730,6 @@ _parse_path_and_check_if_command_in_path:
 	mov r14, rdi
 
 	mov rax, [rel path_address]
-	add rax, 5 							; 'PATH=' skipped
 
 	mov r12, 5 					; idx for starting of new path 
 	mov r13, 5 					; idx for total looping inside path var
@@ -846,4 +849,256 @@ _parse_path_and_check_if_command_in_path:
 		pop r13
 		pop r12
 		lea rax, [rel reusable_buffer_path]
+		ret
+
+
+
+; rdi: the address of command
+; rsi: len of partial command
+; rdx: the address of string object which i will add data to
+; returns address in rax, if exists or -1 if not
+_check_if_cmd_can_auto_complete_to_cmd_in_path:
+	push r12
+	push r13
+	push r14
+
+	mov r12, rdi
+	mov r13, rsi
+	mov r14, rdx
+
+
+	lea rdi, [rel path_env_var]
+	mov rsi, 4
+	call _find_var_in_shell_env
+
+	test rax, rax
+	jl .error_path_env_not_found
+
+	mov [rel path_address], rax
+	mov rdi, r12
+	mov rsi, r13
+	mov rdx, r14
+	call _parse_path_and_check_if_partial_cmd_matches_cmd_in_path
+
+	test rax, rax
+	jl .no_matches_for_partial_cmd
+
+	; rax already has address
+	jmp .inside_path
+
+	.error_path_env_not_found:
+		pop r12
+		mov rax, error_path_env_not_found_len
+		mov rdi, 2
+		lea rsi, [rel error_path_env_not_found]
+		call _print_with_new_line
+
+		jmp .no_matches_for_partial_cmd
+
+
+	.no_matches_for_partial_cmd:
+		pop r14
+		pop r13
+		pop r12
+		mov rax, -1
+		ret
+
+	.inside_path:
+		pop r14
+		pop r13
+		pop r12
+		ret
+
+
+; rdi: the address of partial command
+; rsi: the len of partial commmand
+; rdx: the address of string object which i will add data to
+; needs path_address variable to have address of PATH env_variable
+; returns: rax : -1 -> if not exists, else total commands that were matched
+_parse_path_and_check_if_partial_cmd_matches_cmd_in_path:
+	push rbp
+	mov rbp, rsp
+
+	push r12
+	push r13
+	push r14
+	push r15
+	sub rsp, 48  		; 4 variables 8 bytes each
+	; rsp + 0 : fd of the directory
+	; rsp + 8 : rsi: len of partial command
+	; rsp + 16: len of get_dent_received
+	; rsp + 24: len of get_dent_checked
+	; rsp + 32: rdx: the address of string object which i will add data to
+	; rsp + 40: total commands found
+
+	mov [rsp + 8], rsi 
+	mov qword [rsp + 24], 0
+	mov [rsp + 32], rdx
+	mov qword [rsp + 40], 0
+
+	mov r14, rdi  				; r14: address of partial command
+	mov r15, [rel path_address]
+
+	mov r12, 0 					; idx for starting of new path   'PATH=' skipped
+	mov r13, 5 					; idx for total looping inside path var   'PATH=' skipped
+
+	mov qword [rel last_path_flag], 0
+
+	.loop_find_semi_colon_or_end:
+
+		cmp byte [r15 + r13], ':'
+		je .end_of_path_found
+
+		cmp byte [r15 + r13], 0
+		je .last_path
+
+		inc r13
+		jmp .loop_find_semi_colon_or_end
+
+	.last_path:
+		mov qword [rel last_path_flag], 1
+
+	; r12 is start of path
+	; r13 is at end of path + 1
+	.end_of_path_found: 
+			
+		; try to open this path, 
+		; r12: starting of env path
+		; r13: end of env path
+
+		lea rdi, [rel reusable_buffer_path]
+		lea rsi, [r15 + r12]
+		mov rcx, r13
+		sub rcx, r12
+		rep movsb
+
+		lea rsi, [rel null_byte]
+		mov rcx, 1
+		rep movsb
+
+		mov rax, sys_open
+		lea rdi, [rel reusable_buffer_path]
+		mov rsi, O_RDONLY | O_DIRECTORY
+		syscall
+
+		test rax, rax
+		jl .check_next_path
+
+		mov [rsp + 0], rax 					; saving the fd of the directory
+
+		.loop_get_dents_more_info:
+		; use the buffer to match all entries with the name 
+		mov rax, sys_getdents64
+		mov rdi, [rsp + 0]
+		lea rsi, [rel reusable_buffer_path]
+		mov rdx, 4096 					; len of reusable buffer
+		syscall 
+
+		test rax, rax 						; no more entries/ or error
+		jle .close_fd
+
+		mov [rsp + 16], rax 				; save the len of data recv from syscall
+		mov qword [rsp + 24], 0
+		lea r9, [rel reusable_buffer_path]  ; r9: the address of get_dents_data
+
+        .get_next_segment:
+        mov rax, [rsp + 16]                ; len of get_dents_recv
+        mov rcx, [rsp + 24] 			   ; len of get_dent_parsed
+        cmp rcx, rax
+        jae .loop_get_dents_more_info
+
+
+        .check_and_match_name:
+        mov rax, [rsp + 8] 				; len of the partial command
+        lea rdi, [r9 + 19]  			; address of the file
+        mov rsi, r14 					; address of partial command
+        push r9
+        call _cmp_equal_memory
+        pop r9
+
+        test rax, rax
+        je .check_if_its_executable
+        jmp .move_to_next_segment
+
+        .check_if_its_executable:
+        	; rdi : directory fd
+			; rsi : address of filename
+			; edx : X_OK
+			; r10d : 0
+
+			mov rax, sys_faccessat2
+			mov rdi, [rsp + 0] 		 ; fd of dir
+			lea rsi, [r9 + 19] 	; address of file name
+			mov rdx, 1            	; X_OK, for regular file this means is it executable?
+			xor r10d, r10d           ; flags = 0
+			syscall
+
+			test eax, eax
+			js .move_to_next_segment
+
+			; this is executable
+			; add this to the list of possible commands
+			mov rdi, [rsp + 32] 				; the address of string object
+			lea rsi, [r9 + 19]
+			push r9
+			call _append_string_mystring
+			pop r9
+
+			; add a \n because auto complete or printing requires it
+			mov rdi, [rsp + 32]
+			lea rsi, [rel new_line]
+			push r9
+			call _append_string_mystring
+			pop r9
+
+			inc qword [rsp + 40]
+
+       	.move_to_next_segment:
+       		movzx rax, word [r9 + 16]               ; 2 bytes reading 
+            add r9, rax
+            add qword [rsp + 24], rax
+            jmp .get_next_segment
+
+
+	.close_fd:
+		mov rax, sys_close
+		mov rdi, [rsp + 0]
+		syscall
+
+	.check_next_path:
+		cmp qword [rel last_path_flag], 1
+		je .return
+
+		inc r13
+		mov r12, r13
+		jmp .loop_find_semi_colon_or_end
+
+	.return:
+		mov rax, [rsp + 40]
+		test rax, rax
+		je .not_in_path
+		jmp .in_path
+
+	.not_in_path:
+		add rsp, 48
+		pop r15
+		pop r14
+		pop r13
+		pop r12
+
+		mov rsp, rbp
+		pop rbp
+		mov rax, -1
+		ret
+
+	.in_path:
+		mov rax, [rsp + 40]
+		add rsp, 48
+		pop r15
+		pop r14
+		pop r13
+		pop r12
+
+		mov rsp, rbp
+		pop rbp
 		ret

@@ -16,7 +16,7 @@ sys_getcwd          equ 79
 sys_setpgid  		equ 109	    ; set process group id
 sys_getpgrp 		equ 111  	; get process group id
 sys_getdents64      equ 217
-    
+sys_faccessat2      equ 439
 
 SIGHUP      equ 1
 SIGINT      equ 2

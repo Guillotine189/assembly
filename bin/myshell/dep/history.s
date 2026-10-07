@@ -7,12 +7,12 @@ section .data
 
 section .rodata
 	semi_colon_space db ": ", 0
+	capacity_arr equ 1000
 
 section .bss
 	reusable_number_buffer_history resb 20
 
 ; constants
-capacity_arr equ 100
 
 
 ; var
@@ -135,7 +135,7 @@ _add_address_into_array:
 	call _free 	
 
 	.increment_starting_index:
-	cmp [rel starting_index], capacity_arr - 1
+	cmp qword [rel starting_index], capacity_arr - 1
 	jge .set_starting_to_zero
 
 	inc qword [rel starting_index]
@@ -147,7 +147,7 @@ _add_address_into_array:
 
 
 	.handle_ending_index:
-	cmp [rel ending_index], capacity_arr - 1
+	cmp qword [rel ending_index], capacity_arr - 1
 	jge .set_ending_to_zero
 
 	jmp .increment_ending
@@ -170,7 +170,7 @@ _add_address_into_array:
 
 	inc qword [rel filled_history_array_size]
 
-	cmp [rel ending_index], capacity_arr - 1
+	cmp qword [rel ending_index], capacity_arr - 1
 	jge .set_ending_to_zero_ret
 
 	inc qword [rel ending_index]
@@ -195,7 +195,7 @@ _return_address_of_command_from_newest:
 	cmp rdi, capacity_arr
 	jg .return_not_exists
 
-	cmp [rel filled_history_array_size], capacity_arr
+	cmp qword [rel filled_history_array_size], capacity_arr
 	jge .handle_warped
 
 	; non warped array

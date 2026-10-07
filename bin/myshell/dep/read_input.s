@@ -107,7 +107,7 @@ extern _find_common
 
 extern _check_and_return_command_if_bic
 extern win_resize_flag
-
+extern _check_if_cmd_can_auto_complete_to_cmd_in_path
 
 global _read_input
 
@@ -1135,7 +1135,7 @@ _read_input:
         mov rsi, r13
         call _check_and_return_command_if_bic
         test rax, rax
-        jl .restore_reg_check_curr_dir          ; not a part of any built in command
+        jl .restore_reg_check_if_in_path          ; not a part of any built in command
         pop r10
         pop r8
 
@@ -1155,11 +1155,29 @@ _read_input:
         lea rsi, [rel new_line]
         call _append_string_mystring
 
-        jmp .auto_complete
+        .restore_reg_check_if_in_path:
+        ; r13: has length of half-word typed
+        pop r10
+        pop r8
 
-        .restore_reg_check_curr_dir:
-            pop r10
-            pop r8
+        mov rdi, [rel input_buffer_address]
+        add rdi, r8                 ; rdi is address where the word starts
+        mov rsi, r13
+        mov rdx, rsp
+
+        push r8
+        push r10
+
+        call _check_if_cmd_can_auto_complete_to_cmd_in_path
+        
+        pop r10
+        pop r8
+
+        test rax, rax
+        jl .check_from_current_dir          ; not a part of any built in command
+
+        mov r14, rax
+        jmp .check_weather_to_print_or_autocomplete
 
         .check_from_current_dir:
         ; here i have to add cwd before whatever the word was typed
@@ -1424,7 +1442,7 @@ _read_input:
         mov rdi, [rel dir_fd_getdents]
         syscall
 
-
+        .check_weather_to_print_or_autocomplete:
         ; if the total matches is 1, just autocomplete
         cmp r14, 1
         jl .zeros_the_tab_and_return

@@ -52,6 +52,15 @@ section .data
         dq _signal_do_nothing_restorer                        ; address of restorer
         times 16 dq 0                       ; 16 times dq = 16x8 = 128bytes for maskA
 
+
+    align 8 
+    signal_SIGINT_struct:
+        dq _signal_SIGINT_handler                         ; address of handler
+        dq SA_RESTORER                         ; for the flags
+        dq _signal_SIGINT_restorer                        ; address of restorer
+        times 16 dq 0                       ; 16 times dq = 16x8 = 128bytes for maskA
+
+
     align 8
     signal_ignore_struct:
         dq 1                    ; SIG_IGN
@@ -77,7 +86,8 @@ section .rodata
     ; like GNOME Terminal, Konsole, Kitty, Alacritty
     myshell_line db "MyShell", 0
     myshell_line_len equ $ - myshell_line
-
+    ctrl_c_word db "^C", 10, 0
+    ctrl_c_word_len equ $ - ctrl_c_word
 
     clear_screen db 0x1b, '[2J'      ; clear the screen
     clear_screen_len equ $ - clear_screen
@@ -240,7 +250,19 @@ _signal_do_nothing_restorer:
     mov rax, sys_rt_sigreturn
     syscall
 
+_signal_SIGINT_handler:
+    mov rax, sys_write
+    mov rdi, 1
+    lea rsi, [rel ctrl_c_word]
+    mov rdx, ctrl_c_word_len
+    syscall
+    ret
+    
 
+
+_signal_SIGINT_restorer:
+    mov rax, sys_rt_sigreturn
+    syscall
 
 _signal_win_resize_handler:
     ; windows size changed, reprint the comand on screen
@@ -280,7 +302,7 @@ _signal_handling:
     ; SIGINT for ctrl+c 
     mov rax, sys_rt_sigaction
     mov rdi, SIGINT
-    lea rsi, [rel signal_print_line_struct]
+    lea rsi, [rel signal_SIGINT_struct]
     xor rdx, rdx                        ; buffer address for default hanlder, not needed
     mov r10, 8                          ; expects this in x86_64
     syscall
