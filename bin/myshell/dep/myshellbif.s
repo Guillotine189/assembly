@@ -1,4 +1,5 @@
 %include "./dep/constants.inc"
+%include "../dependencies/mystring.inc"
 %include "../dependencies/dynamicarray.inc"
 
 section .data
@@ -29,7 +30,8 @@ section .rodata
 	dot_back_slash db "./", 0
 	dash db '-',0
 	space_byte db " ", 0
-
+	new_line db 0x0a, 0
+	space_char db " ", 0
     home_env_var db "HOME", 0
 
     cd_ 			db "cd",0
@@ -468,13 +470,18 @@ _builtin_pwd:
 
 ; rdi: address of string
 ; rsi: len of string
+; rdx: the address of string object i will add the option to
 ; checks is if the string matches any built in commnads, if it does returns the command address
 _check_and_return_command_if_bic:
 	push r12
 	push r13
+	push r14
+	push r15
 
 	mov r12, rdi 					; r12: address of command
 	mov r13, rsi 					; r13: len of memory to compare
+	mov r14, rdx  					; r14: string object
+	xor r15, r15 					; r15: total matches found
 
 	mov rax, r13
     lea rdi, [rel cd_]
@@ -482,94 +489,168 @@ _check_and_return_command_if_bic:
     call _cmp_equal_memory
 
     test rax, rax
-    je .return_cd
+    je .append_cd
+    jmp .check_pwd
 
+    .append_cd:
+    	call .append_cd_and_end_char
+
+
+    .check_pwd:
     mov rax, r13
     lea rdi, [rel pwd_]
     mov rsi, r12
     call _cmp_equal_memory
 
     test rax, rax
-    je .return_pwd
+    je .append_pwd
+    jmp .check_clear
 
+    .append_pwd:
+    	call .append_pwd_and_end_char
+
+    .check_clear:
     mov rax, r13
     lea rdi, [rel clear_]
     mov rsi, r12
     call _cmp_equal_memory
 
     test rax, rax
-    je .return_clear
+    je .append_clear
+    jmp .check_history
 
+    .append_clear:
+    	call .append_clear_and_end_char
+
+    .check_history:
     mov rax, r13
     lea rdi, [rel history_]
     mov rsi, r12
     call _cmp_equal_memory
 
     test rax, rax
-    je .return_his
+    je .append_history
+    jmp .check_export
 
+    .append_history:
+    	call .append_history_and_end_char
+
+    .check_export:
     mov rax, r13
     lea rdi, [rel export_]
     mov rsi, r12
     call _cmp_equal_memory
 
     test rax, rax
-    je .return_export
+    je .append_export
+    jmp .check_unset
 
+    .append_export:
+    	call .append_export_and_end_char
 
+    .check_unset:
     mov rax, r13
     lea rdi, [rel unset_]
     mov rsi, r12
     call _cmp_equal_memory
 
     test rax, rax
-    je .return_unset
+    je .append_unset
+    jmp .check_exit
 
+    .append_unset:
+    	call .append_unset_and_end_char
 
+    .check_exit:
     mov rax, r13
     lea rdi, [rel exit_]
     mov rsi, r12
     call _cmp_equal_memory
 
     test rax, rax
-    je .return_exit
+    je .append_exit
+    jmp .return
 
-    .not_built_in:
-	    mov rax, -1
-	    jmp .return
+    .append_exit:
+    	call .append_exit_and_end_char
 
-	.return_cd:
-		lea rax, [rel cd_]
-		jmp .return
+    jmp .return
 
-	.return_pwd:
-		lea rax, [rel pwd_]
-		jmp .return
+	.append_cd_and_end_char:
+		lea rsi, [rel cd_]
+		mov rdi, r14
+		call _append_string_mystring
+		jmp .append_end_chars
 
-	.return_his:
-		lea rax, [rel history_]
-		jmp .return
+	.append_pwd_and_end_char:
+		lea rsi, [rel pwd_]
+		mov rdi, r14
+		call _append_string_mystring
+		jmp .append_end_chars
 
-	.return_clear:
-		lea rax, [rel clear_]
-		jmp .return
+	.append_history_and_end_char:
+		lea rsi, [rel history_]
+		mov rdi, r14
+		call _append_string_mystring
+		jmp .append_end_chars
 
-	.return_export:
-		lea rax, [rel export_]
-		jmp .return
+	.append_clear_and_end_char:
+		lea rsi, [rel clear_]
+		mov rdi, r14
+		call _append_string_mystring
+		jmp .append_end_chars
 
-	.return_unset:
-		lea rax, [rel unset_]
-		jmp .return
+	.append_export_and_end_char:
+		lea rsi, [rel export_]
+		mov rdi, r14
+		call _append_string_mystring
+		jmp .append_end_chars
 
-	.return_exit:
-		lea rax, [rel exit_]
-		jmp .return
+	.append_unset_and_end_char:
+		lea rsi, [rel unset_]
+		mov rdi, r14
+		call _append_string_mystring
+		jmp .append_end_chars
+
+	.append_exit_and_end_char:
+		lea rsi, [rel exit_]
+		mov rdi, r14
+		call _append_string_mystring
+		jmp .append_end_chars
+
+
+	.append_end_chars:
+        mov rdi, r14
+        lea rsi, [rel space_char]
+        call _append_string_mystring
+
+		mov rdi, r14
+		lea rsi, [rel new_line]
+		call _append_string_mystring
+		inc r15
+		ret
 
 	.return:
+		mov rax, r15
+		test rax, rax
+		je .return_not_built_in
+		jmp .return_built_in
+
+	.return_not_built_in:	
+		pop r15
+		pop r14
+		pop r13
+		pop r12
+		mov rax, -1
+		ret
+
+	.return_built_in:
+		pop r15
+		pop r14
 		pop r13
 		pop r12
 		ret
+
 
 
 ; rdi: the address of command struct

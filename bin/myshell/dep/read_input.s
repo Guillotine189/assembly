@@ -1140,30 +1140,12 @@ _read_input:
         mov rdi, [rel input_buffer_address]
         add rdi, r8                 ; rdi is address where the word starts
         mov rsi, r13
+        mov rdx, [rel double_tab_string_object_address]
         call _check_and_return_command_if_bic
         test rax, rax
         jl .restore_reg_check_if_in_path          ; not a part of any built in command
 
-
-        ; TODO: fix matching > 1 commands when checking match inside bic
-        ; if it is a part of built in command, only 1 command is returned right now
-        mov r12, rax
-
-        mov rdi, [rel double_tab_string_object_address]
-        mov rsi, r12                         ; copy the bic into string object
-        call _append_string_mystring
-
-        mov rdi, [rel double_tab_string_object_address]
-        lea rsi, [rel space_char]
-        call _append_string_mystring
-
-        ; the auto complete needs a word followed by \n before null bytes
-        mov rdi, [rel double_tab_string_object_address]
-        lea rsi, [rel new_line]
-        call _append_string_mystring
-
-        ; only 1 command is returned right now
-        mov r14, 1
+        mov r14, rax        
 
         .restore_reg_check_if_in_path:
         ; r13: has length of half-word typed

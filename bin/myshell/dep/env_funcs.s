@@ -21,6 +21,7 @@ section .rodata
 	underscore_env_var db "_", 0
 	shell_env_var_for_startup db "SHELL=myshell", 0
 	shell_env_var_for_startup_len equ $ - shell_env_var_for_startup
+	space_char db " ", 0
 
 global shell_env_array_object
 section .bss
@@ -1042,6 +1043,14 @@ _parse_path_and_check_if_partial_cmd_matches_cmd_in_path:
 			; add this to the list of possible commands
 			mov rdi, [rsp + 32] 				; the address of string object
 			lea rsi, [r9 + 19]
+			push r9
+			call _append_string_mystring
+			pop r9
+
+
+			; add a space so after auto complete it looks good
+			mov rdi, [rsp + 32]
+			lea rsi, [rel space_char]
 			push r9
 			call _append_string_mystring
 			pop r9
