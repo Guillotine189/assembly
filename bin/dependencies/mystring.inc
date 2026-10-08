@@ -2,6 +2,7 @@
 %define _MYSTRING_INC
 
 extern _constructor_mystring
+extern _move_constructor_mystring
 extern _destructor_mystring
 extern _append_string_mystring
 extern _append_bytes_mystring

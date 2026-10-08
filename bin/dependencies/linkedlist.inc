@@ -5,6 +5,7 @@
 extern _default_constructor_lninked_list
 extern _default_destructor_lninked_list
 extern _add_to_linked_list
+extern _move_to_linked_list_mystring
 
 LINKED_LIST_OBJECT_SIZE 		equ 32
 LINKED_LIST_TOTAL_ELE_OFF 		equ 0

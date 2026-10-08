@@ -1,3 +1,5 @@
+; required mymalloc.s
+
 section .text
 
 global _constructor_mystring
@@ -32,6 +34,7 @@ global _append_string_mystring
 global _append_bytes_mystring
 global _mystring_clear
 global _mystring_truncate
+global _move_constructor_mystring
 
 ; remember to redefine them in mystring.inc if changed
 MYSTRING_OBJECT_SIZE 		equ 24
@@ -92,9 +95,45 @@ _constructor_mystring:
 _destructor_mystring:
 	
 	mov rdi, [rdi + MYSTRING_POINTER_OFF]
+	
+	test rdi, rdi
+	je .null_ptr
+	
 	call _free
+
+	.null_ptr:
+		ret
+
+
+; rdi: the address of NEW mystring object
+; rsi: the address of OLD mystring object
+_move_constructor_mystring:
+	test rdi, rdi
+	jle .error_invalid_address
+
+	test rsi, rsi
+	jle .error_invalid_address
+
+
+	mov rax, [rsi + MYSTRING_CAPACITY_OFF]
+	mov qword [rdi + MYSTRING_CAPACITY_OFF], rax
+
+	mov rax, [rsi + MYSTRING_SIZE_OFF]
+	mov qword [rdi + MYSTRING_SIZE_OFF], rax
+
+	mov rax, [rsi + MYSTRING_POINTER_OFF]
+	mov qword [rdi + MYSTRING_POINTER_OFF], rax
+
+	mov qword [rsi + MYSTRING_CAPACITY_OFF], 0
+	mov qword [rsi + MYSTRING_SIZE_OFF], 0
+	mov qword [rsi + MYSTRING_POINTER_OFF], 0
+
+	xor rax, rax
 	ret
 
+	.error_invalid_address:
+		mov rax, -1
+		ret
 
 ; rdi : address of string object
 ; rsi: address of null terminated string
