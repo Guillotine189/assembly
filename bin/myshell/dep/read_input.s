@@ -40,9 +40,9 @@ section .rodata
     space_char db ' ', 0
     new_line_exit_word_new_line db 10, "exit", 10, 0
 
-    display_line db 0x0a, "Display ", 0
+    display_line db 0x0a, "Show all ", 0
     display_line_len equ $ - display_line
-    options_line db " options? (y or n) ", 0
+    options_line db " matching options? (y or n) ", 0
     options_line_len equ $ - options_line
     
 section .bss
@@ -1133,7 +1133,7 @@ _read_input:
         ; auto complete needs this is 13, dont change 
         mov r13, [rel cursor_idx]
         sub r13, r8                     ; len of half word = cur_idx - start_idx_word
-        mov r14, 0                      ; total matches found
+        xor r14, r14                      ; total matches found
 
         push r8
         push r10
@@ -1166,12 +1166,18 @@ _read_input:
         pop r8
 
         test rax, rax
-        jl .check_weather_to_print_or_autocomplete          ; not a part of any built in command
+        jl .skip_adding_total_options          ; not a part of any executable inside path 
 
         add r14, rax
+
+        .skip_adding_total_options:
+        test r14, r14                       ; if nothing from bic or path executable
+        je .check_from_current_dir
+
         jmp .check_weather_to_print_or_autocomplete
 
         .check_from_current_dir:
+        xor r14, r14
         ; here i have to add cwd before whatever the word was typed
         ; eg "./path/file" -> "/cwd/./path" 
         ; eg "file" -> "/cwd/" 

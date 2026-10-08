@@ -7,10 +7,12 @@ BASIC------
 5) fix how bic are executed. ⏳
 5) ">", "<", "|", inside double/single quotes should not be considered as redirection. ✅, but do this the ones below as well
 9 ) add ">>", "&&", "&" ⏳
+5) Add auto complete for installed command name only (like ls, grep etc).⏳, 
+   fix: duplicates removal
+
+6) 1s parse function : parising through PATH env var, fix ":.:", case, or ":../../:" case, or simply relative path. Change it to open directory, then check for files. Like i did in 2nd parse function
 5.8) empty argument cannot be resolved, it just ignores them rn
-5) Add auto complete for installed command name only (like ls, grep etc).
 5.2) store and restore the old termios at shell start and put it so
-5.3) "env | grep --color=auto USER" -> does not work, but using the binary 'printenv' solves it ✅, fixed by removing env as a bic and instead using /usr/bin/env
 5.4) "../astro\ lec/" auto complete will not work if this is given
 
 6) visual fix, when command overflows into next line.
@@ -19,6 +21,8 @@ BASIC------
 9) add aliases
 10) check if history circular works with malloc2
 
+5.3) "env | grep --color=auto USER" -> does not work, but using the binary 'printenv' works
+      ✅, fixed by removing env as a bic and instead using /usr/bin/env 
 6) auto complete helf_word ✅
 11) fix error with spaces/front_slash when parsing ✅
 5) redirect in "<" does not work, messes up execve  ✅

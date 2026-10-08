@@ -88,19 +88,17 @@ _initialize_shell_env_array:
 	mov rbp, rsp
 	push r12
 
+	; create shell env array
+	lea rax, [rel shell_env_array_object]
+	mov qword [rax + DYNAMICARRAY_CAPACITY_OFF], 40
+	mov qword [rax + DYNAMICARRAY_SIZE_OFF], 0
+	mov qword [rax + DYNAMICARRAY_ELEMENT_SIZE_OFF], MYSTRING_OBJECT_SIZE
+	mov qword [rax + DYNAMICARRAY_POINTER_OFF], 0
+	mov rdi, rax
+	call _default_dynamic_array_constructor
 
-
-	.create_array_env:
-		lea rax, [rel shell_env_array_object]
-		mov qword [rax + DYNAMICARRAY_CAPACITY_OFF], 40
-		mov qword [rax + DYNAMICARRAY_SIZE_OFF], 0
-		mov qword [rax + DYNAMICARRAY_ELEMENT_SIZE_OFF], MYSTRING_OBJECT_SIZE
-		mov qword [rax + DYNAMICARRAY_POINTER_OFF], 0
-		mov rdi, rax
-		call _default_dynamic_array_constructor
-
-		test rax, rax
-		jl .error_creating_array
+	test rax, rax
+	jl .error_creating_array
 
 	xor r12, r12 					; index fow which env var to copy
 
