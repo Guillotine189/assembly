@@ -94,8 +94,9 @@ _constructor_mystring:
 ; rdi : address of string object 
 ; just frees the malloc object
 _destructor_mystring:
-	
-	mov rdi, [rdi + MYSTRING_POINTER_OFF]
+	push r12
+	mov r12, rdi
+	mov rdi, [r12 + MYSTRING_POINTER_OFF]
 	
 	test rdi, rdi
 	je .null_ptr
@@ -103,7 +104,12 @@ _destructor_mystring:
 	call _free
 
 	.null_ptr:
-		ret
+	mov qword [r12 + MYSTRING_SIZE_OFF], 0
+	mov qword [r12 + MYSTRING_CAPACITY_OFF], 0
+	mov qword [r12 + MYSTRING_POINTER_OFF], 0
+
+	pop r12
+	ret
 
 
 ; rdi: the address where the NEW mystring object will be created

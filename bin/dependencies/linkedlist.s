@@ -5,7 +5,7 @@ extern _malloc
 extern _free
 extern _copy_constructor_mystring
 extern _move_constructor_mystring
-
+extern _destructor_mystring
 
 ; linked_list_object
 ; [total elements] 			+0 bytes
@@ -30,16 +30,16 @@ NODE_ELEMENT_ADD_OFF 		equ 8
 section .text
 
 ; remember to update the [linkedlist.inc, hash_set.s] after any changes
-global _default_constructor_lninked_list
-global _default_destructor_lninked_list
+global _default_constructor_linked_list
+global _default_destructor_linked_list
 global _add_to_linked_list
 
 global _add_to_linked_list_mystring
 global _move_to_linked_list_mystring
-
+global _destructor_linked_list_mystring
 
 ; rdi: address of non-constructed Linked list object
-_default_constructor_lninked_list:
+_default_constructor_linked_list:
 	push r12
 
 	mov r12, rdi 					; r12: the address of non-constructed LL object
@@ -63,7 +63,7 @@ _default_constructor_lninked_list:
 		ret
 
 ; rdi: address of the linked list object
-_default_destructor_lninked_list:
+_default_destructor_linked_list:
 	push r12
 	push r13
 	push r14
@@ -97,6 +97,47 @@ _default_destructor_lninked_list:
 	pop r13
 	pop r12
 	ret
+
+; rdi: address of the linked list object
+_destructor_linked_list_mystring:
+	push r12
+	push r13
+	push r14
+
+	mov r14, rdi
+
+	mov r12, [r14 + LINKED_LIST_HEAD_NODE_ADD_OFF] 	; r12: head
+	test r12, r12  		; if head is null, return
+	je .finish
+
+	.loop_till_null:
+
+		mov r13, [r12 + NODE_NEXT_NODE_ADD_OFF]   ; r13: curr->next
+
+		mov rdi, [r12 + NODE_ELEMENT_ADD_OFF]
+		call _destructor_mystring
+
+		mov rdi, r12							; free current (r12)
+		call _free
+
+		test r13, r13  							; if next is null return
+		je .finish
+ 
+		mov r12, r13  							; else curr = next
+		jmp .loop_till_null
+
+	.finish:
+	mov qword [r14 + LINKED_LIST_TOTAL_ELE_OFF], 0
+	mov qword [r14 + LINKED_LIST_ELE_SIZE_OFF], 0
+	mov qword [r14 + LINKED_LIST_HEAD_NODE_ADD_OFF], 0
+	mov qword [r14 + LINKED_LIST_END_NODE_ADD_OFF], 0
+
+	.return:
+	pop r14
+	pop r13
+	pop r12
+	ret
+
 
 ; rdi: address of linked list object
 ; rsi: address of element
