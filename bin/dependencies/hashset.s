@@ -1,6 +1,6 @@
-; requires mymalloc.s
-; requires mystring.s
-; requires linkedlist.s
+; requires linking of mymalloc.o
+; requires linking of mystring.o
+; requires linking of linkedlist.o
 
 section .text
 
@@ -10,14 +10,13 @@ extern _free
 extern _default_constructor_lninked_list
 extern _default_destructor_lninked_list
 extern _add_to_linked_list
-extern _move_to_linked_list_mystring
+extern _add_to_linked_list_mystring
+
+; extern _move_to_linked_list_mystring
 
 LINKED_LIST_OBJECT_SIZE 		equ 32
 LINKED_LIST_TOTAL_ELE_OFF 		equ 0
 LINKED_LIST_ELE_SIZE_OFF 		equ 8
-
-
-
 ; LINKED_LIST_HEAD_NODE_ADD_OFF   equ 16
 ; LINKED_LIST_END_NODE_ADD_OFF    equ 24
 

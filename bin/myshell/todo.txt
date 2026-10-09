@@ -1,26 +1,27 @@
-BASIC------
-1) Commad execution flow with proper checks when executing a single command.  ✅
-1.1) Put argc arguments and argv arguments inside dynamic array. ✅
-2) Better parser, make it handle pipes, redirection etc. ⏳
-3) Decide how to store the commands, args, envp for every single command.⏳
-4) Run chained commands (ls | grep "data.txt" > output.txt).⏳
-5) fix how bic are executed. ⏳
-5) ">", "<", "|", inside double/single quotes should not be considered as redirection. ✅, but do this the ones below as well
-9 ) add ">>", "&&", "&" ⏳
-5) Add auto complete for installed command name only (like ls, grep etc).⏳, 
+5) Add auto complete for installed command name only (like ls, grep etc).⏳
    fix: duplicates removal
+6) visual fix, when command overflows into next line.
+
+2) Better parser, make it handle pipes, redirection etc. ⏳
+4) Run chained commands (ls | grep "data.txt" > output.txt).⏳
+9 ) add ">>", "&&", "&" ⏳
+
 
 6) 1s parse function : parising through PATH env var, fix ":.:", case, or ":../../:" case, or simply relative path. Change it to open directory, then check for files. Like i did in 2nd parse function
 5.8) empty argument cannot be resolved, it just ignores them rn
 5.2) store and restore the old termios at shell start and put it so
 5.4) "../astro\ lec/" auto complete will not work if this is given
 
-6) visual fix, when command overflows into next line.
 7) Inside shell env, update pwd, old_pwd when chdir. Also check and update other env variables.
 8) right now only 1 redirection output is allowed, or you will overwrite which to redirect out to.
 9) add aliases
 10) check if history circular works with malloc2
 
+3) Decide how to store the commands, args, envp for every single command.✅
+5) fix how bic are executed. ✅
+5) ">", "<", "|", inside double/single quotes should not be considered as redirection. ✅, but do this the ones below as well
+1) Commad execution flow with proper checks when executing a single command.  ✅
+1.1) Put argc arguments and argv arguments inside dynamic array. ✅
 5.3) "env | grep --color=auto USER" -> does not work, but using the binary 'printenv' works
       ✅, fixed by removing env as a bic and instead using /usr/bin/env 
 6) auto complete helf_word ✅

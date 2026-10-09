@@ -30,11 +30,12 @@ extern _free
 
 global _constructor_mystring
 global _destructor_mystring
+global _copy_constructor_mystring
+global _move_constructor_mystring
 global _append_string_mystring
 global _append_bytes_mystring
 global _mystring_clear
 global _mystring_truncate
-global _move_constructor_mystring
 
 ; remember to redefine them in mystring.inc if changed
 MYSTRING_OBJECT_SIZE 		equ 24
@@ -102,6 +103,56 @@ _destructor_mystring:
 	call _free
 
 	.null_ptr:
+		ret
+
+
+; rdi: the address where the NEW mystring object will be created
+; rsi: the address of OLD mystring object
+; performs a deep copy
+_copy_constructor_mystring:
+	test rdi, rdi
+	jz .error_invalid_address
+
+	test rsi, rsi
+	jz .error_invalid_address
+
+	push r12
+	push r13
+
+	mov r12, rdi  					; r12: address for creation of NEW string address
+	mov r13, rsi  					; r13: OLD string address
+
+	mov rax, [r13 + MYSTRING_SIZE_OFF]
+	mov qword [r12 + MYSTRING_CAPACITY_OFF], rax
+
+	; create the new string with the size 
+	mov rdi, r12
+	call _constructor_mystring
+
+	test rax, rax
+	jl .error_constructing_new_string
+
+	mov rdi, r12
+	mov rsi, [r13 + MYSTRING_POINTER_OFF]
+	call _append_string_mystring
+
+	test rax, rax
+	jl .error_appending_to_mystring
+
+	pop r13
+	pop r12
+	xor rax, rax
+	ret
+
+	.error_appending_to_mystring:
+		mov rdi, r12
+		call _destructor_mystring
+
+	.error_constructing_new_string:
+		pop r13
+		pop r12
+	.error_invalid_address:
+		mov rax, -1
 		ret
 
 

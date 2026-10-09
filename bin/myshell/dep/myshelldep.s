@@ -35,7 +35,7 @@ _print_with_tabs:
 	mov rax, 1 						; write syscall
 	syscall
 
-	; print new line
+	; print tab
 	mov rax, 0x09
 	push rax
 
