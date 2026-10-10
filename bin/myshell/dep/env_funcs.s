@@ -1,6 +1,8 @@
 %include "./dep/constants.inc"
 %include "../dependencies/mystring.inc"
 %include "../dependencies/dynamicarray.inc"
+%include "../dependencies/mymalloc.inc"
+%include "../dependencies/hashset.inc"
 
 section .data
 	path_address dq 0
@@ -71,6 +73,7 @@ global _unset_var_in_shell_env
 global _print_shell_env
 global _print_env_from_object
 global _check_if_cmd_can_auto_complete_to_cmd_in_path
+
 global shell_env_array_object
 
 
@@ -924,13 +927,15 @@ _parse_path_and_check_if_partial_cmd_matches_cmd_in_path:
 	push r13
 	push r14
 	push r15
-	sub rsp, 48  		; 4 variables 8 bytes each
+	sub rsp, 48 + HASH_SET_OBJECT_SIZE		; 6 variables 8 bytes each + hashset object
 	; rsp + 0 : fd of the directory
 	; rsp + 8 : rsi: len of partial command
 	; rsp + 16: len of get_dent_received
 	; rsp + 24: len of get_dent_checked
 	; rsp + 32: rdx: the address of string object which i will add data to
 	; rsp + 40: total commands found
+	; rsp + 48: the hashset object
+
 
 	mov [rsp + 8], rsi 
 	mov qword [rsp + 24], 0
@@ -944,6 +949,26 @@ _parse_path_and_check_if_partial_cmd_matches_cmd_in_path:
 	mov r13, 5 					; idx for total looping inside path var   'PATH=' skipped
 
 	mov qword [rel last_path_flag], 0
+
+
+	; create the hashset object for mystring
+
+	HASH_SET_OBJECT_SIZE 				equ 40
+	HASH_SET_TOTAL_ELE_OFF 				equ 0
+	HASH_SET_TOTAL_BUCKETS_OFF  		equ 8
+	HASH_SET_LOAD_FACTOR_OFF 			equ 16
+	HASH_SET_ELE_SIZE_OFF	 			equ 24
+	HASH_SET_BUCKET_HEAD_ADD_OFF		equ 32
+
+	mov qword [rsp + 48 + HASH_SET_TOTAL_BUCKETS_OFF], 1024
+	mov qword [rsp + 48 + HASH_SET_ELE_SIZE_OFF], MYSTRING_OBJECT_SIZE
+	lea rdi, [rsp + 48]
+	call _default_contructor_hashset
+	
+	test rax, rax
+	jl .not_in_path   ; TODO: error is error_constructing_hashset not not_in_path
+
+	; call _print_malloc_segments_info
 
 	.loop_find_semi_colon_or_end:
 
@@ -1038,8 +1063,46 @@ _parse_path_and_check_if_partial_cmd_matches_cmd_in_path:
 			js .move_to_next_segment
 
 			; this is executable
-			; add this to the list of possible commands
-			mov rdi, [rsp + 32] 				; the address of string object
+			; try add to hashset the mystring
+
+			.try_to_add_to_hashset:
+			push r9
+			lea rdi, [r9 + 19] 	; address of file name
+			call _strlen
+			pop r9
+
+			; construct a mystring object
+			sub rsp, MYSTRING_OBJECT_SIZE
+			mov qword [rsp + MYSTRING_CAPACITY_OFF], rax
+			mov rdi, rsp
+			push r9
+			call _constructor_mystring
+			pop r9
+			; TODO: handle error here
+
+			mov rdi, rsp
+			lea rsi, [r9 + 19]
+			push r9
+			call _append_string_mystring
+			pop r9
+			; TODO: handle error here
+
+			; move this string object inside hashset
+			.add_mystring_to_hashset:
+			lea rdi, [rsp + MYSTRING_OBJECT_SIZE + 48] ; address of hashset_object
+			mov rsi, rsp 		; address of mystring object
+			push r9
+			call _move_to_hashset_mystring
+			pop r9
+
+			test rax, rax 				; 0: added, 1: already there, -ve: error
+			jnz .free_mystring_object_and_check_next
+
+
+			add rsp, MYSTRING_OBJECT_SIZE 		; remove mystring from stack
+
+			; if not already inside hashset, add this to the list of possible commands
+			mov rdi, [rsp + 32] 				; the address of output string object
 			lea rsi, [r9 + 19]
 			push r9
 			call _append_string_mystring
@@ -1061,6 +1124,14 @@ _parse_path_and_check_if_partial_cmd_matches_cmd_in_path:
 			pop r9
 
 			inc qword [rsp + 40]
+			jmp .move_to_next_segment
+
+		.free_mystring_object_and_check_next:
+			mov rdi, rsp
+			push r9
+			call _destructor_mystring
+			pop r9
+			add rsp, MYSTRING_OBJECT_SIZE 		; remove mystring from stack
 
        	.move_to_next_segment:
        		movzx rax, word [r9 + 16]               ; 2 bytes reading 
@@ -1083,13 +1154,23 @@ _parse_path_and_check_if_partial_cmd_matches_cmd_in_path:
 		jmp .loop_find_semi_colon_or_end
 
 	.return:
+		; cleanup
+		; call _print_malloc_segments_info
+
+		lea rdi, [rsp + 48]
+		call _destructor_hashset_mystring
+
+		; call _print_malloc_segments_info
+
+
 		mov rax, [rsp + 40]
 		test rax, rax
 		je .not_in_path
 		jmp .in_path
 
+
 	.not_in_path:
-		add rsp, 48
+		add rsp, 48 + HASH_SET_OBJECT_SIZE
 		pop r15
 		pop r14
 		pop r13
@@ -1102,7 +1183,7 @@ _parse_path_and_check_if_partial_cmd_matches_cmd_in_path:
 
 	.in_path:
 		mov rax, [rsp + 40]
-		add rsp, 48
+		add rsp, 48 + HASH_SET_OBJECT_SIZE
 		pop r15
 		pop r14
 		pop r13

@@ -166,10 +166,10 @@ _copy_constructor_mystring:
 ; rsi: the address of OLD mystring object
 _move_constructor_mystring:
 	test rdi, rdi
-	jle .error_invalid_address
+	je .error_invalid_address
 
 	test rsi, rsi
-	jle .error_invalid_address
+	je .error_invalid_address
 
 
 	mov rax, [rsi + MYSTRING_CAPACITY_OFF]

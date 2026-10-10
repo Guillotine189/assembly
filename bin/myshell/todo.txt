@@ -2,6 +2,9 @@
    fix: duplicates removal
 6) visual fix, when command overflows into next line.
 
+IDEA: instead of writing destructor for each type in hashset, ll
+ just pass in address/nULL of a custom destructor. If not null, it will call that destrutor on that object
+
 2) Better parser, make it handle pipes, redirection etc. ⏳
 4) Run chained commands (ls | grep "data.txt" > output.txt).⏳
 9 ) add ">>", "&&", "&" ⏳

@@ -12,9 +12,10 @@ extern _default_destructor_linked_list
 extern _add_to_linked_list
 
 extern _add_to_linked_list_mystring
+extern _find_mystring_linked_list
 extern _destructor_linked_list_mystring
 
-; extern _move_to_linked_list_mystring
+extern _move_to_linked_list_mystring
 
 LINKED_LIST_OBJECT_SIZE 		equ 32
 LINKED_LIST_TOTAL_ELE_OFF 		equ 0
@@ -22,6 +23,11 @@ LINKED_LIST_ELE_SIZE_OFF 		equ 8
 LINKED_LIST_HEAD_NODE_ADD_OFF   equ 16
 LINKED_LIST_END_NODE_ADD_OFF    equ 24
 
+; remember to redefine them in mystring.inc if changed
+MYSTRING_OBJECT_SIZE 		equ 24
+MYSTRING_CAPACITY_OFF 		equ 0
+MYSTRING_SIZE_OFF     		equ 8
+MYSTRING_POINTER_OFF 		equ 16
 
 ; hash_set_object
 ; [total_elements_inside]      		 +0 bytes
@@ -40,9 +46,17 @@ HASH_SET_LOAD_FACTOR_OFF 			equ 16
 HASH_SET_ELE_SIZE_OFF	 			equ 24
 HASH_SET_BUCKET_HEAD_ADD_OFF		equ 32
 
+global _default_contructor_hashset
+global _default_destructor_hashset
+global _destructor_hashset_mystring
+global _add_to_hashset_mystring
+global _move_to_hashset_mystring
+
 ; rdi: the address of hash set object not constructed
-_default_contructor_hash_set:
+_default_contructor_hashset:
 	push r12
+	push r13
+	push r14
 
 	mov r12, rdi
 
@@ -53,7 +67,7 @@ _default_contructor_hash_set:
 	jmp .construct
 
 	.zero_capacity_asked:
-		mov [r12 + HASH_SET_TOTAL_BUCKETS_OFF], 16   ; if no capacity given, ask for 16buckets
+		mov qword [r12 + HASH_SET_TOTAL_BUCKETS_OFF], 16   ; if no capacity given, ask for 16buckets
 
 	.construct:
 	mov rax, [r12 + HASH_SET_ELE_SIZE_OFF]
@@ -84,20 +98,21 @@ _default_contructor_hash_set:
 	; but the values inside the bucket should be zero/linked_list object
 	; initialize the values to be zero
 
-	xor rcx, rcx
-	.loop_nullify_array:
-		cmp rcx, [r12 + HASH_SET_TOTAL_BUCKETS_OFF]
+	xor r13, r13
+	mov r14, rax
+	.loop_create_ll:
+		cmp r13, [r12 + HASH_SET_TOTAL_BUCKETS_OFF]
 		jae .return_success
 
-		mov qword [rax + LINKED_LIST_TOTAL_ELE_OFF], 0
 		mov rdx, [r12 + HASH_SET_ELE_SIZE_OFF]
-	    mov qword [rax + LINKED_LIST_ELE_SIZE_OFF], rdx
-	    mov qword [rax + LINKED_LIST_HEAD_NODE_ADD_OFF], 0
-	    mov qword [rax + LINKED_LIST_END_NODE_ADD_OFF], 0
+	    mov qword [r14 + LINKED_LIST_ELE_SIZE_OFF], rdx
+	    mov rdi, r14
+	    call _default_constructor_linked_list
+	    ; TODO: handle error
 
-		add rax, LINKED_LIST_OBJECT_SIZE
-		inc rcx
-		jmp .loop_nullify_array
+		add r14, LINKED_LIST_OBJECT_SIZE
+		inc r13
+		jmp .loop_create_ll
 
 	.error_acquiring_memory:
 	.invalid_element_size:
@@ -105,17 +120,21 @@ _default_contructor_hash_set:
 		jmp .return_failure
 
 	.return_success:
+		pop r14
+		pop r13
 		pop r12
 		xor rax, rax
 		ret
 
 	.return_failure:
+		pop r14
+		pop r13
 		pop r12
 		mov rax, -1
 		ret
 
 ; rdi: address of the hashset address
-_default_destructor_hash_set:
+_default_destructor_hashset:
 	push r12
 	push r13
 	push r14
@@ -177,7 +196,7 @@ _default_destructor_hash_set:
 		ret
 
 ; rdi : address of hash set object
-_destructor_hash_set_mystring:
+_destructor_hashset_mystring:
 	push r12
 	push r13
 	push r14
@@ -238,6 +257,33 @@ _destructor_hash_set_mystring:
 		xor rax, rax
 		ret
 
+
+
+; rdi: address of string
+; rsi: len of string
+; returns
+; 	rax: the hash of string
+;----------------- THE HASH FUNCTION IS NOT WRITTEN BY ME -----------
+hash_string:
+    mov     rax, 0xCBF29CE484222325 ; FNV offset basis
+    mov     rcx, 0                 ; i = 0
+
+.loop:
+    cmp     rcx, rsi               ; i >= len?
+    jae     .done                  ; if yes, finish
+
+    movzx   rdx, byte [rdi + rcx]  ; rdx = str[i]
+    xor     rax, rdx               ; hash ^= str[i]
+    mov     rdx, 0x100000001B3     ; FNV prime
+    imul    rax, rdx               ; hash *= prime (64-bit)
+
+    inc     rcx                    ; i++
+    jmp     .loop
+
+.done:
+    ret
+
+
 ; rdi = address of hash_set object
 ; rsi: the address of string object
 ; returns:
@@ -245,8 +291,192 @@ _destructor_hash_set_mystring:
 ;   rax =  1  : element already exists
 ;   rax = -1  : error
 ; This hash set will own the string object/ deep copy of the string object
-_add_to_hash_set_mystring_object:
+_add_to_hashset_mystring:
+	push r12
+	push r13
+	push r14
+
+	test rdi, rdi
+	je .return_failure    ; invalid address
+
+	test rsi, rsi
+	je .return_failure    ; invalid address
+
+
+	mov r12, rdi 					; r12: address of hash set object
+	mov r13, rsi 					; r13: address of string object that needs to be added
+
 	; get hash of the actual string
+	mov rdi, [r13 + MYSTRING_POINTER_OFF]
+	call strlen 					; in rax: it will have the len of string
+
+	mov rdi, [r13 + MYSTRING_POINTER_OFF]
+	mov rsi, rax
+	call hash_string 				; in rax: the hash of string
+
 	; check if the string exists inside set
-	; if it doesn't get new 
+
+	; rax has the hash
+	xor rdx, rdx
+	mov rdi, [r12 + HASH_SET_TOTAL_BUCKETS_OFF]
+	div rdi
+
+	; rdx: hash % total_buckets in hash_set
+
+	; i know each bucket just holds a linked_list_object
+	mov rcx, [r12 + HASH_SET_BUCKET_HEAD_ADD_OFF] 
+
+	mov rax, rdx
+	imul rax, LINKED_LIST_OBJECT_SIZE
+	; rax: the total offset for the bucket
+
+	lea r14, [rcx + rax] 		; rax: address of the bucket/linked_list_object
+
+	; check_if_element_inside_bucket
+
+	; r14: has the address of bucket/linked_list_object
+	mov rdi, r14
+	mov rsi, r13
+	call _find_mystring_linked_list
+
+	test rax, rax 					; 0 if it is inside, -ve if not
+	je .return_already_present
+		
+	; r14: has the address of the bucket where i am inserting the string
+	mov rdi, r14
+	mov rsi, r13
+	call _add_to_linked_list_mystring
+
+	test rax, rax
+	jl .return_failure
+
+	inc qword [r12 + HASH_SET_TOTAL_ELE_OFF]
+	jmp .return_added	
+
+	.return_failure:
+		pop r14
+		pop r13
+		pop r12
+		mov rax, -1
+		ret
+
+	.return_added:
+		pop r14
+		pop r13
+		pop r12
+		xor rax, rax
+		ret
+
+	.return_already_present:
+		pop r14
+		pop r13
+		pop r12
+		mov rax, 1
+		ret
+
+
+; rdi = address of hash_set object
+; rsi: the address of string object
+; returns:
+;   rax =  0  : element added
+;   rax =  1  : element already exists
+;   rax = -1  : error
+; This hash set will own the string object/ deep copy of the string object
+_move_to_hashset_mystring:
+	push r12
+	push r13
+	push r14
+
+	test rdi, rdi
+	je .return_failure    ; invalid address
+
+	test rsi, rsi
+	je .return_failure    ; invalid address
+
+
+	mov r12, rdi 					; r12: address of hash set object
+	mov r13, rsi 					; r13: address of string object that needs to be added
+
+	; get hash of the actual string
+	mov rdi, [r13 + MYSTRING_POINTER_OFF]
+	call strlen 					; in rax: it will have the len of string
+
+	mov rdi, [r13 + MYSTRING_POINTER_OFF]
+	mov rsi, rax
+	call hash_string 				; in rax: the hash of string
+
+	; check if the string exists inside set
+
+	; rax has the hash
+	xor rdx, rdx
+	mov rdi, [r12 + HASH_SET_TOTAL_BUCKETS_OFF]
+	div rdi
+
+	; rdx: hash % total_buckets in hash_set
+
+	; i know each bucket just holds a linked_list_object
+	mov rcx, [r12 + HASH_SET_BUCKET_HEAD_ADD_OFF] 
+
+	mov rax, rdx
+	imul rax, LINKED_LIST_OBJECT_SIZE
+	; rax: the total offset for the bucket
+
+	lea r14, [rcx + rax] 		; rax: address of the bucket/linked_list_object
+
+	; check_if_element_inside_bucket
+
+	; r14: has the address of bucket/linked_list_object
+	mov rdi, r14
+	mov rsi, r13
+	call _find_mystring_linked_list
+
+	test rax, rax 					; 0 if it is inside, -ve if not
+	je .return_already_present
+		
+	; r14: has the address of the bucket where i am inserting the string
+	mov rdi, r14
+	mov rsi, r13
+	call _move_to_linked_list_mystring
+
+	test rax, rax
+	jl .return_failure
+
+	inc qword [r12 + HASH_SET_TOTAL_ELE_OFF]
+	jmp .return_added	
+
+	.return_failure:
+		pop r14
+		pop r13
+		pop r12
+		mov rax, -1
+		ret
+
+	.return_added:
+		pop r14
+		pop r13
+		pop r12
+		xor rax, rax
+		ret
+
+	.return_already_present:
+		pop r14
+		pop r13
+		pop r12
+		mov rax, 1
+		ret
+
+; rdi: the address of null terminated string
+; returns: rax: the len of string
+strlen:
+	mov rax, rdi
+
+.loop_find_null:
+	cmp byte [rax], 0
+	je .done
+
+	inc rax
+	jmp .loop_find_null
+
+.done:
+	sub rax, rdi
 	ret

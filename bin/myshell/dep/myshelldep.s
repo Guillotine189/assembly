@@ -80,11 +80,9 @@ _print_with_new_line:
 ; searches until \0 encountered, return len excluding \0
 _strlen:
 
-	.intialize:
-		xor rax, rax				; rax will store string length
-
+	xor rax, rax				; rax will store string length
+	
 	.loop:
-
 		cmp byte [rdi + rax], 0 			; move byte inside rcx
 		je .finish
 
