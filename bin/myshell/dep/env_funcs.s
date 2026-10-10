@@ -1121,8 +1121,8 @@ _parse_path_and_check_if_partial_cmd_matches_cmd_in_path:
 			test rax, rax 				; 0: added, 1: already there, -ve: error
 			jnz .free_mystring_object_and_check_next
 
-
 			add rsp, MYSTRING_OBJECT_SIZE 		; remove mystring from stack
+
 
 			; if not already inside hashset, add this to the list of possible commands
 			mov rdi, [rsp + 32] 				; the address of output string object
@@ -1130,7 +1130,6 @@ _parse_path_and_check_if_partial_cmd_matches_cmd_in_path:
 			push r9
 			call _append_string_mystring
 			pop r9
-
 
 			; add a space so after auto complete it looks good
 			mov rdi, [rsp + 32]

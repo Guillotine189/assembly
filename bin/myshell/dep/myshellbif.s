@@ -126,12 +126,6 @@ _execute_if_built_in:
     je .check_and_execute_cd
 
     mov rax, r12
-    lea rdi, [rel pwd_]
-    call _strcmp
-    test rax, rax
-    je .check_and_execute_pwd
-
-    mov rax, r12
     lea rdi, [rel clear_]
     call _strcmp
     test rax, rax
@@ -277,12 +271,6 @@ _execute_if_built_in:
 		    jmp .return_built_in
 		    
         
-    .check_and_execute_pwd:
-        call _builtin_pwd
-
-	    xor rdi, rdi
-	    call _update_last_command_exit_code
-        jmp .return_built_in
 
     .clear_screen:
 	    mov rax, sys_write              ; sys
@@ -459,13 +447,6 @@ _builtin_cd:
 
 	
 
-_builtin_pwd:
-	mov rax, [rel curr_cwd_len]
-	mov rdi, 1
-	lea rsi, [rel curr_cwd]
-	call _print_with_new_line
-	ret
-
 
 
 ; rdi: address of string
@@ -490,24 +471,10 @@ _check_and_return_command_if_bic:
 
     test rax, rax
     je .append_cd
-    jmp .check_pwd
+    jmp .check_clear
 
     .append_cd:
     	call .append_cd_and_end_char
-
-
-    .check_pwd:
-    mov rax, r13
-    lea rdi, [rel pwd_]
-    mov rsi, r12
-    call _cmp_equal_memory
-
-    test rax, rax
-    je .append_pwd
-    jmp .check_clear
-
-    .append_pwd:
-    	call .append_pwd_and_end_char
 
     .check_clear:
     mov rax, r13
@@ -582,12 +549,6 @@ _check_and_return_command_if_bic:
 		call _append_string_mystring
 		jmp .append_end_chars
 
-	.append_pwd_and_end_char:
-		lea rsi, [rel pwd_]
-		mov rdi, r14
-		call _append_string_mystring
-		jmp .append_end_chars
-
 	.append_history_and_end_char:
 		lea rsi, [rel history_]
 		mov rdi, r14
@@ -617,7 +578,6 @@ _check_and_return_command_if_bic:
 		mov rdi, r14
 		call _append_string_mystring
 		jmp .append_end_chars
-
 
 	.append_end_chars:
         mov rdi, r14
@@ -663,12 +623,6 @@ _check_if_cmd_is_built_in:
 
     mov rax, r12
     lea rdi, [rel cd_]
-    call _strcmp
-    test rax, rax
-    je .built_in
-
-    mov rax, r12
-    lea rdi, [rel pwd_]
     call _strcmp
     test rax, rax
     je .built_in
