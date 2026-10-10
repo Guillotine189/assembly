@@ -188,6 +188,7 @@ extern _initialize_shell_env_array
 
 extern _get_and_set_mem_for_history_array
 extern _read_input
+extern _init_read_input
 extern cursor_idx
 
 extern _generate_tokens
@@ -234,6 +235,7 @@ _init:
     call _get_and_set_memory_for_input_buffer
     call _set_last_command_exit_code
     call _initialize_shell_env_array
+    call _init_read_input
     ret
 
 

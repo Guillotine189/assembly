@@ -6,6 +6,7 @@ section .data
     cursor_idx dq 0
     history_command_number dq 0
     tabs_times_pressed dq 0
+    
 
 section .rodata
     
@@ -49,12 +50,13 @@ section .bss
     key_buffer: resb 10
     reusable_buffer_read: resb 4096
 
-    double_tab_string_object_address resq 1
+    double_tab_string_object resb MYSTRING_OBJECT_SIZE
+    double_tab_options resq 1
 
     get_dent_buffer_cap equ 8192
-    dir_fd_getdents: resq 1
-    dir_get_dent_buffer: resb get_dent_buffer_cap
-    dir_get_dent_buffer_len: resq 1
+    dir_fd_getdents resq 1
+    dir_get_dent_buffer resb get_dent_buffer_cap
+    dir_get_dent_buffer_len resq 1
 
     command_latest_restore_buffer resb 4096
     number_buffer resb 32
@@ -116,6 +118,14 @@ extern win_resize_flag
 extern _check_if_cmd_can_auto_complete_to_cmd_in_path
 
 global _read_input
+global _init_read_input
+
+_init_read_input:
+    lea rax, [rel double_tab_string_object]
+    mov qword [rax + MYSTRING_CAPACITY_OFF], 0
+    mov qword [rax + MYSTRING_SIZE_OFF], 0
+    mov qword [rax + MYSTRING_POINTER_OFF], 0
+    ret
 
 ; TODO: handle overflow into next line
 _read_input:
@@ -1043,8 +1053,17 @@ _read_input:
         mov r8, [rel cursor_idx]
         test r8, r8                 ; if cursor at 0th index, dont check
         jz .reduce_tabs_and_return
+
+        ; if tabs pressed is 2, i must have cached data
+        cmp qword [rel tabs_times_pressed], 2
+        je .restore_saved_cache
+
         jmp .start_checking
 
+        .restore_saved_cache:
+            mov r14, [rel double_tab_options]
+            jmp .print_muliple_files
+            
         .reduce_tabs_and_return:
             dec qword [rel tabs_times_pressed]
             jmp .read_key
@@ -1092,14 +1111,28 @@ _read_input:
         mov r13, r9
         mov r14, r10
 
-        sub rsp, MYSTRING_OBJECT_SIZE
-        mov qword [rsp + MYSTRING_CAPACITY_OFF], 1024
-        mov qword [rsp + MYSTRING_SIZE_OFF], 0
-        mov qword [rsp + MYSTRING_POINTER_OFF], 0
-        mov rdi, rsp
+        lea rax, [rel double_tab_string_object]
+        mov rcx, [rax + MYSTRING_CAPACITY_OFF]
+        test rcx, rcx
+        jle .first_time_initialization_string_obj
+        jmp .clear_string_and_continue
+
+        .first_time_initialization_string_obj:
+        mov qword [rax + MYSTRING_CAPACITY_OFF], 1024
+        mov qword [rax + MYSTRING_SIZE_OFF], 0
+        mov qword [rax + MYSTRING_POINTER_OFF], 0
+        mov rdi, rax
         call _constructor_mystring
 
-        mov [rel double_tab_string_object_address], rsp
+        test rax, rax
+        jl .print_error_initialization_double_tab_mystring_read_key
+        jmp .initialization_done
+
+        .clear_string_and_continue:
+        lea rdi, [rel double_tab_string_object]
+        call _mystring_clear
+
+        .initialization_done:
 
 
         mov r8, r12
@@ -1140,7 +1173,7 @@ _read_input:
         mov rdi, [rel input_buffer_address]
         add rdi, r8                 ; rdi is address where the word starts
         mov rsi, r13
-        mov rdx, [rel double_tab_string_object_address]
+        lea rdx, [rel double_tab_string_object]
         call _check_and_return_command_if_bic
         test rax, rax
         jl .restore_reg_check_if_in_path          ; not a part of any built in command
@@ -1155,7 +1188,7 @@ _read_input:
         mov rdi, [rel input_buffer_address]
         add rdi, r8                 ; rdi is address where the word starts
         mov rsi, r13
-        mov rdx, rsp
+        lea rdx, [rel double_tab_string_object]
 
         push r8
         push r10
@@ -1360,7 +1393,7 @@ _read_input:
             lea rsi, [rel new_line]
             call _string_copy_including_null
 
-            mov rdi, [rel double_tab_string_object_address]
+            lea rdi, [rel double_tab_string_object]
             lea rsi, [rel reusable_buffer_read]
             call _append_string_mystring
 
@@ -1424,7 +1457,7 @@ _read_input:
             call _string_copy_including_null
 
 
-            mov rdi, [rel double_tab_string_object_address]
+            lea rdi, [rel double_tab_string_object]
             lea rsi, [rel reusable_buffer_read]
             call _append_string_mystring
 
@@ -1455,7 +1488,7 @@ _read_input:
         ; if it changed the string inside, it means it found a common thing
         ; so send it to auto complete
         
-        mov rdi, rsp                ; address of string object
+        lea rdi, [rel double_tab_string_object]          ; address of string object
         mov rsi, r13                ; already common words in all of them
         call _find_common
 
@@ -1472,9 +1505,17 @@ _read_input:
         .print_muliple_files:
 
         cmp [rel tabs_times_pressed], 2   ; if tabs not pressed atleast twice, return
-        jl .cleanup_and_return
+        jl .cache_and_continue
+        jmp .ask_for_print
 
-        mov qword [rel tabs_times_pressed], 2
+
+        .cache_and_continue:
+            mov qword [rel double_tab_options], r14
+            jmp .read_key
+
+
+        .ask_for_print:
+        mov qword [rel tabs_times_pressed], 1
 
         ; r14 has the number of possiblities
         ; if r14 >= 100, ask user if they want to print everything
@@ -1535,16 +1576,17 @@ _read_input:
         jmp .print_and_restore_prefix_and_saved_command
 
         .print_options:
+
         ; move the cursor to new line
         mov rax, 1
         mov rdi, 1
         lea rsi, [rel new_line]
         call _print
 
-        mov rdi, [rel double_tab_string_object_address]
-        mov rdi, [rdi + MYSTRING_POINTER_OFF]
+        lea rdi, [rel double_tab_string_object]
         call _print_proper_layout           ; this will add a new line
 
+        mov qword [rel tabs_times_pressed], 1
 
         .print_and_restore_prefix_and_saved_command:
         ;restore the cursor back
@@ -1583,7 +1625,7 @@ _read_input:
 
         ; move the data after the cursor ahead first
 
-        mov rdi, [rel double_tab_string_object_address]
+        lea rdi, [rel double_tab_string_object]
         mov r8, [rdi + MYSTRING_SIZE_OFF]
         dec r8                     ; string has a \n at the end bec i constructed string that way
         ; lenght of the full complete word in  : r8
@@ -1619,7 +1661,7 @@ _read_input:
 
         .print_auto_complete:
 
-        mov rdi, [rel double_tab_string_object_address]
+        lea rdi, [rel double_tab_string_object]
         ; len is just word + 9spaces
         mov rax, [rdi + MYSTRING_SIZE_OFF]          ; 8 is the offset for size of string
         dec rax                     ; string has a \n at the end
@@ -1630,7 +1672,7 @@ _read_input:
         mov rdi, [rel input_buffer_address]
         add rdi, [rel cursor_idx]
 
-        mov rsi, [rel double_tab_string_object_address]
+        lea rsi, [rel double_tab_string_object]
         mov rsi, [rsi + MYSTRING_POINTER_OFF]
         add rsi, r13
 
@@ -1676,15 +1718,14 @@ _read_input:
 
 
         .cleanup_and_return:
-        ; destruct the string
-        mov rdi, [rel double_tab_string_object_address]
-        call _destructor_mystring
-        add rsp, 24
-        mov qword [rel double_tab_string_object_address], 0
-
+        ; No more destruction of string, cache it
+        ; mov rdi, [rel double_tab_string_object_address]
+        ; call _destructor_mystring
         jmp .read_key
 
-
+        .print_error_initialization_double_tab_mystring_read_key:
+        ; TODO: Print error
+        jmp .read_key
 
 
 

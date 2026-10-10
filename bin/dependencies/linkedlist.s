@@ -440,6 +440,11 @@ _find_mystring_obj_linked_list:
 		test r14, r14
 		je .return_failure 			; if end of ll reached, no matches found
 
+		mov rdi, [r14 + MYSTRING_SIZE_OFF]
+		mov rsi, [r13 + MYSTRING_SIZE_OFF]
+		cmp r14, r13
+		jne .check_next_node
+
 		lea rdi, [r14 + NODE_ELEMENT_ADD_OFF] 		; rdi: the string object
 		mov rdi, [rdi + MYSTRING_POINTER_OFF]
 		mov rsi, [r13 + MYSTRING_POINTER_OFF]
@@ -448,6 +453,7 @@ _find_mystring_obj_linked_list:
 		test rax, rax
 		je .return_success
 
+	.check_next_node:
 		mov r14, [r14 + NODE_NEXT_NODE_ADD_OFF]   ; curr = curr->next
 		jmp .loop_linked_list
 

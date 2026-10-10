@@ -7,6 +7,7 @@ section .data
 	columns_per_line dq 0
 	len_each_col dq 0
 
+
 section .rodata
 	new_line db 0x0a, 0
 
@@ -18,6 +19,7 @@ section .bss
     output_string_object_address resq 1
 
     reusable_buffer_proper_print resb 4096
+    og_string_clone_object resb MYSTRING_OBJECT_SIZE
 
 
 section .text
@@ -38,7 +40,7 @@ global _find_common
 
 
 
-; rdi: string address
+; rdi: mystring object address
 ; "word\nword\nNULLBYTE"
 
 _print_proper_layout:
@@ -51,7 +53,26 @@ _print_proper_layout:
 	push r14
 	push r15
 
-	mov r12, rdi
+	mov r12, rdi 						; r12: address of og mystring object
+
+
+	MYSTRING_OBJECT_SIZE 		equ 24
+	MYSTRING_CAPACITY_OFF 		equ 0
+	MYSTRING_SIZE_OFF     		equ 8
+	MYSTRING_POINTER_OFF 		equ 16
+
+	; create a new mystring object
+	
+
+	lea rdi, [rel og_string_clone_object]
+	mov rsi, r12
+	call _copy_constructor_mystring
+
+	test rax, rax
+	jl .error_creating_1st_string
+
+	lea r12, [rel og_string_clone_object]
+	mov r12, [r12 + MYSTRING_POINTER_OFF]
 
 	mov qword [rel longest_word_len], 0
 	mov qword [rel columns_per_line], 0
@@ -66,7 +87,7 @@ _print_proper_layout:
 	; if wind width < longest name, column = 1
 
 
-	; r12 has the address of string
+	; r12 has the address of mystring cloned
 
 	xor r8, r8 					; offset for start of word
 	xor r9, r9 					; offset for end of word
@@ -241,6 +262,10 @@ _print_proper_layout:
     call _destructor_mystring
     add rsp, 24
 
+   	lea rdi, [rel og_string_clone_object]
+   	call _destructor_mystring
+
+    .error_creating_1st_string:
 	.return:
 		pop r15
 		pop r14
