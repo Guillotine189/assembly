@@ -1066,12 +1066,35 @@ _parse_path_and_check_if_partial_cmd_matches_cmd_in_path:
 			; try add to hashset the mystring
 
 			.try_to_add_to_hashset:
+
+			; IDEA: too many malloc calls
+			; Make function to check if a string is inside hashset, 
+			; right now it's creating a mystring_obj for every possilbe option
+			; only create a mystring object if it's not inside the hashset
+	
+			; create mystring object inside stack that points to string inside reusable buffer
+			; check if it exists
+			; if not: create a mystring_object and move it into the hashset
+	
+
+			; check if string is inside hashset
+
+			lea rdi, [rsp + 48] 		; address of hashset
+			lea rsi, [r9 + 19] 			; address of string
+			push r9
+			call _check_string_inside_hashset
+			pop r9
+
+			.inside:
+			test rax, rax
+			jz .move_to_next_segment  	; if string doesn't exist
+
 			push r9
 			lea rdi, [r9 + 19] 	; address of file name
 			call _strlen
 			pop r9
 
-			; construct a mystring object
+			; construct a mystring object on stack
 			sub rsp, MYSTRING_OBJECT_SIZE
 			mov qword [rsp + MYSTRING_CAPACITY_OFF], rax
 			mov rdi, rsp
@@ -1092,7 +1115,7 @@ _parse_path_and_check_if_partial_cmd_matches_cmd_in_path:
 			lea rdi, [rsp + MYSTRING_OBJECT_SIZE + 48] ; address of hashset_object
 			mov rsi, rsp 		; address of mystring object
 			push r9
-			call _move_to_hashset_mystring
+			call _move_to_hashset_mystring   ; this also checks if the string is there or not
 			pop r9
 
 			test rax, rax 				; 0: added, 1: already there, -ve: error

@@ -43,7 +43,8 @@ global _add_to_linked_list
 
 global _add_to_linked_list_mystring
 global _move_to_linked_list_mystring
-global _find_mystring_linked_list
+global _find_mystring_obj_linked_list
+global _find_string_linked_list
 global _destructor_linked_list_mystring
 
 ; rdi: address of non-constructed Linked list object
@@ -367,7 +368,7 @@ _move_to_linked_list_mystring:
 	mov rcx, [r12 + LINKED_LIST_END_NODE_ADD_OFF] 	; rcx: old tail
 	mov [rcx + NODE_NEXT_NODE_ADD_OFF], r14   		; old_last_node->next = new_node
 	mov [r12 + LINKED_LIST_END_NODE_ADD_OFF], r14 	; update the last node address in LL
-	
+
 	inc qword [r12 + LINKED_LIST_TOTAL_ELE_OFF]
 	jmp .return_success
 
@@ -419,7 +420,7 @@ _move_to_linked_list_mystring:
 ; rdi: address of linked list object
 ; rsi: address of mystring object
 ; when linked list contains mystring object, use this specifically
-_find_mystring_linked_list:
+_find_mystring_obj_linked_list:
 	push r12
 	push r13
 	push r14
@@ -463,6 +464,55 @@ _find_mystring_linked_list:
 		pop r12
 		xor rax, rax
 		ret
+
+; rdi: address of linked list object
+; rsi: address of string
+; when linked list contains mystring object, use this specifically
+_find_string_linked_list:
+	push r12
+	push r13
+	push r14
+
+	test rdi, rdi
+	je .return_failure    ; invalid address
+
+	test rsi, rsi
+	je .return_failure    ; invalid address
+
+	mov r12, rdi 			; r12: the address of linked list object
+	mov r13, rsi 			; r13: the address of string
+
+	mov r14, [r12 + LINKED_LIST_HEAD_NODE_ADD_OFF]
+
+	.loop_linked_list:
+		test r14, r14
+		je .return_failure 			; if end of ll reached, no matches found
+
+		lea rdi, [r14 + NODE_ELEMENT_ADD_OFF] 		; rdi: the string object
+		mov rdi, [rdi + MYSTRING_POINTER_OFF]
+		mov rsi, r13
+		call strcmp
+
+		test rax, rax
+		je .return_success
+
+		mov r14, [r14 + NODE_NEXT_NODE_ADD_OFF]   ; curr = curr->next
+		jmp .loop_linked_list
+
+	.return_failure:
+		pop r14
+		pop r13
+		pop r12
+		mov rax, -1
+		ret
+
+	.return_success:
+		pop r14
+		pop r13
+		pop r12
+		xor rax, rax
+		ret
+
 
 
 ; rdi : address string 1

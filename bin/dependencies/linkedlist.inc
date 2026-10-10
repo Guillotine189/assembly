@@ -2,10 +2,15 @@
 %define _MYLINKEDLIST
 
 
-extern _default_constructor_lninked_list
-extern _default_destructor_lninked_list
+extern _default_constructor_linked_list
+extern _default_destructor_linked_list
 extern _add_to_linked_list
+
+extern _add_to_linked_list_mystring
 extern _move_to_linked_list_mystring
+extern _find_mystring_obj_linked_list
+extern _find_string_linked_list
+extern _destructor_linked_list_mystring
 
 LINKED_LIST_OBJECT_SIZE 		equ 32
 LINKED_LIST_TOTAL_ELE_OFF 		equ 0

@@ -1,5 +1,6 @@
-5) Add auto complete for installed command name only (like ls, grep etc).⏳
-   fix: duplicates removal
+5) Add auto complete for installed command name only (like ls, grep etc).✅
+   fix: duplicates removal ✅
+   TOO MANY MALLOC CALLS 😭, save output from 1st tab, so you won't have to do everything again in 2nd
 6) visual fix, when command overflows into next line.
 
 IDEA: instead of writing destructor for each type in hashset, ll

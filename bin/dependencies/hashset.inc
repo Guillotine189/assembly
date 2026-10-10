@@ -13,5 +13,7 @@ extern _default_destructor_hashset
 extern _destructor_hashset_mystring
 extern _add_to_hashset_mystring
 extern _move_to_hashset_mystring
+extern _check_mystring_inside_hashset
+extern _check_string_inside_hashset
 
 %endif
