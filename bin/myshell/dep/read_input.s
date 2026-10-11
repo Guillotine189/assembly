@@ -1,9 +1,9 @@
 %include "./dep/constants.inc"
 %include "../dependencies/mystring.inc"
 
-global cursor_idx
+
 section .data
-    cursor_idx dq 0
+    cursor_idx_input_buffer dq 0
     history_command_number dq 0
     tabs_times_pressed dq 0
         
@@ -150,14 +150,14 @@ _read_input:
     call _print
 
     mov rax, [rel filled_size_input_buffer_len]
-    mov [rel cursor_idx], rax
+    mov [rel cursor_idx_input_buffer], rax
     jmp .saved_start
 
     .fresh_sart:
     mov qword [rel filled_size_input_buffer_len], 0
     mov qword [rel history_command_number], 0        ; 0 for current, 1 for older
     mov qword [rel command_latest_restore_buffer], 0
-    mov qword [rel cursor_idx], 0
+    mov qword [rel cursor_idx_input_buffer], 0
     
     .saved_start:
     mov qword [rel input_interrupted], 0
@@ -211,69 +211,13 @@ _read_input:
             jmp .read_key
 
 
-        ; it will redraw the input buffer onto screen, the cursor will be wherever the cursor_idx_is_at
+        ; it will redraw the input buffer onto screen, the cursor will be wherever the cursor_idx_input_buffer_is_at
         .redraw:
-            mov r8, [rel cursor_idx]
-            add r8, [rel prefix_line_len]      ; total offset for cursor from start
+            push r12
 
-            movzx rdi, word [rel win_size]      ; total rows / length
-            movzx rsi, word [rel win_size + 2]  ; total cols / width
-
-            ; target row = cursor_idx / terminal_width
-            xor rdx, rdx
-
-            mov rax, r8
-            div rsi
-            ; rax: idx/width -> row number, rdx: idx%width -> col number
-
-            mov r12, rax            ; r12: row number for cursor after printing
-            mov r13, rdx            ; r13: col number for cursor after printing
-
-            ; move cursor to just after the prefix line, and print everything
-            mov rcx, [rel cursor_y_idx]             ; current cursor y idx
-
-            .loop_move_cursor_up:
-            test rcx, rcx
-            je .cursor_at_y0_idx
-
-            mov rax, 1
-            mov rdi, 1
-            lea rsi, [rel move_cur_up]
-            mov rdx, 3
-            syscall
-
-            dec rcx
-            jmp .loop_move_cursor_up
-
-            .cursor_at_y0_idx:
-            ; move the cursor to just after prefix line x idx
-
-            mov rax, [rel cursor_idx]
-            lea rdi, [rel number_buffer]
-            call _itoa
-            ; rax: length of number
-
-            mov rcx, [rel reusable_buffer_read]
-            mov byte [rcx], 27                  ; "27"
-            mov byte [rcx + 1], '['             ; "27["
-
-            lea rdi, [rcx + 2]
-            lea rsi, [rel number_buffer]
-            mov rcx, rax
-            rep movsb                           ; "27[7"
-
-            mov byte [rdi], 'D'
-            inc rdi
-            mov byte [rdi], 0                   ; "27[7DNULL", move cursor 7 spcaes to left
-
-            lea rcx, [rel reusable_buffer_read]
-            sub rdi, rcx                ; rdi: len of ansi char output
-
-            mov rdx, rdi                    ; len of ansi char seq
-            mov rax, 1                      
-            mov rdi, 1
-            lea rsi, [rel reusable_buffer_read]
-            syscall
+            mov r12, [rel cursor_idx_input_buffer]               ; save the cursor idx after redraw
+            mov qword [rel cursor_idx_input_buffer], 0       ; move the cursor to starting
+            call .update_cursor_position
 
         ; now the cursor is just after prefix line
 
@@ -282,6 +226,18 @@ _read_input:
             mov rsi, [rel input_buffer_address]
             call _print
 
+            ; after print the cursor has moved, but the coordinates stored are not correct
+
+            mov rax, [rel prefix_line_len]
+            add rax, [rel filled_size_input_buffer_len]
+
+            movzx rsi, word [rel win_size + 2]  ; terminal width
+            xor rdx, rdx
+            div rsi
+
+            mov [rel cursor_x_idx], rax         ; row
+            mov [rel cursor_y_idx], rdx         ; column
+
         ; clear everything after cursor, including cursor
             mov rax, 1
             mov rdi, 1
@@ -289,143 +245,29 @@ _read_input:
             mov rdx, 4
             syscall
 
-        ; ; then move cursor to the original row and col
+            mov [rel cursor_idx_input_buffer], r12
+            call .update_cursor_position
 
-        ;     mov r8, [rel filled_size_input_buffer_len]
-        ;     add r8, [rel prefix_line_len]      ; total offset for cursor from start
-
-        ;     movzx rdi, word [rel win_size]      ; total rows / length
-        ;     movzx rsi, word [rel win_size + 2]  ; total cols / width
-
-        ;     ; target row = cursor_idx / terminal_width
-        ;     xor rdx, rdx
-
-        ;     mov rax, r8
-        ;     div rsi
-        ;     ; rax: idx/width -> row number, rdx: idx%width -> col number
-
-        ;     mov r14, rax            ; r14: new row number
-        ;     mov r15, rdx            ; r15: new col number
-
-        ;     ; r14: new row number,  r12: og row number
-        ;     ; r15: new col num,     r13: og col number
-
-        ;     cmp r14, r12
-        ;     je .change_col
-
-        ;     ; else i have to change the row number
-        ;     mov rax, r14
-        ;     sub rax, r12
-        ;     lea rdi, [rel number_buffer]
-        ;     call _itoa
-        ;     ; rax: length of number
-
-        ;     mov rcx, [rel reusable_buffer_read]
-        ;     mov byte [rcx], 27                  ; "27"
-        ;     mov byte [rcx + 1], '['             ; "27["
-
-        ;     lea rdi, [rcx + 2]
-        ;     lea rsi, [rel number_buffer]
-        ;     mov rcx, rax
-        ;     rep movsb                           ; "27[7"
-
-        ;     mov byte [rdi], 'A'                 ; A-> move cursor 1 row up
-        ;     inc rdi
-        ;     mov byte [rdi], 0                   ; "27[7ANULL", move cursor 7 rows up
-
-        ;     lea rcx, [rel reusable_buffer_read]
-        ;     sub rdi, rcx                ; rdi: len of ansi char output
-
-        ;     mov rdx, rdi                    ; len of ansi char seq
-        ;     mov rax, 1                      
-        ;     mov rdi, 1
-        ;     lea rsi, [rel reusable_buffer_read]
-        ;     syscall
-
-        ;     .change_col:
-        ;     cmp r15, r13
-        ;     je .done_redraw
-
-        ;     ; else i have to change the row number
-        ;     mov rax, r15
-        ;     sub rax, r13
-
-        ;     test rax, rax
-        ;     jl .move_cursor_to_right
-
-        ;     ; else move cursor to left
-        ;     lea rdi, [rel number_buffer]
-        ;     call _itoa
-        ;     ; rax: length of number
-
-        ;     mov rcx, [rel reusable_buffer_read]
-        ;     mov byte [rcx], 27                  ; "27"
-        ;     mov byte [rcx + 1], '['             ; "27["
-
-        ;     lea rdi, [rcx + 2]
-        ;     lea rsi, [rel number_buffer]
-        ;     mov rcx, rax
-        ;     rep movsb                           ; "27[7"
-
-        ;     mov byte [rdi], 'D'                 ; D-> move cursor left 1 col
-        ;     inc rdi
-        ;     mov byte [rdi], 0                   ; "27[7DNULL", move cursor 7 col left
-
-        ;     lea rcx, [rel reusable_buffer_read]
-        ;     sub rdi, rcx                ; rdi: len of ansi char output
-
-        ;     mov rdx, rdi                    ; len of ansi char seq
-        ;     mov rax, 1                      
-        ;     mov rdi, 1
-        ;     lea rsi, [rel reusable_buffer_read]
-        ;     syscall
-        ;     jmp .done_redraw
-
-        ;     .move_cursor_to_right:
-        ;     neg rax
-        ;     lea rdi, [rel number_buffer]
-        ;     call _itoa
-        ;     ; rax: length of number
-
-        ;     mov rcx, [rel reusable_buffer_read]
-        ;     mov byte [rcx], 27                  ; "27"
-        ;     mov byte [rcx + 1], '['             ; "27["
-
-        ;     lea rdi, [rcx + 2]
-        ;     lea rsi, [rel number_buffer]
-        ;     mov rcx, rax
-        ;     rep movsb                           ; "27[7"
-
-        ;     mov byte [rdi], 'C'                 ; C-> move cursor 1 col right
-        ;     inc rdi
-        ;     mov byte [rdi], 0                   ; "27[7CNULL", move cursor 7 col right
-
-        ;     lea rcx, [rel reusable_buffer_read]
-        ;     sub rdi, rcx                ; rdi: len of ansi char output
-
-        ;     mov rdx, rdi                    ; len of ansi char seq
-        ;     mov rax, 1                      
-        ;     mov rdi, 1
-        ;     lea rsi, [rel reusable_buffer_read]
-        ;     syscall
-
-        ;     .done_redraw:
-        ;     mov [rel cursor_x_idx], r12
-        ;     mov [rel cursor_y_idx], r13
+            pop r12
             ret
 
 
         .update_cursor_position:
+            push r12
+            push r13
+            push r14
+            push r15
+
             mov r12, [rel cursor_x_idx]            ; r12: old row number
             mov r13, [rel cursor_y_idx]            ; r13: old col number
 
-            mov r8, [rel cursor_idx]
+            mov r8, [rel cursor_idx_input_buffer]
             add r8, [rel prefix_line_len]      ; total offset for cursor from start
 
             movzx rdi, word [rel win_size]      ; total rows / length
             movzx rsi, word [rel win_size + 2]  ; total cols / width
 
-            ; target row = cursor_idx / terminal_width
+            ; target row = cursor_idx_input_buffer / terminal_width
             xor rdx, rdx
 
             mov rax, r8
@@ -438,17 +280,24 @@ _read_input:
             cmp r14, r12
             je .update_col2
 
-            ; else i have to change the row number
             mov rax, r14
             sub rax, r12
+
+            test rax, rax
+            jg .move_cursor_down
+
+            ; else i have to move cursor up
+
+            neg rax
             lea rdi, [rel number_buffer]
             call _itoa
             ; rax: length of number
 
-            mov rcx, [rel reusable_buffer_read]
+            lea rcx, [rel reusable_buffer_read]
             mov byte [rcx], 27                  ; "27"
             mov byte [rcx + 1], '['             ; "27["
 
+            cld
             lea rdi, [rcx + 2]
             lea rsi, [rel number_buffer]
             mov rcx, rax
@@ -457,6 +306,40 @@ _read_input:
             mov byte [rdi], 'A'                 ; A-> move cursor 1 row up
             inc rdi
             mov byte [rdi], 0                   ; "27[7ANULL", move cursor 7 rows up
+
+            lea rcx, [rel reusable_buffer_read]
+            sub rdi, rcx                ; rdi: len of ansi char output
+
+            mov rdx, rdi                    ; len of ansi char seq
+            mov rax, 1                      
+            mov rdi, 1
+            lea rsi, [rel reusable_buffer_read]
+            syscall
+
+            jmp .update_col2
+
+            .move_cursor_down:
+
+            ; else i have to change the row number
+            mov rax, r14
+            sub rax, r12
+            lea rdi, [rel number_buffer]
+            call _itoa
+            ; rax: length of number
+
+            lea rcx, [rel reusable_buffer_read]
+            mov byte [rcx], 27                  ; "27"
+            mov byte [rcx + 1], '['             ; "27["
+
+            cld
+            lea rdi, [rcx + 2]
+            lea rsi, [rel number_buffer]
+            mov rcx, rax
+            rep movsb                           ; "27[7"
+
+            mov byte [rdi], 'B'                 ; B-> move cursor 1 row down
+            inc rdi
+            mov byte [rdi], 0                   ; "27[7BNULL", move cursor 7 rows down
 
             lea rcx, [rel reusable_buffer_read]
             sub rdi, rcx                ; rdi: len of ansi char output
@@ -476,17 +359,19 @@ _read_input:
             sub rax, r13
 
             test rax, rax
-            jl .move_cursor_to_right2
+            jg .move_cursor_to_right2
 
             ; else move cursor to left
+            neg rax
             lea rdi, [rel number_buffer]
             call _itoa
             ; rax: length of number
 
-            mov rcx, [rel reusable_buffer_read]
+            lea rcx, [rel reusable_buffer_read]
             mov byte [rcx], 27                  ; "27"
             mov byte [rcx + 1], '['             ; "27["
 
+            cld
             lea rdi, [rcx + 2]
             lea rsi, [rel number_buffer]
             mov rcx, rax
@@ -507,15 +392,16 @@ _read_input:
             jmp .done_updating
 
             .move_cursor_to_right2:
-            neg rax
+            
             lea rdi, [rel number_buffer]
             call _itoa
             ; rax: length of number
 
-            mov rcx, [rel reusable_buffer_read]
+            lea rcx, [rel reusable_buffer_read]
             mov byte [rcx], 27                  ; "27"
             mov byte [rcx + 1], '['             ; "27["
 
+            cld
             lea rdi, [rcx + 2]
             lea rsi, [rel number_buffer]
             mov rcx, rax
@@ -537,6 +423,11 @@ _read_input:
             .done_updating:
             mov [rel cursor_x_idx], r14
             mov [rel cursor_y_idx], r15
+
+            pop r15
+            pop r14
+            pop r13
+            pop r12
             ret
 
 
@@ -545,7 +436,7 @@ _read_input:
         add rax, [rel filled_size_input_buffer_len]   ; old length, so now rax points to 
         dec rax                 ; address of the right most char in input_buffer
         mov rcx, [rel input_buffer_address]
-        add rcx, [rel cursor_idx]   ; address of cursor inside input buffer
+        add rcx, [rel cursor_idx_input_buffer]   ; address of cursor inside input buffer
 
         cmp rcx, rax                ; comparing addresses
         jg .done_shifting_right
@@ -562,7 +453,7 @@ _read_input:
 
         .done_shifting_right:
         inc qword [rel filled_size_input_buffer_len]
-        inc qword [rel cursor_idx]
+        inc qword [rel cursor_idx_input_buffer]
 
         ; insert new character into input_buffer
         mov al, [rel key_buffer]
@@ -578,7 +469,7 @@ _read_input:
         jne .complex
 
         inc qword [rel filled_size_input_buffer_len]
-        inc qword [rel cursor_idx]
+        inc qword [rel cursor_idx_input_buffer]
         mov al, [rel key_buffer]
         mov rcx, [rel input_buffer_address]
         mov [rcx], al
@@ -609,7 +500,7 @@ _read_input:
         add rax, [rel filled_size_input_buffer_len]   ; old length, so now rax points to 
         dec rax                 ; address of the right most char in input_buffer
         mov rcx, [rel input_buffer_address]
-        add rcx, [rel cursor_idx]   ; address of cursor
+        add rcx, [rel cursor_idx_input_buffer]   ; address of cursor
 
         cmp rcx, rax                ; comparing addresses
         jg .done_copying
@@ -661,7 +552,7 @@ _read_input:
             jmp .move_cursor_left
 
         .done:
-        inc [rel cursor_idx]
+        inc [rel cursor_idx_input_buffer]
 
         jmp .read_key
 
@@ -716,7 +607,7 @@ _read_input:
             jmp .read_key
 
         .print_latest_command:
-            mov r8, [rel cursor_idx]
+            mov r8, [rel cursor_idx_input_buffer]
 
             .move_home11:
             test r8, r8
@@ -729,7 +620,7 @@ _read_input:
             syscall
 
             dec r8
-            dec qword [rel cursor_idx]
+            dec qword [rel cursor_idx_input_buffer]
             jmp .move_home11
             .home_done11:
 
@@ -751,7 +642,7 @@ _read_input:
             rep movsb
         
             mov [rel filled_size_input_buffer_len], rax
-            mov [rel cursor_idx], rax
+            mov [rel cursor_idx_input_buffer], rax
  
             mov rdi, 1
             lea rsi, [rel command_latest_restore_buffer]
@@ -787,7 +678,7 @@ _read_input:
         .enough_memory1:
 
         ; move cursor to home
-        mov rax, [rel cursor_idx] 
+        mov rax, [rel cursor_idx_input_buffer] 
         test rax, rax
         jz .home_done1            ; if already at home do nothing
         mov r8, rax
@@ -826,7 +717,7 @@ _read_input:
         call _print
 
         mov [rel filled_size_input_buffer_len], r13
-        mov [rel cursor_idx], r13
+        mov [rel cursor_idx_input_buffer], r13
 
         jmp .read_key
 
@@ -834,7 +725,7 @@ _read_input:
         .no_more_new_commands:   ; i am accessing the latest byte
             mov qword [rel history_command_number], 0
             ; move cursor to home
-            mov rax, [rel cursor_idx]
+            mov rax, [rel cursor_idx_input_buffer]
             test rax, rax
             jz .home_done1            ; if already at home do nothing
             mov r8, rax
@@ -861,7 +752,7 @@ _read_input:
             syscall
 
             mov qword [rel filled_size_input_buffer_len], 0
-            mov qword [rel cursor_idx], 0
+            mov qword [rel cursor_idx_input_buffer], 0
 
             jmp .read_key
 
@@ -909,7 +800,7 @@ _read_input:
         .enough_memory:
 
         ; move cursor to home
-        mov rax, [rel cursor_idx] 
+        mov rax, [rel cursor_idx_input_buffer] 
         test rax, rax
         jz .home_done1            ; if already at home do nothing
         mov rdi, rax
@@ -950,7 +841,7 @@ _read_input:
         call _print
 
         mov [rel filled_size_input_buffer_len], r13
-        mov [rel cursor_idx], r13
+        mov [rel cursor_idx_input_buffer], r13
 
         jmp .read_key
 
@@ -960,7 +851,7 @@ _read_input:
             jmp .read_key
 
     .cursor_home:
-        mov rax, [rel cursor_idx] 
+        mov rax, [rel cursor_idx_input_buffer] 
         test rax, rax
         jz .read_key            ; if already at home do nothing
 
@@ -983,13 +874,13 @@ _read_input:
         jmp .move_home
 
         .home_done:
-        mov qword [rel cursor_idx], 0
+        mov qword [rel cursor_idx_input_buffer], 0
         jmp .read_key
 
 
     .cursor_end:
         mov rax, [rel filled_size_input_buffer_len]
-        sub rax, [rel cursor_idx]
+        sub rax, [rel cursor_idx_input_buffer]
 
         ; rax has the number of positions to move right
 
@@ -1010,18 +901,18 @@ _read_input:
 
         .end_done:
         mov rax, [rel filled_size_input_buffer_len]
-        mov [rel cursor_idx], rax
+        mov [rel cursor_idx_input_buffer], rax
         jmp .read_key
 
 
     .cursor_left:
-        mov rax, [rel cursor_idx]
+        mov rax, [rel cursor_idx_input_buffer]
 
         test rax, rax
         jz .read_key
 
         dec rax
-        mov [rel cursor_idx], rax
+        mov [rel cursor_idx_input_buffer], rax
 
         mov rax, 1
         mov rdi, 1
@@ -1034,12 +925,12 @@ _read_input:
 
     .cursor_right:
         
-        mov rax, [rel cursor_idx]
+        mov rax, [rel cursor_idx_input_buffer]
         cmp rax, [rel filled_size_input_buffer_len]
         jge .dont_move_forward
 
         inc rax
-        mov [rel cursor_idx], rax
+        mov [rel cursor_idx_input_buffer], rax
 
         mov rax, 1
         mov rdi, 1
@@ -1055,7 +946,7 @@ _read_input:
 
     ; IMP: whichever index my cursor is at, i have to remove the prev element
     .handle_backspace:
-        mov rax, [rel cursor_idx]
+        mov rax, [rel cursor_idx_input_buffer]
 
         test rax, rax               ; if i am at the very beginning dont, do anything
         jz .read_key
@@ -1063,7 +954,7 @@ _read_input:
 
         ; else copy memory from cursor till end to left
         mov rax, [rel input_buffer_address]
-        add rax, [rel cursor_idx]           ; now i am at cursor index
+        add rax, [rel cursor_idx_input_buffer]           ; now i am at cursor index
         dec rax                             ; at the index bfore cursor
 
         mov rcx, [rel input_buffer_address]
@@ -1094,15 +985,15 @@ _read_input:
         lea rsi, [rel move_cur_left]
         mov rdx, 3
         syscall
-        dec qword [rel cursor_idx]              ; cursor at correct addess
+        dec qword [rel cursor_idx_input_buffer]              ; cursor at correct addess
 
         mov rax, [rel filled_size_input_buffer_len]
-        sub rax, [rel cursor_idx]
+        sub rax, [rel cursor_idx_input_buffer]
         push rax
 
         mov rdi, 1
         mov rsi, [rel input_buffer_address]
-        add rsi, [rel cursor_idx]
+        add rsi, [rel cursor_idx_input_buffer]
         call _print                         ; cursor now at the end
 
         ; first remove old data, that was after this
@@ -1194,7 +1085,7 @@ _read_input:
         call _print
 
         mov rax, [rel filled_size_input_buffer_len]
-        mov [rel cursor_idx], rax
+        mov [rel cursor_idx_input_buffer], rax
         jmp .read_key
 
     .handle_alt_key:
@@ -1239,7 +1130,7 @@ _read_input:
         call _print
 
         mov rax, [rel filled_size_input_buffer_len]
-        mov [rel cursor_idx], rax
+        mov [rel cursor_idx_input_buffer], rax
         jmp .read_key
 
 
@@ -1260,7 +1151,7 @@ _read_input:
         call _print
 
         mov rax, [rel filled_size_input_buffer_len]
-        mov [rel cursor_idx], rax
+        mov [rel cursor_idx_input_buffer], rax
         jmp .read_key
 
     .print_malloc_detailed_info:
@@ -1280,7 +1171,7 @@ _read_input:
         call _print
 
         mov rax, [rel filled_size_input_buffer_len]
-        mov [rel cursor_idx], rax
+        mov [rel cursor_idx_input_buffer], rax
         jmp .read_key
 
     .print_free_list_info:
@@ -1300,11 +1191,11 @@ _read_input:
         call _print
 
         mov rax, [rel filled_size_input_buffer_len]
-        mov [rel cursor_idx], rax
+        mov [rel cursor_idx_input_buffer], rax
         jmp .read_key
         
     .cursor_left_space:
-        mov rax, [rel cursor_idx]
+        mov rax, [rel cursor_idx_input_buffer]
 
         ; Already at beginning
         test rax, rax
@@ -1352,12 +1243,12 @@ _read_input:
 
 
         .set_cursor_left_space:
-            mov [rel cursor_idx], rax
+            mov [rel cursor_idx_input_buffer], rax
             jmp .read_key
 
 
     .cursor_right_space:
-        mov rax, [rel cursor_idx]
+        mov rax, [rel cursor_idx_input_buffer]
         mov r9, [rel input_buffer_address]
 
         ; Already at end
@@ -1407,7 +1298,7 @@ _read_input:
         jmp .skip_spaces_right
 
         .set_cursor_right_space:
-        mov [rel cursor_idx], rax
+        mov [rel cursor_idx_input_buffer], rax
         jmp .read_key
 
 
@@ -1419,7 +1310,7 @@ _read_input:
         jz .reduce_tabs_and_return
 
         ; find the last word written 1 byte before cursor pointer
-        mov r8, [rel cursor_idx]
+        mov r8, [rel cursor_idx_input_buffer]
         test r8, r8                 ; if cursor at 0th index, dont check
         jz .reduce_tabs_and_return
 
@@ -1471,7 +1362,7 @@ _read_input:
         ; r8 is at first byte, r10 is at index at which last '/'  is there, if there is
         
         ; first tcheck if it was empty or not
-        mov rax, [rel cursor_idx]
+        mov rax, [rel cursor_idx_input_buffer]
         
         cmp rax, r8         ; if the len of word is zero
         je .read_key
@@ -1533,7 +1424,7 @@ _read_input:
         .check_bic:
 
         ; auto complete needs this is 13, dont change 
-        mov r13, [rel cursor_idx]
+        mov r13, [rel cursor_idx_input_buffer]
         sub r13, r8                     ; len of half word = cur_idx - start_idx_word
         xor r14, r14                      ; total matches found
 
@@ -1679,7 +1570,7 @@ _read_input:
 
 
         inc r10 
-        ; r10 is now pointing at the "./file", 'f', or at cursor_idx if nothign after / was written
+        ; r10 is now pointing at the "./file", 'f', or at cursor_idx_input_buffer if nothign after / was written
         mov r12, r10
         xor r14, r14            ; hold how manny patterns match
         .loop_get_dents:
@@ -1691,7 +1582,7 @@ _read_input:
         syscall
 
         
-        mov r13, [rel cursor_idx]
+        mov r13, [rel cursor_idx_input_buffer]
         sub r13, r12                    ; r13: this is the lenght of "file" in "./dir/file"
         ; r13 is the length after directory
 
@@ -1967,13 +1858,13 @@ _read_input:
         mov rsi, [rel input_buffer_address]
         call _print
 
-        ; right now the cursor in at end, but the value in cursor_idx is old
+        ; right now the cursor in at end, but the value in cursor_idx_input_buffer is old
 
         mov r8, [rel filled_size_input_buffer_len]     ; index after final_byte
 
         .loop_restore_cur:
 
-            cmp r8, [rel cursor_idx]
+            cmp r8, [rel cursor_idx_input_buffer]
             je .cleanup_and_return
 
             mov rax, 1
@@ -2007,7 +1898,7 @@ _read_input:
         add rax, [rel filled_size_input_buffer_len]   ; old length, so now rax points to 
         dec rax                 ; address of the right most char in input_buffer
         mov rcx, [rel input_buffer_address]
-        add rcx, [rel cursor_idx]   ; address of cursor
+        add rcx, [rel cursor_idx_input_buffer]   ; address of cursor
 
         cmp rcx, rax                ; comparing addresses
         jg .print_auto_complete
@@ -2039,7 +1930,7 @@ _read_input:
 
         ; copy the word in input buffer
         mov rdi, [rel input_buffer_address]
-        add rdi, [rel cursor_idx]
+        add rdi, [rel cursor_idx_input_buffer]
 
         lea rsi, [rel double_tab_string_object]
         mov rsi, [rsi + MYSTRING_POINTER_OFF]
@@ -2051,12 +1942,12 @@ _read_input:
         .before_print:
         ; print the remaining word + bytes ahead
         mov rcx, [rel filled_size_input_buffer_len]
-        mov rdx, [rel cursor_idx]
+        mov rdx, [rel cursor_idx_input_buffer]
         sub rcx, rdx                    ; these many bytes to print
 
         ; save cursor position for after print
-        mov r8, [rel cursor_idx]            ; original cursor position saved
-        add [rel cursor_idx], rax           ; this will be the cursor position in end
+        mov r8, [rel cursor_idx_input_buffer]            ; original cursor position saved
+        add [rel cursor_idx_input_buffer], rax           ; this will be the cursor position in end
         
         ; print the half+completed+word and rest of the remaining data 
         mov rax, rcx
@@ -2069,7 +1960,7 @@ _read_input:
         mov r8, [rel filled_size_input_buffer_len]  ; the cursor will ve at this index
         .loop_final_left:
 
-            cmp r8, [rel cursor_idx]
+            cmp r8, [rel cursor_idx_input_buffer]
             je .final_done
 
             mov rax, 1
@@ -2179,7 +2070,7 @@ _read_input:
         ; move cursor to end / after the last byte
 
         mov rax, [rel filled_size_input_buffer_len]
-        sub rax, [rel cursor_idx]
+        sub rax, [rel cursor_idx_input_buffer]
 
         mov rax, 1
         mov rdi, 1
@@ -2201,11 +2092,6 @@ _read_input:
         ret
 
         .just_spaces_in_input:  
-        
-        mov rax, 1
-        mov rdi, 1
-        lea rsi, [rel new_line]
-        call _print
 
         mov qword [rel filled_size_input_buffer_len], 1
         ret   ; the next part will look at len first, if it's 1, it will skip

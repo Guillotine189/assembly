@@ -86,7 +86,7 @@ section .rodata
     ; like GNOME Terminal, Konsole, Kitty, Alacritty
     myshell_line db "MyShell", 0
     myshell_line_len equ $ - myshell_line
-    ctrl_c_word db "^C", 10, 0
+    ctrl_c_word db "^C", 0
     ctrl_c_word_len equ $ - ctrl_c_word
 
     clear_screen db 0x1b, '[2J'      ; clear the screen
@@ -103,6 +103,8 @@ section .rodata
     enable_cursor_blinking_len equ $ - enable_cursor_blinking
     disable_cursor_blinking db 27, "[?12l", 0
     disable_cursor_blinking_len equ $ - disable_cursor_blinking
+
+    cursor_position_query db 27, '[', '6', 'n'
 
     semicolon db ":" , 0
     dollar_sign_with_space db "$ ", 0
@@ -165,6 +167,9 @@ section .bss
         resw 2      ; 2bytes row size, 2bytes column size
         resw 2      ; 2bytes pixel width unavailable/zero, 2bytes pixel height unavai/zero
 
+    cursor_response resb 32
+    cursor_x_idx    resq 1
+    cursor_y_idx    resq 1
 
 ; variables
 extern error_code
@@ -247,11 +252,11 @@ _init:
 
 
 _signal_do_nothing_handler:
-    mov rax, sys_write
-    mov rdi, 1
-    lea rsi, [rel new_line]
-    mov rdx, 1
-    syscall
+    ; mov rax, sys_write
+    ; mov rdi, 1
+    ; lea rsi, [rel new_line]
+    ; mov rdx, 1
+    ; syscall
     ret
 
 
@@ -601,12 +606,126 @@ _set_prefix_line:
 
 
 _print_prefix_line:
+    ; Query terminal cursor position: ESC [ 6 n
+    mov eax, 1                  ; SYS_write
+    mov edi, 1                  ; stdout
+    lea rsi, [rel cursor_position_query]
+    mov edx, 4
+    syscall
+
+    ; Read response until 'R', maximum 32 bytes
+    lea rsi, [rel cursor_response]
+    xor r12d, r12d
+
+.read_response:
+    cmp r12, 32
+    jae .parse_error
+
+    xor eax, eax                ; SYS_read
+    xor edi, edi                ; stdin
+    lea rsi, [rel cursor_response]
+    add rsi, r12
+    mov edx, 1
+    syscall
+
+    cmp rax, 1
+    jne .parse_error
+
+    lea rax, [rel cursor_response]
+    mov al, [rax + r12]
+    inc r12
+
+    cmp al, 'R'
+    jne .read_response
+
+    ; Validate ESC '['
+    cmp r12, 4
+    jb .parse_error
+    cmp byte [rel cursor_response], 27
+    jne .parse_error
+    cmp byte [rel cursor_response + 1], '['
+    jne .parse_error
+
+    ; Parse row digits until ';'
+    lea rsi, [rel cursor_response + 2]
+    xor ebx, ebx
+
+.parse_row:
+    movzx eax, byte [rsi]
+    cmp al, ';'
+    je .row_done
+
+    cmp al, '0'
+    jb .parse_error
+    cmp al, '9'
+    ja .parse_error
+
+    imul rbx, rbx, 10
+    sub eax, '0'
+    add rbx, rax
+
+    inc rsi
+    jmp .parse_row
+
+.row_done:
+    test rbx, rbx
+    jz .parse_error
+    dec rbx
+    mov [rel cursor_x_idx], rbx
+
+    ; Parse column digits until 'R'
+    inc rsi
+    xor ebx, ebx
+
+.parse_col:
+    movzx eax, byte [rsi]
+    cmp al, 'R'
+    je .col_done
+
+    cmp al, '0'
+    jb .parse_error
+    cmp al, '9'
+    ja .parse_error
+
+    imul rbx, rbx, 10
+    sub eax, '0'
+    add rbx, rax
+
+    inc rsi
+    jmp .parse_col
+
+.col_done:
+    test rbx, rbx
+    jz .parse_error
+    dec rbx
+    mov [rel cursor_y_idx], rbx
+
+    ; If column != 0, print newline
+    cmp qword [rel cursor_y_idx], 0
+    jne .print_newline
+    jmp .print_prefix
+
+.print_newline:
+    mov rax, 1
+    mov rdi, 1
+    lea rsi, [rel new_line]
+    call _print
+    jmp .print_prefix
+
+.parse_error:
+    ; Fallback: print newline if position could not be determined
+    mov rax, 1
+    mov rdi, 1
+    lea rsi, [rel new_line]
+    call _print
+
+.print_prefix:
     mov rax, [rel prefix_line_len]
     mov rdi, 1
     lea rsi, [rel prefix_line]
     call _print
-
     ret
+
 
 _handle_input:
     
@@ -661,7 +780,7 @@ _start:
         cmp qword [rel exit_flag], 1
         je _exit
 
-        cmp [rel input_interrupted], 1
+        cmp qword [rel input_interrupted], 1
         je .loop_main
 
         call _handle_input
