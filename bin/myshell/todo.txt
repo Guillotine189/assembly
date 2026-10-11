@@ -1,6 +1,11 @@
 5) Add auto complete for installed command name only (like ls, grep etc).✅
    fix: duplicates removal ✅
-   TOO MANY MALLOC CALLS 😭, save output from 1st tab, so you won't have to do everything again in 2nd
+   TOO MANY MALLOC CALLS 😭, save output from 1st tab, so you won't have to do everything again in 2nd✅
+
+6) bigger allocation for double tab, messes up the free list merge part of malloc
+   Error: check out why: "mymalloc: Error invalid address provided: mymalloc: Error inv"
+   check lea,mov instruction probably used the other one instad.
+
 6) visual fix, when command overflows into next line.
 
 IDEA: instead of writing destructor for each type in hashset, ll

@@ -99,6 +99,11 @@ section .rodata
     move_cursor_row_1_col_1 db 27, '[H'
     move_cursor_row_1_col_1_len equ $ - move_cursor_row_1_col_1
 
+    enable_cursor_blinking db 27, "[? 12 h", 0
+    enable_cursor_blinking_len equ $ - enable_cursor_blinking
+    disable_cursor_blinking db 27, "[?12l", 0
+    disable_cursor_blinking_len equ $ - disable_cursor_blinking
+
     semicolon db ":" , 0
     dollar_sign_with_space db "$ ", 0
     new_line db 0x0a, 0
@@ -136,6 +141,8 @@ global curr_cwd_len
 global curr_cwd
 global old_cwd
 global old_cwd_len
+global win_size
+global prefix_line_len
 
 section .bss
     reusable_buffer resb 4096
@@ -598,10 +605,8 @@ _print_prefix_line:
     mov rdi, 1
     lea rsi, [rel prefix_line]
     call _print
+
     ret
-
-
-
 
 _handle_input:
     
