@@ -168,21 +168,21 @@ foo=bar env | grep SHELL > output.txt
 
 2: **Reads the command structure** to retrieve the command name, arguments, environment variables, and redirection information.
 
-3.1: **Open src/dst files**: depending on the redirect in/out soecified inside command struct, it opens the file.
+3: **Open src/dst files**: depending on the redirect in/out soecified inside command struct, it opens the file.
 
-3: **Applies I/O redirections** using `dup2()` to redirect standard input or standard output as specified by the command.
+4: **Applies I/O redirections** using `dup2()` to redirect standard input or standard output as specified by the command.
 
-4: **Populates the environment array** with the shell's environment variables.
+5: **Populates the environment array** with the shell's environment variables.
 
-5: **Waits for a signal** from **Parent**
+6: **Waits for a signal** from **Parent**
 
-6: **Checks for built-in commands** to determine whether the command can be handled internally by the shell.
+7: **Checks for built-in commands** to determine whether the command can be handled internally by the shell.
 
-7: Decides and **Searches for the executable** by checking the directories listed in the **`$PATH` environment variable**.
+8: Decides and **Searches for the executable** by checking the directories listed in the **`$PATH` environment variable**.
 
-8: Adds the **`_=`** environment variable to the common/specific environment array, setting its value to the command's executable path (`_=command_path`). (If the user hasn't added any temporary environment variables that need to be injected, I reuse the common envp array constructed in step 1)
+9: Adds the **`_=`** environment variable to the common/specific environment array, setting its value to the command's executable path (`_=command_path`). (If the user hasn't added any temporary environment variables that need to be injected, I reuse the common envp array constructed in step 1)
 
-9: **Executes the command**.
+10: **Executes the command**: use `execve` to executes and handles error.
 
 Final command structs before execution for command :
 
