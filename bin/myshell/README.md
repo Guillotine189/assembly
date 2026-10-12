@@ -151,7 +151,7 @@ foo=bar env | grep SHELL > output.txt
 | `argv_array` | `grep`, `SHELL`,  NULL |
 | `envp_array` | `NULL` |
 | `redirect_in` | `pipe` |
-| `redirect_out` | `default` |
+| `redirect_out` | `output.txt` |
 
 ### 4. Command Execution
 1: Create a common envp array containing all shell environment variables.
@@ -167,6 +167,8 @@ foo=bar env | grep SHELL > output.txt
 1: **Changes the pgid** to pgid of entire group.
 
 2: **Reads the command structure** to retrieve the command name, arguments, environment variables, and redirection information.
+
+3.1: **Open src/dst files**: depending on the redirect in/out soecified inside command struct, it opens the file.
 
 3: **Applies I/O redirections** using `dup2()` to redirect standard input or standard output as specified by the command.
 
@@ -203,7 +205,7 @@ foo=bar env | grep SHELL > output.txt
 | `argv_array` | `grep`, `SHELL`, NULL |
 | `envp_array` | *ALL_SHELL_ENV_VARS*, `_=/bin/grep, NULL` |
 | `redirect_in` | `pipe` |
-| `redirect_out` | `default` |
+| `redirect_out` | `output.txt` |
 
 #### Parent Process
 
