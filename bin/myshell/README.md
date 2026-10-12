@@ -162,23 +162,23 @@ forks.
 
 #### Child Process
 
-0: **Changes the pgid** to pgid of entire group.
+1: **Changes the pgid** to pgid of entire group.
 
-1: **Reads the command structure** to retrieve the command name, arguments, environment variables, and redirection information.
+2: **Reads the command structure** to retrieve the command name, arguments, environment variables, and redirection information.
 
-2: **Applies I/O redirections** using `dup2()` to redirect standard input or standard output as specified by the command.
+3: **Applies I/O redirections** using `dup2()` to redirect standard input or standard output as specified by the command.
 
-3: **Populates the environment array** with the shell's environment variables.
+4: **Populates the environment array** with the shell's environment variables.
 
-4: **Waits for a signal** from **Parent**
+5: **Waits for a signal** from **Parent**
 
-5: **Checks for built-in commands** to determine whether the command can be handled internally by the shell.
+6: **Checks for built-in commands** to determine whether the command can be handled internally by the shell.
 
-6: Decides and **Searches for the executable** by checking the directories listed in the **`$PATH` environment variable**.
+7: Decides and **Searches for the executable** by checking the directories listed in the **`$PATH` environment variable**.
 
-7: Adds the **`_=`** environment variable to the common/specific environment array, setting its value to the command's executable path (`_=command_path`).
+8: Adds the **`_=`** environment variable to the common/specific environment array, setting its value to the command's executable path (`_=command_path`). (If the user hasn't added any temporary environment variables that need to be injected, I reuse the common envp array constructed in step 1)
 
-8: **Executes the command**.
+9: **Executes the command**.
 
 Final command structs before execution for command :
 
@@ -190,7 +190,7 @@ foo=bar env | grep SHELL > output.txt
 |-------------|------------|
 | `commmand_name` | `/bin/env` |
 | `argc_array` | `env, NULL` |
-| `argv_arr` | `foo=bar, `*ALL_SHELL_ENV_VARS*`, _=/bin/env, NULL` |
+| `argv_arr` | `foo=bar`, *ALL_SHELL_ENV_VARS*, ` _=/bin/env, NULL` |
 |`redirect_in` | `default` |
 |`redirect_out` | `pipe` |
 
@@ -199,7 +199,7 @@ foo=bar env | grep SHELL > output.txt
 |-------------|------------|
 | `commmand_name` | `/bin/grep` |
 | `argc_array` | `grep`, NULL |
-| `argv_arr` | *ALL_SHELL_ENV_VARS*`, _=/bin/grep, NULL` |
+| `argv_arr` | *ALL_SHELL_ENV_VARS*, `_=/bin/grep, NULL` |
 |`redirect_in` | `pipe` |
 |`redirect_out` | `default` |
 
@@ -233,15 +233,15 @@ foo=bar env | grep SHELL > output.txt
   **Behavior:**
   Only `output2.txt` receives the command's standard output because the second output redirection overrides the first.
 
--  **Alias.**: Aliases are not supported yet
+-  **Alias**: Aliases are not supported yet
 
--  **Shell variables.**: Shell variables are not supported yet.
+-  **Shell variables**: Shell variables are not supported yet.
 
 -  **Background jobs**: Using `&` to run commands in the background is not supported.
 
 -  **&& operator**: Running a command only if the previous one succeeds is not supported.
 
--  **source** bic command:  this shell doesn't parse Bash syntax like if, fi, etc.
+-  **source bic command**:  this shell doesn't parse Bash syntax like if, fi, etc.
 
 -  **Limited Autocompletion**:  as I can't implement suggestions for options specific to individual commands.
 
