@@ -138,8 +138,8 @@ foo=bar env | grep SHELL > output.txt
 |  Command Struct 1 Var  | Value |
 |-------------|------------|
 | `commmand_name` | `env` |
-| `argc_array` | `env, NULL` |
-| `argv_arr` | `foo=bar, NULL` |
+| `argv_array` | `env, NULL` |
+| `envp_array` | `foo=bar, NULL` |
 |`redirect_in` | `default` |
 |`redirect_out` | `pipe` |
 
@@ -147,8 +147,8 @@ foo=bar env | grep SHELL > output.txt
 |  Command Struct 2 Var  | Value |
 |-------------|------------|
 | `commmand_name` | `grep` |
-| `argc_array` | `grep`, NULL |
-| `argv_arr` | `NULL` |
+| `argv_array` | `grep`, NULL |
+| `envp_array` | `NULL` |
 |`redirect_in` | `pipe` |
 |`redirect_out` | `default` |
 
@@ -189,8 +189,8 @@ foo=bar env | grep SHELL > output.txt
 |  Command Struct 1 Var  | Value |
 |-------------|------------|
 | `commmand_name` | `/bin/env` |
-| `argc_array` | `env, NULL` |
-| `argv_arr` | `foo=bar`, *ALL_SHELL_ENV_VARS*, ` _=/bin/env, NULL` |
+| `argv_array` | `env, NULL` |
+| `envp_array` | `foo=bar`, *ALL_SHELL_ENV_VARS*, ` _=/bin/env, NULL` |
 |`redirect_in` | `default` |
 |`redirect_out` | `pipe` |
 
@@ -198,8 +198,8 @@ foo=bar env | grep SHELL > output.txt
 |  Command Struct 2 Var  | Value |
 |-------------|------------|
 | `commmand_name` | `/bin/grep` |
-| `argc_array` | `grep`, NULL |
-| `argv_arr` | *ALL_SHELL_ENV_VARS*, `_=/bin/grep, NULL` |
+| `argv_array` | `grep`, NULL |
+| `envp_array` | *ALL_SHELL_ENV_VARS*, `_=/bin/grep, NULL` |
 |`redirect_in` | `pipe` |
 |`redirect_out` | `default` |
 
