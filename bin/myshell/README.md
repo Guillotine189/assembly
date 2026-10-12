@@ -153,12 +153,13 @@ foo=bar env | grep SHELL > output.txt
 |`redirect_out` | `default` |
 
 ### 4. Command Execution
+1: Create a common envp array containing all shell environment variables.
 
-1: Create a Common_envp_array conatining all the shell_env variables
+2: Loop through the command execution process:
 
-2: Loop the execution process:
-Check total commands and creates pipes for redirection for communication.
-forks.
+- create pipe as needed for redirection
+
+- Fork child processes to execute the commands.
 
 #### Child Process
 
