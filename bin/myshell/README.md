@@ -51,16 +51,16 @@ chmod +x build_myshell.sh
 
   input  | Replaced by |
 |-------------|------------|
-| `!!` | `Previous command, if exists.` |
-| `!4` | `Command number 4 in history, if exists.` |
-| `$SHELL` | `The 'SHELL' env variable, if exists.` |
-| `$?` | `The exit status code of last command` |
+| `!!` | Previous command, if exists. |
+| `!4` | Command number 4 in history, if exists. |
+| `$SHELL` | The `$SHELL` env variable, if exists. |
+| `$?` | The exit status code of last command |
 
 **Expansions are not performed inside single quotes.**
 
 **4. Auto-completion:** Press `Tab` once to auto-complete commands (built-in commands and executables found in directories listed in `$PATH`) and file names. Press `Tab` twice to display all available completion options.
 
-**5: Built in commands**: `cd, export, unset, history, etc`.
+**5: Built in commands**: `cd`, `export`, `unset`, `history`, `etc`.
 
 **6: Chained Commands:** Supports executing multiple commands chained together.
 
@@ -69,6 +69,7 @@ chmod +x build_myshell.sh
 3. Append output redirection (>>).
 
 **7: Passing Environment Variables:** Supports passing environment variable assignments directly to commands
+
 (eg: `FOO=bar command`).
 
 **8: Quoted input handling for parsing arguments.**
@@ -83,10 +84,10 @@ Because I implemented everything from scratch, including the heap allocator, the
 
 | Shortcut | Action |
 |---|---|
-| `Alt + ↑` | `Print basic myMalloc information` |
-| `Alt + ←` | `Print summarized segment information` |
-| `Alt + ↓` | `Display a visualization of the 3 free lists mentained by myMalloc` |
-| `Alt + →` | `Print detailed segment information` |
+| `Alt + ↑` | Print basic myMalloc information |
+| `Alt + ←` | Print summarized segment information |
+| `Alt + ↓` | Display a visualization of the 3 free lists mentained by myMalloc |
+| `Alt + →` | Print detailed segment information |
 
 This is more of a debugging feature. But it's fun to look at (atleast for me).
 
@@ -115,12 +116,12 @@ foo=bar env | grep SHELL > output.txt
 #### Tokens Generated
 | Token Value | Token Type |
 |-------------|------------|
-| `foo=bar` | `env_assignemnt` |
+| `foo=bar` | `env_assignment` |
 | `env` | `word` |
-| `\|` | `pipe` |
+| `NULL` | `pipe` |
 | `grep` | `word` |
 | `SHELL` | `word` |
-| `>` | `redirect_out` |
+| `NULL` | `redirect_out` |
 | `output.txt` | `word` |
 
 ### 3. Command Construction
@@ -140,17 +141,17 @@ foo=bar env | grep SHELL > output.txt
 | `commmand_name` | `env` |
 | `argv_array` | `env, NULL` |
 | `envp_array` | `foo=bar, NULL` |
-|`redirect_in` | `default` |
-|`redirect_out` | `pipe` |
+| `redirect_in` | `default` |
+| `redirect_out` | `pipe` |
 
 
 |  Command Struct 2 Var  | Value |
 |-------------|------------|
 | `commmand_name` | `grep` |
-| `argv_array` | `grep`, NULL |
+| `argv_array` | `grep`, `SHELL`,  NULL |
 | `envp_array` | `NULL` |
-|`redirect_in` | `pipe` |
-|`redirect_out` | `default` |
+| `redirect_in` | `pipe` |
+| `redirect_out` | `default` |
 
 ### 4. Command Execution
 1: Create a common envp array containing all shell environment variables.
@@ -192,17 +193,17 @@ foo=bar env | grep SHELL > output.txt
 | `commmand_name` | `/bin/env` |
 | `argv_array` | `env, NULL` |
 | `envp_array` | `foo=bar`, *ALL_SHELL_ENV_VARS*, ` _=/bin/env, NULL` |
-|`redirect_in` | `default` |
-|`redirect_out` | `pipe` |
+| `redirect_in` | `default` |
+| `redirect_out` | `pipe` |
 
 
 |  Command Struct 2 Var  | Value |
 |-------------|------------|
 | `commmand_name` | `/bin/grep` |
-| `argv_array` | `grep`, NULL |
+| `argv_array` | `grep`, `SHELL`, NULL |
 | `envp_array` | *ALL_SHELL_ENV_VARS*, `_=/bin/grep, NULL` |
-|`redirect_in` | `pipe` |
-|`redirect_out` | `default` |
+| `redirect_in` | `pipe` |
+| `redirect_out` | `default` |
 
 #### Parent Process
 
@@ -219,11 +220,7 @@ foo=bar env | grep SHELL > output.txt
 
 
 
-
-
-
-
-### Comparing to bash, things this doesn't support
+### Comparing to bash: what it doesn't support
 
 -  **Multiple redirections**
 
