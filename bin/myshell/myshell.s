@@ -176,9 +176,9 @@ extern error_code
 extern parsed_string_object
 extern shell_env_array_object
 
-
 extern cursor_x_idx
 extern cursor_y_idx
+extern cursor_idx_input_buffer
 
 ; functons
 extern _print
@@ -202,9 +202,10 @@ extern print_error_getting_pgid
 extern _initialize_shell_env_array
 
 extern _get_and_set_mem_for_history_array
-extern _read_input
+
 extern _init_read_input
-extern cursor_idx
+extern _read_input
+extern _read_input.update_cursor_position
 
 extern _generate_tokens
 extern _cleanup_generate_tokens_on_success
@@ -255,11 +256,6 @@ _init:
 
 
 _signal_do_nothing_handler:
-    ; mov rax, sys_write
-    ; mov rdi, 1
-    ; lea rsi, [rel new_line]
-    ; mov rdx, 1
-    ; syscall
     ret
 
 
@@ -268,11 +264,17 @@ _signal_do_nothing_restorer:
     syscall
 
 _signal_SIGINT_handler:
+    
     mov rax, sys_write
     mov rdi, 1
     lea rsi, [rel ctrl_c_word]
     mov rdx, ctrl_c_word_len
     syscall
+    
+    mov rax, [rel filled_size_input_buffer_len]
+    mov qword [rel cursor_idx_input_buffer], rax
+    call _read_input.update_cursor_position
+
     ret
     
 

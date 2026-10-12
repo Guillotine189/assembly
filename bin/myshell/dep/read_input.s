@@ -4,6 +4,7 @@
 
 global cursor_x_idx
 global cursor_y_idx
+global cursor_idx_input_buffer
 section .data
     cursor_idx_input_buffer dq 0
     history_command_number dq 0
@@ -126,8 +127,9 @@ extern _check_and_return_command_if_bic
 extern win_resize_flag
 extern _check_if_cmd_can_auto_complete_to_cmd_in_path
 
-global _read_input
 global _init_read_input
+global _read_input
+global _read_input.update_cursor_position
 
 _init_read_input:
     lea rax, [rel double_tab_string_object]
@@ -156,14 +158,8 @@ _read_input:
     jz .fresh_sart
 
     mov qword [rel win_resize_flag], 0
-    ; print the input buffer
-    mov rax, [rel filled_size_input_buffer_len]
-    mov rdi, 1
-    mov rsi, [rel input_buffer_address]
-    call _print
-
-    mov rax, [rel filled_size_input_buffer_len]
-    mov [rel cursor_idx_input_buffer], rax
+    
+    call .redraw
     jmp .saved_start
 
     .fresh_sart:
@@ -539,6 +535,7 @@ _read_input:
 
         jmp .read_key
 
+
     .print_newer_history:
         dec qword [rel history_command_number]      ; if it was 2 then 1
 
@@ -552,29 +549,29 @@ _read_input:
             jmp .read_key
 
         .print_latest_command:
-            mov r8, [rel cursor_idx_input_buffer]
+            ; mov r8, [rel cursor_idx_input_buffer]
 
-            .move_home11:
-            test r8, r8
-            jz .home_done11
+            ; .move_home11:
+            ; test r8, r8
+            ; jz .home_done11
 
-            mov eax, 1
-            mov edi, 1
-            lea rsi, [rel move_cur_left]
-            mov edx, 3
-            syscall
+            ; mov eax, 1
+            ; mov edi, 1
+            ; lea rsi, [rel move_cur_left]
+            ; mov edx, 3
+            ; syscall
 
-            dec r8
-            dec qword [rel cursor_idx_input_buffer]
-            jmp .move_home11
-            .home_done11:
+            ; dec r8
+            ; dec qword [rel cursor_idx_input_buffer]
+            ; jmp .move_home11
+            ; .home_done11:
 
-            ; remove all char to the right
-            mov eax, 1
-            mov edi, 1
-            lea rsi, [rel clear_to_right]
-            mov edx, 3
-            syscall
+            ; ; remove all char to the right
+            ; mov eax, 1
+            ; mov edi, 1
+            ; lea rsi, [rel clear_to_right]
+            ; mov edx, 3
+            ; syscall
 
 
             lea rdi, [rel command_latest_restore_buffer]
@@ -588,10 +585,10 @@ _read_input:
         
             mov [rel filled_size_input_buffer_len], rax
             mov [rel cursor_idx_input_buffer], rax
- 
-            mov rdi, 1
-            lea rsi, [rel command_latest_restore_buffer]
-            call _print
+            call .redraw
+            ; mov rdi, 1
+            ; lea rsi, [rel command_latest_restore_buffer]
+            ; call _print
 
 
             jmp .read_key
@@ -623,31 +620,31 @@ _read_input:
         .enough_memory1:
 
         ; move cursor to home
-        mov rax, [rel cursor_idx_input_buffer] 
-        test rax, rax
-        jz .home_done1            ; if already at home do nothing
-        mov r8, rax
+        ; mov rax, [rel cursor_idx_input_buffer] 
+        ; test rax, rax
+        ; jz .home_done1            ; if already at home do nothing
+        ; mov r8, rax
 
-        .move_home2:
-        test r8, r8
-        jz .home_done2
+        ; .move_home2:
+        ; test r8, r8
+        ; jz .home_done2
 
-        mov eax, 1
-        mov edi, 1
-        lea rsi, [rel move_cur_left]
-        mov edx, 3
-        syscall
+        ; mov eax, 1
+        ; mov edi, 1
+        ; lea rsi, [rel move_cur_left]
+        ; mov edx, 3
+        ; syscall
 
-        dec r8
-        jmp .move_home2
-        .home_done2:
+        ; dec r8
+        ; jmp .move_home2
+        ; .home_done2:
 
-        ; remove all char to the right
-        mov eax, 1
-        mov edi, 1
-        lea rsi, [rel clear_to_right]
-        mov edx, 3
-        syscall
+        ; ; remove all char to the right
+        ; mov eax, 1
+        ; mov edi, 1
+        ; lea rsi, [rel clear_to_right]
+        ; mov edx, 3
+        ; syscall
     
         ; move the commmand into input_buffer_address
         mov rcx, r13
@@ -655,14 +652,16 @@ _read_input:
         mov rsi, r12
         rep movsb
 
-        ; print the input_buffer_address
-        mov rax, r13
-        mov rdi, 1
-        mov rsi, [rel input_buffer_address]
-        call _print
+        ; ; print the input_buffer_address
+        ; mov rax, r13
+        ; mov rdi, 1
+        ; mov rsi, [rel input_buffer_address]
+        ; call _print
+
 
         mov [rel filled_size_input_buffer_len], r13
         mov [rel cursor_idx_input_buffer], r13
+        call .redraw
 
         jmp .read_key
 
@@ -670,34 +669,35 @@ _read_input:
         .no_more_new_commands:   ; i am accessing the latest byte
             mov qword [rel history_command_number], 0
             ; move cursor to home
-            mov rax, [rel cursor_idx_input_buffer]
-            test rax, rax
-            jz .home_done1            ; if already at home do nothing
-            mov r8, rax
+            ; mov rax, [rel cursor_idx_input_buffer]
+            ; test rax, rax
+            ; jz .home_done1            ; if already at home do nothing
+            ; mov r8, rax
 
-            .move_home3:
-            test r8, r8
-            jz .home_done3
+            ; .move_home3:
+            ; test r8, r8
+            ; jz .home_done3
 
-            mov eax, 1
-            mov edi, 1
-            lea rsi, [rel move_cur_left]
-            mov edx, 3
-            syscall
+            ; mov eax, 1
+            ; mov edi, 1
+            ; lea rsi, [rel move_cur_left]
+            ; mov edx, 3
+            ; syscall
 
-            dec r8
-            jmp .move_home3
-            .home_done3:
+            ; dec r8
+            ; jmp .move_home3
+            ; .home_done3:
 
-            ; remove all char to the right
-            mov eax, 1
-            mov edi, 1
-            lea rsi, [rel clear_to_right]
-            mov edx, 3
-            syscall
+            ; ; remove all char to the right
+            ; mov eax, 1
+            ; mov edi, 1
+            ; lea rsi, [rel clear_to_right]
+            ; mov edx, 3
+            ; syscall
 
             mov qword [rel filled_size_input_buffer_len], 0
             mov qword [rel cursor_idx_input_buffer], 0
+            call .redraw
 
             jmp .read_key
 
@@ -731,6 +731,7 @@ _read_input:
         mov rdi, rax
         call _strlen
         mov r13, rax                            ; r13 len of command
+
         .loop_memory:
             cmp r13, [rel capacity_input_buffer_len]
             jg .get_more_memory_buffer
@@ -744,34 +745,34 @@ _read_input:
 
         .enough_memory:
 
-        ; move cursor to home
-        mov rax, [rel cursor_idx_input_buffer] 
-        test rax, rax
-        jz .home_done1            ; if already at home do nothing
-        mov rdi, rax
+        ; ; move cursor to home
+        ; mov rax, [rel cursor_idx_input_buffer] 
+        ; test rax, rax
+        ; jz .home_done1            ; if already at home do nothing
+        ; mov rdi, rax
 
-        .move_home1:
-        test rdi, rdi
-        jz .home_done1
-        push rdi
+        ; .move_home1:
+        ; test rdi, rdi
+        ; jz .home_done1
+        ; push rdi
 
-        mov eax, 1
-        mov edi, 1
-        lea rsi, [rel move_cur_left]
-        mov edx, 3
-        syscall
+        ; mov eax, 1
+        ; mov edi, 1
+        ; lea rsi, [rel move_cur_left]
+        ; mov edx, 3
+        ; syscall
 
-        pop rdi
-        dec rdi
-        jmp .move_home1
-        .home_done1:
+        ; pop rdi
+        ; dec rdi
+        ; jmp .move_home1
+        ; .home_done1:
 
-        ; remove all char to the right
-        mov eax, 1
-        mov edi, 1
-        lea rsi, [rel clear_to_right]
-        mov edx, 3
-        syscall
+        ; ; remove all char to the right
+        ; mov eax, 1
+        ; mov edi, 1
+        ; lea rsi, [rel clear_to_right]
+        ; mov edx, 3
+        ; syscall
     
         ; move the commmand into input_buffer_address
         mov rcx, r13
@@ -779,14 +780,15 @@ _read_input:
         mov rsi, r12
         rep movsb
 
-        ; print the input_buffer_address
-        mov rax, r13
-        mov rdi, 1
-        mov rsi, [rel input_buffer_address]
-        call _print
+        ; ; print the input_buffer_address
+        ; mov rax, r13
+        ; mov rdi, 1
+        ; mov rsi, [rel input_buffer_address]
+        ; call _print
 
         mov [rel filled_size_input_buffer_len], r13
         mov [rel cursor_idx_input_buffer], r13
+        call .redraw
 
         jmp .read_key
 
@@ -962,14 +964,7 @@ _read_input:
         call _print_malloc_segments_info
 
         call _print_prefix_line
-
-        mov rax, [rel filled_size_input_buffer_len]
-        mov rdi, 1
-        mov rsi, [rel input_buffer_address]
-        call _print
-
-        mov rax, [rel filled_size_input_buffer_len]
-        mov [rel cursor_idx_input_buffer], rax
+        call .redraw
         jmp .read_key
 
 
@@ -983,14 +978,7 @@ _read_input:
         call _print_more_malloc_info
 
         call _print_prefix_line
-
-        mov rax, [rel filled_size_input_buffer_len]
-        mov rdi, 1
-        mov rsi, [rel input_buffer_address]
-        call _print
-
-        mov rax, [rel filled_size_input_buffer_len]
-        mov [rel cursor_idx_input_buffer], rax
+        call .redraw
         jmp .read_key
 
     .print_malloc_detailed_info:
@@ -1003,14 +991,7 @@ _read_input:
         call _print_detailed_malloc
 
         call _print_prefix_line
-
-        mov rax, [rel filled_size_input_buffer_len]
-        mov rdi, 1
-        mov rsi, [rel input_buffer_address]
-        call _print
-
-        mov rax, [rel filled_size_input_buffer_len]
-        mov [rel cursor_idx_input_buffer], rax
+        call .redraw
         jmp .read_key
 
     .print_free_list_info:
@@ -1023,14 +1004,7 @@ _read_input:
         call _print_free_list_info
 
         call _print_prefix_line
-
-        mov rax, [rel filled_size_input_buffer_len]
-        mov rdi, 1
-        mov rsi, [rel input_buffer_address]
-        call _print
-
-        mov rax, [rel filled_size_input_buffer_len]
-        mov [rel cursor_idx_input_buffer], rax
+        call .redraw
         jmp .read_key
         
     .cursor_left_space:
@@ -1651,33 +1625,10 @@ _read_input:
         mov qword [rel tabs_times_pressed], 1
 
         .print_and_restore_prefix_and_saved_command:
-        ;restore the cursor back
+        
         call _print_prefix_line
-
-
-        mov rax, [rel filled_size_input_buffer_len]
-        mov rdi, 1
-        mov rsi, [rel input_buffer_address]
-        call _print
-
-        ; right now the cursor in at end, but the value in cursor_idx_input_buffer is old
-
-        mov r8, [rel filled_size_input_buffer_len]     ; index after final_byte
-
-        .loop_restore_cur:
-
-            cmp r8, [rel cursor_idx_input_buffer]
-            je .cleanup_and_return
-
-            mov rax, 1
-            mov rdi, 1
-            lea rsi, [rel move_cur_left]
-            mov rdx, 3
-            syscall
-
-            dec r8
-            jmp .loop_restore_cur
-
+        call .redraw
+        jmp .read_key
 
         .auto_complete:
 
@@ -1725,7 +1676,7 @@ _read_input:
 
         lea rdi, [rel double_tab_string_object]
         ; len is just word + 9spaces
-        mov rax, [rdi + MYSTRING_SIZE_OFF]          ; 8 is the offset for size of string
+        mov rax, [rdi + MYSTRING_SIZE_OFF]
         dec rax                     ; string has a \n at the end
 
         sub rax, r13                ; remaining len of word
@@ -1741,41 +1692,9 @@ _read_input:
         mov rcx, rax
         rep movsb
 
-        .before_print:
-        ; print the remaining word + bytes ahead
-        mov rcx, [rel filled_size_input_buffer_len]
-        mov rdx, [rel cursor_idx_input_buffer]
-        sub rcx, rdx                    ; these many bytes to print
-
-        ; save cursor position for after print
-        mov r8, [rel cursor_idx_input_buffer]            ; original cursor position saved
         add [rel cursor_idx_input_buffer], rax           ; this will be the cursor position in end
         
-        ; print the half+completed+word and rest of the remaining data 
-        mov rax, rcx
-        mov rdi, 1
-        mov rsi, [rel input_buffer_address]
-        add rsi, r8
-        call _print
-
-        ; now restore the cursor bac to its position
-        mov r8, [rel filled_size_input_buffer_len]  ; the cursor will ve at this index
-        .loop_final_left:
-
-            cmp r8, [rel cursor_idx_input_buffer]
-            je .final_done
-
-            mov rax, 1
-            mov rdi, 1
-            lea rsi, [rel move_cur_left]
-            mov rdx, 3
-            syscall
-
-            dec r8
-            jmp .loop_final_left
-
-        .final_done:
-
+        call .redraw
         mov qword [rel tabs_times_pressed], 0
 
 
@@ -1872,7 +1791,9 @@ _read_input:
         ; move cursor to end / after the last byte
 
         mov rax, [rel filled_size_input_buffer_len]
-        sub rax, [rel cursor_idx_input_buffer]
+        mov qword [rel cursor_idx_input_buffer], rax
+        call .update_cursor_position
+
 
         mov rax, 1
         mov rdi, 1
