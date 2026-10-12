@@ -26,13 +26,13 @@ cd ./assembly/bin/myshell
 #### 3. Give installation script permission to execute
 
 ```bash
-chmod +x build_myshell.s
+chmod +x build_myshell.sh
 ```
 
 #### 4. Build the program
 
 ```bash
-./build_myshell.s
+./build_myshell.sh
 ```
 
 ## Run
