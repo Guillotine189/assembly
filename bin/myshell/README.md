@@ -160,7 +160,7 @@ foo=bar env | grep SHELL > output.txt
 
 - create pipe as needed for redirection
 
-- Fork child processes to execute the commands.
+- Fork child process.
 
 #### Child Process
 
@@ -182,7 +182,7 @@ foo=bar env | grep SHELL > output.txt
 
 9: Adds the **`_=`** environment variable to the common/specific environment array, setting its value to the command's executable path (`_=command_path`). (If the user hasn't added any temporary environment variables that need to be injected, I reuse the common envp array constructed in step 1)
 
-10: **Executes the command**: use `execve` to executes and handles error.
+10: **Executes the command**: use `execve` to execute the command then handles error.
 
 Final command structs before execution for command :
 
