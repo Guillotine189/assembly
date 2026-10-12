@@ -7,7 +7,7 @@ section .data
 
 section .rodata
 	semi_colon_space db ": ", 0
-	capacity_arr equ 1000
+	history_size equ 1000
 
 section .bss
 	reusable_number_buffer_history resb 20
@@ -42,16 +42,16 @@ global _return_address_of_command_from_newest
 
 
 _get_and_set_mem_for_history_array:
-	mov rdi, capacity_arr*8
+	mov rdi, history_size*8
 	call _malloc
 
 	test rax, rax
-	jl .set_error_allocating_capacity_arr_and_exit
+	jl .set_error_allocating_history_size_and_exit
 
 	mov [rel history_arr_address], rax 					; assign address to var
 	ret
 
-	.set_error_allocating_capacity_arr_and_exit:
+	.set_error_allocating_history_size_and_exit:
 		mov [rel error_code], rax
 		call print_error_allocating_memory_for_history
 		mov [rel exit_status_code], 1
@@ -120,7 +120,7 @@ _add_cmd_into_history:
 	
 ; rdi: address you want me to add
 _add_address_into_array:
-	cmp qword [rel filled_history_array_size], capacity_arr
+	cmp qword [rel filled_history_array_size], history_size
 	jl .not_wrapped
 
 .wrapped:
@@ -135,7 +135,7 @@ _add_address_into_array:
 	call _free 	
 
 	.increment_starting_index:
-	cmp qword [rel starting_index], capacity_arr - 1
+	cmp qword [rel starting_index], history_size - 1
 	jge .set_starting_to_zero
 
 	inc qword [rel starting_index]
@@ -147,7 +147,7 @@ _add_address_into_array:
 
 
 	.handle_ending_index:
-	cmp qword [rel ending_index], capacity_arr - 1
+	cmp qword [rel ending_index], history_size - 1
 	jge .set_ending_to_zero
 
 	jmp .increment_ending
@@ -170,7 +170,7 @@ _add_address_into_array:
 
 	inc qword [rel filled_history_array_size]
 
-	cmp qword [rel ending_index], capacity_arr - 1
+	cmp qword [rel ending_index], history_size - 1
 	jge .set_ending_to_zero_ret
 
 	inc qword [rel ending_index]
@@ -192,10 +192,10 @@ _return_address_of_command_from_newest:
 
 	; check if the history is full or not
 
-	cmp rdi, capacity_arr
+	cmp rdi, history_size
 	jg .return_not_exists
 
-	cmp qword [rel filled_history_array_size], capacity_arr
+	cmp qword [rel filled_history_array_size], history_size
 	jge .handle_warped
 
 	; non warped array
@@ -224,7 +224,7 @@ _return_address_of_command_from_newest:
 
 	.sub_from_end: 		; when sub is negative, index is cap+(-ve)result
 
-	mov rdx, capacity_arr
+	mov rdx, history_size
 	add rdx, rcx
 	mov rax, [rax + rdx*8]
 	ret
@@ -240,7 +240,7 @@ _print_history:
 	; normal: start at 1st command
 
 	mov rax, [rel filled_history_array_size]
-	cmp rax, capacity_arr
+	cmp rax, history_size
 	je .print_warped
 
 	; print non warped
@@ -305,7 +305,7 @@ _print_history:
 		mov rax, [rel ending_index]
 		add rax, r8
 
-		cmp rax, capacity_arr 			; the start index is out of bound, nove it to zero
+		cmp rax, history_size 			; the start index is out of bound, nove it to zero
 		je .move_index_to_zero
 
 		cmp rax, [rel ending_index]

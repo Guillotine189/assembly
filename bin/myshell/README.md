@@ -45,7 +45,7 @@ chmod +x build_myshell.sh
 
 **1: Interactive command-line**: input with cursor movement and editing.
 
-**2: Command history** ( Fixed size, can be changed by editing the value of 'capacity_arr' symbolic constant inside history.s file and rebuilding the project).
+**2: Command history** ( Fixed size, can be changed by editing the value of 'history_size' symbolic constant inside history.s file and rebuilding the project).
 
 **3: Support for expansion**: History commands, shell env vars and last command exit_code_status can be expanded.
 
