@@ -12,13 +12,13 @@ nasm -f elf64 ./dep/parse_input.s -o ./dep/parse_input.o
 nasm -f elf64 ./dep/process_tokens.s -o ./dep/process_tokens.o
 nasm -f elf64 ./dep/execute_commands.s -o ./dep/execute_commands.o
 
-# only temporary
-#nasm -f elf64 ../dependencies/errorHandling.s -o ../dependencies/errorHandling.o 
-#nasm -f elf64 ../dependencies/mystring.s -o ../dependencies/mystring.o 
-#nasm -f elf64 ../dependencies/dynamicarray.s -o ../dependencies/dynamicarray.o 
-#nasm -f elf64 ../dependencies/mymalloc2.s -o ../dependencies/mymalloc2.o 
-# nasm -f elf64 ../dependencies/hashset.s -o ../dependencies/hashset.o
-# nasm -f elf64 ../dependencies/linkedlist.s -o ../dependencies/linkedlist.o
+
+nasm -f elf64 ../dependencies/errorHandling.s -o ../dependencies/errorHandling.o 
+nasm -f elf64 ../dependencies/mystring.s -o ../dependencies/mystring.o 
+nasm -f elf64 ../dependencies/dynamicarray.s -o ../dependencies/dynamicarray.o 
+nasm -f elf64 ../dependencies/mymalloc2.s -o ../dependencies/mymalloc2.o 
+nasm -f elf64 ../dependencies/hashset.s -o ../dependencies/hashset.o
+nasm -f elf64 ../dependencies/linkedlist.s -o ../dependencies/linkedlist.o
 
 ld   myshell.o \
     ./dep/read_input.o \
@@ -49,4 +49,10 @@ rm   myshell.o \
     ./dep/myshellbif.o \
     ./dep/env_funcs.o \
     ./dep/history.o \
-    ./dep/proper_print.o
+    ./dep/proper_print.o \
+    ../dependencies/errorHandling.o \
+    ../dependencies/mymalloc2.o \
+    ../dependencies/mystring.o \
+    ../dependencies/dynamicarray.o \
+    ../dependencies/hashset.o \
+    ../dependencies/linkedlist.o 
