@@ -67,6 +67,8 @@ section .rodata
 	invalid_addres_provided_line db "mymalloc: Error invalid address provided: ", 0
 	invalid_addres_provided_line_len equ $ - invalid_addres_provided_line
 
+	double_free_line db "myMalloc: Error called free on already freed object", 0
+	double_free_line_len equ $ - double_free_line
 
 section .bss
 
@@ -130,7 +132,7 @@ _malloc:
 	inc qword [rel malloc_called]
  	
 	test rdi, rdi
-	jle .invalid_size_asked
+	je .invalid_size_asked
 	jmp .check_malloc
 
 	.invalid_size_asked:
@@ -328,7 +330,7 @@ _malloc:
 		ret
 
 
-; rdi: address of the segment, not the one providede by user
+; rdi: address of the segment, not the one provided by user
 ; very very basic check for now
 _check_address_validity:
 	; if address of segment is < first segment or > last segment => error
@@ -371,7 +373,7 @@ _free:
 	jz .invalid_address
 
 	cmp qword [rbx + MYMALLOC_USED_OFF], 1
-	jne .invalid_address
+	jne .double_free
 	    
 
 	; the idea for freeing a segmenet
@@ -504,6 +506,16 @@ _free:
 		mov rax, -1
 		ret
 
+	.double_free:
+		mov rax, double_free_line_len
+		mov rdi, 2
+		lea rsi, [rel double_free_line]
+		call print
+
+		pop r12
+		pop rbx
+		mov rax, -1
+		ret
 
 ; the free list are sorted from smallest to largest
 
