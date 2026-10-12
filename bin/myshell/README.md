@@ -68,7 +68,8 @@ chmod +x build_myshell.s
 2. Input and output redirection (<, >).
 3. Append output redirection (>>).
 
-**7: Passing Environment Variables:** Supports passing environment variable assignments directly to commands (eg: `FOO=bar command`).
+**7: Passing Environment Variables:** Supports passing environment variable assignments directly to commands
+(eg: `FOO=bar command`).
 
 **8: Quoted input handling for parsing arguments.**
 1. Pipes (|).
@@ -223,7 +224,7 @@ foo=bar env | grep SHELL > output.txt
 
 ### Comparing to bash, things this doesn't support
 
-- • **Multiple redirections**
+-  **Multiple redirections**
 
   ```bash
   ls > output1.txt > output2.txt
@@ -232,21 +233,21 @@ foo=bar env | grep SHELL > output.txt
   **Behavior:**
   Only `output2.txt` receives the command's standard output because the second output redirection overrides the first.
 
-- • **Alias.**
+-  **Alias.**
 
-- • **Shell variables.**
+-  **Shell variables.**
 
-- • **`&` to put job into background.**
+-  **`&` to put job into background.**
 
-- • **`&&` to only continue executing if last commands succeeds.**
+-  **`&&` to only continue executing if last commands succeeds.**
 
-- • It does not support **source**, as it does **not parse "if", "fi", etc used by bash.**
+-  It does not support **source**, as it does **not parse "if", "fi", etc used by bash.**
 
-- • I cannot implment the auto complete for options provided by individual commands, so auto complete is limited
+-  I cannot implment the auto complete for options provided by individual commands, so auto complete is limited
 
-- • only ascii printing is supported, so no utf-8 char
+-  only ascii printing is supported, so no utf-8 char
 
-- • many more i cannot list
+-  many more i cannot list
 
 
 ---
