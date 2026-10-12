@@ -233,21 +233,21 @@ foo=bar env | grep SHELL > output.txt
   **Behavior:**
   Only `output2.txt` receives the command's standard output because the second output redirection overrides the first.
 
--  **Alias.**
+-  **Alias.**: Aliases are not supported yet
 
--  **Shell variables.**
+-  **Shell variables.**: Shell variables are not supported yet.
 
--  **`&` to put job into background.**
+-  **Background jobs**: Using `&` to run commands in the background is not supported.
 
--  **`&&` to only continue executing if last commands succeeds.**
+-  **&& operator**: Running a command only if the previous one succeeds is not supported.
 
--  It does not support **source**, as it does **not parse "if", "fi", etc used by bash.**
+-  **source** bic command:  this shell doesn't parse Bash syntax like if, fi, etc.
 
--  I cannot implment the auto complete for options provided by individual commands, so auto complete is limited
+-  **Limited Autocompletion**:  as I can't implement suggestions for options specific to individual commands.
 
--  only ascii printing is supported, so no utf-8 char
+-  **UTF-8 characters**: only ASCII characters are supported, so UTF-8 characters won't work properly.
 
--  many more i cannot list
+-  And there are many more limitations that I can't list here. There's still plenty of room for improvement!
 
 
 ---
