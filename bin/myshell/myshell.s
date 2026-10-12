@@ -144,8 +144,7 @@ global curr_cwd
 global old_cwd
 global old_cwd_len
 global win_size
-global prefix_line_len
-
+global prefix_line_len_unedited
 section .bss
     reusable_buffer resb 4096
 
@@ -158,6 +157,7 @@ section .bss
 
     prefix_line resb 4096
     prefix_line_len resq 1
+    prefix_line_len_unedited resq 1
 
     ; for noncanonical_mode
     termios     resb 60
@@ -168,14 +168,17 @@ section .bss
         resw 2      ; 2bytes pixel width unavailable/zero, 2bytes pixel height unavai/zero
 
     cursor_response resb 32
-    cursor_x_idx    resq 1
-    cursor_y_idx    resq 1
+    cursor_x_idx_response resq 1
+    cursor_y_idx_response resq 1
 
 ; variables
 extern error_code
 extern parsed_string_object
 extern shell_env_array_object
 
+
+extern cursor_x_idx
+extern cursor_y_idx
 
 ; functons
 extern _print
@@ -557,6 +560,8 @@ _get_and_set_pgid:
 _set_prefix_line:
     ; 'myshell:[cwd]$'
 
+    mov qword [rel prefix_line_len_unedited], 0
+
     lea rdi, [rel prefix_line]
 
     ; add colour
@@ -568,6 +573,8 @@ _set_prefix_line:
 
     lea rsi, [rel myshell_line]
     call _string_copy_including_null                ; rdi: address of NULL, \0
+
+    add qword [rel prefix_line_len_unedited], myshell_line_len
 
     ; reset colour
     lea rsi, [rel colour_reset]
@@ -584,7 +591,9 @@ _set_prefix_line:
 
     lea rsi, [rel curr_cwd]
     call _string_copy_including_null                ; rdi: address of NULL, \0
-    
+        
+    mov rax, [rel curr_cwd_len]
+    add [rel prefix_line_len_unedited], rax
 
     ; reset colour
     lea rsi, [rel colour_reset]
@@ -597,6 +606,8 @@ _set_prefix_line:
     lea rsi, [rel dollar_sign_with_space]
     call _string_copy_including_null
 
+    add qword [rel prefix_line_len_unedited], 2
+
     lea rax, [rel prefix_line]
     sub rdi, rax
     mov [rel prefix_line_len], rdi
@@ -606,14 +617,14 @@ _set_prefix_line:
 
 
 _print_prefix_line:
-    ; Query terminal cursor position: ESC [ 6 n
-    mov eax, 1                  ; SYS_write
-    mov edi, 1                  ; stdout
+    ; query terminal cursor position: ESC [ 6 n
+    mov rax, 1
+    mov rdi, 1
     lea rsi, [rel cursor_position_query]
-    mov edx, 4
+    mov rdx, 4
     syscall
 
-    ; Read response until 'R', maximum 32 bytes
+    ; read response until 'R', read a maximum of 32 bytes
     lea rsi, [rel cursor_response]
     xor r12d, r12d
 
@@ -621,11 +632,11 @@ _print_prefix_line:
     cmp r12, 32
     jae .parse_error
 
-    xor eax, eax                ; SYS_read
-    xor edi, edi                ; stdin
+    xor rax, rax                ; SYS_read
+    xor rdi, rdi                ; stdin
     lea rsi, [rel cursor_response]
     add rsi, r12
-    mov edx, 1
+    mov rdx, 1
     syscall
 
     cmp rax, 1
@@ -648,10 +659,10 @@ _print_prefix_line:
 
     ; Parse row digits until ';'
     lea rsi, [rel cursor_response + 2]
-    xor ebx, ebx
+    xor rbx, rbx
 
 .parse_row:
-    movzx eax, byte [rsi]
+    movzx rax, byte [rsi]
     cmp al, ';'
     je .row_done
 
@@ -661,7 +672,7 @@ _print_prefix_line:
     ja .parse_error
 
     imul rbx, rbx, 10
-    sub eax, '0'
+    sub rax, '0'
     add rbx, rax
 
     inc rsi
@@ -671,14 +682,14 @@ _print_prefix_line:
     test rbx, rbx
     jz .parse_error
     dec rbx
-    mov [rel cursor_x_idx], rbx
+    mov [rel cursor_x_idx_response], rbx
 
     ; Parse column digits until 'R'
     inc rsi
-    xor ebx, ebx
+    xor rbx, rbx
 
 .parse_col:
-    movzx eax, byte [rsi]
+    movzx rax, byte [rsi]
     cmp al, 'R'
     je .col_done
 
@@ -688,7 +699,7 @@ _print_prefix_line:
     ja .parse_error
 
     imul rbx, rbx, 10
-    sub eax, '0'
+    sub rax, '0'
     add rbx, rax
 
     inc rsi
@@ -698,10 +709,10 @@ _print_prefix_line:
     test rbx, rbx
     jz .parse_error
     dec rbx
-    mov [rel cursor_y_idx], rbx
+    mov [rel cursor_y_idx_response], rbx
 
     ; If column != 0, print newline
-    cmp qword [rel cursor_y_idx], 0
+    cmp qword [rel cursor_y_idx_response], 0
     jne .print_newline
     jmp .print_prefix
 
@@ -713,7 +724,7 @@ _print_prefix_line:
     jmp .print_prefix
 
 .parse_error:
-    ; Fallback: print newline if position could not be determined
+    ; fallback: print newline if position could not be determined
     mov rax, 1
     mov rdi, 1
     lea rsi, [rel new_line]
@@ -724,6 +735,12 @@ _print_prefix_line:
     mov rdi, 1
     lea rsi, [rel prefix_line]
     call _print
+
+
+; update cursor x and y idx
+    mov qword [rel cursor_y_idx], 0
+    mov rax, [rel prefix_line_len_unedited]
+    mov [rel cursor_x_idx], rax
     ret
 
 

@@ -7,6 +7,20 @@
    check lea,mov instruction probably used the other one instad.
 
 6) visual fix, when command overflows into next line.
+  fixed: line wrapping when 
+   :adding char
+   :backspace
+   :moving cursor right/left using arrow keys
+   : ctrl + left/right, ctrl + L
+   : home/end button
+
+  todo: 
+   : tab
+   : alt + keys
+   : when ctrl + c is hit, move cursor to end position, then print and continue
+   : win resize
+   : everyplace in read input that modified output (printing history etc)
+
 
 IDEA: instead of writing destructor for each type in hashset, ll
  just pass in address/nULL of a custom destructor. If not null, it will call that destrutor on that object
