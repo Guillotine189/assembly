@@ -103,6 +103,7 @@ _default_destructor_linked_list:
 
 	.finish:
 	mov qword [r14 + LINKED_LIST_TOTAL_ELE_OFF], 0
+	mov qword [r14 + LINKED_LIST_ELE_SIZE_OFF], 0
 	mov qword [r14 + LINKED_LIST_HEAD_NODE_ADD_OFF], 0
 	mov qword [r14 + LINKED_LIST_END_NODE_ADD_OFF], 0
 

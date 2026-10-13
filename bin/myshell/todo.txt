@@ -105,3 +105,40 @@ Total    3,292    277   19,655
 1) just to start bash, a total of 3292 calls were made
 2) to run ls command, total 277 calls were made
 3) the auto complete for "g<tab><tab>", 19,655 calls were made
+
+
+
+faccessat2(3, "gnutls-serv", X_OK, 0)   = 0
+getdents64(3, 0x415280 /* 0 entries */, 4096) = 0
+close(3)                                = 0
+open("/usr/local/sbin", O_RDONLY|O_DIRECTORY) = 3
+getdents64(3, 0x415280 /* 2 entries */, 4096) = 48
+getdents64(3, 0x415280 /* 0 entries */, 4096) = 0
+close(3)                                = 0
+open("/var/lib/flatpak/exports/bin", O_RDONLY|O_DIRECTORY) = 3
+getdents64(3, 0x415280 /* 4 entries */, 4096) = 128
+getdents64(3, 0x415280 /* 0 entries */, 4096) = 0
+close(3)                                = 0
+open("/usr/bin/site_perl", O_RDONLY|O_DIRECTORY) = 3
+getdents64(3, 0x415280 /* 2 entries */, 4096) = 48
+getdents64(3, 0x415280 /* 0 entries */, 4096) = 0
+close(3)                                = 0
+open("/usr/bin/vendor_perl", O_RDONLY|O_DIRECTORY) = 3
+getdents64(3, 0x415280 /* 10 entries */, 4096) = 304
+getdents64(3, 0x415280 /* 0 entries */, 4096) = 0
+close(3)                                = 0
+open("/usr/bin/core_perl", O_RDONLY|O_DIRECTORY) = 3
+getdents64(3, 0x415280 /* 31 entries */, 4096) = 944
+getdents64(3, 0x415280 /* 0 entries */, 4096) = 0
+close(3)                                = 0
+open("/home/sarthak/.spicetify", O_RDONLY|O_DIRECTORY) = 3
+getdents64(3, 0x415280 /* 9 entries */, 4096) = 272
+faccessat2(3, "globals.d.ts", X_OK, 0)  = -1 EACCES (Permission denied)
+getdents64(3, 0x415280 /* 0 entries */, 4096) = 0
+close(3)                                = 0
+open("/home/sarthak/.spicetify", O_RDONLY|O_DIRECTORY) = 3
+getdents64(3, 0x415280 /* 9 entries */, 4096) = 272
+faccessat2(3, "globals.d.ts", X_OK, 0)  = -1 EACCES (Permission denied)
+getdents64(3, 0x415280 /* 0 entries */, 4096) = 0
+close(3)                                = 0
+read(0, "\177", 1)                      = 1

@@ -1,5 +1,9 @@
 ; required mymalloc.s
 
+section .rodata
+	error_free db "mystring: Error freeing mystring object", 0
+	error_free_len equ $ - error_free
+
 section .text
 
 global _constructor_mystring
@@ -103,7 +107,11 @@ _destructor_mystring:
 	
 	call _free
 
+	test rax, rax
+	jl .error_freeing
+
 	.null_ptr:
+
 	mov qword [r12 + MYSTRING_SIZE_OFF], 0
 	mov qword [r12 + MYSTRING_CAPACITY_OFF], 0
 	mov qword [r12 + MYSTRING_POINTER_OFF], 0
@@ -111,6 +119,16 @@ _destructor_mystring:
 	pop r12
 	ret
 
+
+	.error_freeing:
+		mov rax, 1
+		mov rdi, 2
+		lea rsi, [rel error_free]
+		mov rdx, error_free_len
+		syscall
+
+		pop r12 
+		ret
 
 ; rdi: the address where the NEW mystring object will be created
 ; rsi: the address of OLD mystring object

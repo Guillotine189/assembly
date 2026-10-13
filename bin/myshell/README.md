@@ -41,6 +41,8 @@ chmod +x build_myshell.sh
 ./myshell
 ```
 
+**Recommendation:** It is recommended to set `myshell` as your default shell in Konsole, as this may prevent the segmentation fault encountered when launching it from Bash.
+
 ## Features
 
 **1: Interactive command-line**: input with cursor movement and editing.

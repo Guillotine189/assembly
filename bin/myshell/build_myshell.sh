@@ -17,6 +17,7 @@ nasm -f elf64 ../dependencies/errorHandling.s -o ../dependencies/errorHandling.o
 nasm -f elf64 ../dependencies/mystring.s -o ../dependencies/mystring.o 
 nasm -f elf64 ../dependencies/dynamicarray.s -o ../dependencies/dynamicarray.o 
 nasm -f elf64 ../dependencies/mymalloc2.s -o ../dependencies/mymalloc2.o 
+# nasm -f elf64 ../dependencies/mymalloc.s -o ../dependencies/mymalloc.o 
 nasm -f elf64 ../dependencies/hashset.s -o ../dependencies/hashset.o
 nasm -f elf64 ../dependencies/linkedlist.s -o ../dependencies/linkedlist.o
 
