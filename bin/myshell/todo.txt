@@ -83,3 +83,25 @@ readelf -r test
 
 objdump -d test
 objdump -dr test
+
+
+---
+command used: 
+[ ltrace -x 'malloc+calloc+realloc+free'  -o Desktop/temp/shell malloc_calls.txt  bash --noprofile --norc ]
+
+call counts for 3 stages in bash 
+1. Bash startup (first 3,294 lines)
+2. After ls (next 278 lines)
+3. After g + Tab twice (next 19,655 lines)
+
+type     1.       2.    3.
+------------------------------
+malloc   2,900    152   9,769
+calloc   11       0     0
+realloc  11       5     124
+free     370      120   9,762
+Total    3,292    277   19,655
+
+1) just to start bash, a total of 3292 calls were made
+2) to run ls command, total 277 calls were made
+3) the auto complete for "g<tab><tab>", 19,655 calls were made

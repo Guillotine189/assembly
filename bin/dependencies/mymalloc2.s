@@ -137,7 +137,7 @@ _malloc:
 
 	.invalid_size_asked:
 		mov  rax, -1
-		jmp .return
+		ret
 
 
 	.check_malloc:
@@ -385,10 +385,10 @@ _free:
 
 
 	;mark this segment as free:
-		mov qword [rbx + MYMALLOC_USED_OFF], 0 					; mark this segment as free
-		dec qword [rel malloc_occupied_segments]
-		inc qword [rel malloc_free_segments]
-		mov r12, rbx
+	mov qword [rbx + MYMALLOC_USED_OFF], 0 					; mark this segment as free
+	dec qword [rel malloc_occupied_segments]
+	inc qword [rel malloc_free_segments]
+	mov r12, rbx
 
 	call .check_and_update_if_next_segment_is_free
 	call .check_if_prev_segment_is_free
