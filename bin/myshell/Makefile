@@ -1,10 +1,6 @@
 FFLAG = -f elf64
 
-all: final
-
-final: building linking cleaning
-	@echo "Build finished"
-
+.PHONY: all final cleaning linking building 
 
 building:
 	@echo "Building objects files"
@@ -29,7 +25,8 @@ building:
 
 # 	nasm $(FFLAG) ../dependencies/mymalloc.s -o ../dependencies/mymalloc.o 
 
-linking:
+
+linking: building
 	@echo "Linking object files"
 	@ld  ./src/myshell.o \
     ./src/dep/read_input.o \
@@ -51,7 +48,7 @@ linking:
    	-o myshell
 
 
-cleaning:
+cleaning: linking
 	@echo "Running cleanup"
 	@rm ./src/myshell.o \
     ./src/dep/read_input.o \
@@ -70,3 +67,10 @@ cleaning:
     ../dependencies/dynamicarray.o \
     ../dependencies/hashset.o \
     ../dependencies/linkedlist.o 
+
+
+final: cleaning
+	@echo "Build finished"
+
+
+all: final

@@ -26,7 +26,7 @@ cd ./assembly/bin/myshell
 #### 3. Build the program
 
 ```bash
-make
+make all
 ```
 
 
