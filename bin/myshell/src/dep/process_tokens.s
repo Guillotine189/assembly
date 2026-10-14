@@ -14,6 +14,8 @@ section .rodata
 
 section .text
 
+extern _cmp_equal_memory
+
 ; error
 extern error_code
 extern print_error_initializing_command_array
@@ -297,13 +299,13 @@ _process_token_generate_commands:
     .handle_env_assignment:
         ; rax: the address of current token struct
 
-        ; TODO: CHECK IF THE TOKEN ALREADY EXISTS inside the, eg doo=bar foo=bar 
+        ; TODO: CHECK IF THE TOKEN ALREADY EXISTS inside the, eg foo=bar foo=bar2
         ; should result in foo=bar2 not both
 
         ; add the value inside token to envp array object
         lea rdi, [rsp + COMMAND_STRUCT_ENVP_OBJ_OFF]       ; rdi: address of envp array obj
         lea rsi, [rax + TOKEN_STRUCT_ADDRESS_OFF]       ; rsi: the address of address of value of envp_var
-        call _dynamic_array_add_element
+        call _update_env_var_inside_array
 
         test rax, rax
         jl .error_adding_custom_env_var
@@ -537,6 +539,90 @@ _process_token_generate_commands:
         pop rbp
         xor rax, rax
         ret
+
+
+; rdi: address of envp_array
+; rsi: the address of the address of the [valid] env variable to be inserted/replaced
+; returns
+;   rax:  0  if added/replaced
+;   rax: -1  error
+_update_env_var_inside_array:
+    push r12
+    push r13
+    push r14
+    push r15
+    push rbx
+
+    mov rbx, rsi
+    mov r12, rdi                    ; r12: address of envp array
+    mov r13, [rsi]                    ; r13: address of string containing valid env var
+
+
+    xor r14, r14
+    .loop_till_equals_to:
+        cmp byte [r13 + r14], '='
+        je .loop_envp_var
+
+        inc r14
+        jmp .loop_till_equals_to
+
+    ; r14 : the idx inside string pointing to '='
+    ; len of key = r14
+    xor r15, r15
+    .loop_envp_var:
+
+        cmp r15, [r12 + DYNAMICARRAY_SIZE_OFF]
+        je .add_var_to_array       ; if i went through all and none of them matches
+
+        mov rax, r14                 ;  rax: the length to compare
+        mov rdi,  [r12 + DYNAMICARRAY_POINTER_OFF]
+        mov rdi, [rdi + r15*8]       ;  rdi: the address of string inside array
+        mov rsi, r13                 ;  rsi: the address of string to be added/updated
+        call _cmp_equal_memory       ; returns: 0 if equal, -1 if not
+
+        test rax, rax
+        je .update_env_var                ; if the key matches one inside the envp array, update it
+
+        inc r15
+        jmp .loop_envp_var
+
+
+    .update_env_var:
+    ; r15: the idx for envp array to be updated
+    ; r13: the address of new envp to be replaced by
+
+    ; i know it's just addresses inside the array, so i am going to overwrite the address
+
+
+    mov rax,  [r12 + DYNAMICARRAY_POINTER_OFF]
+    mov [rax + r15*8], r13          ; overwrite the address of old var with new
+    jmp .return_success
+
+    .add_var_to_array:
+    mov rdi, r12
+    mov rsi, rsi
+    call _dynamic_array_add_element    
+
+    test rax, rax
+    jl .return_failure
+    jmp .return_success
+
+    .return_success:
+        xor rax, rax
+        jmp .return
+
+    .return_failure:
+        mov rax, -1
+        jmp .return
+
+    .return:
+    pop rbx
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    ret
+
 
 
 ; this function frees the array object inside the individual command_struct, then
