@@ -600,7 +600,7 @@ _update_env_var_inside_array:
 
     .add_var_to_array:
     mov rdi, r12
-    mov rsi, rsi
+    mov rsi, rbx
     call _dynamic_array_add_element    
 
     test rax, rax
