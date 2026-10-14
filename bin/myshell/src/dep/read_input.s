@@ -1304,6 +1304,10 @@ _read_input:
 
             lea rsi, [r9 + 19]
             call _strcpy_add_space_before_backslash
+
+            lea rsi, [rel space_char]
+            call _string_copy_including_null
+
             lea rsi, [rel new_line]
             call _string_copy_including_null
 

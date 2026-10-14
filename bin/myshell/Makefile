@@ -29,44 +29,44 @@ building:
 linking: building
 	@echo "Linking object files"
 	@ld  ./src/myshell.o \
-    ./src/dep/read_input.o \
-    ./src/dep/parse_input.o \
-    ./src/dep/process_tokens.o \
-    ./src/dep/execute_commands.o \
-    ./src/dep/custom_errors.o \
-	./src/dep/myshelldep.o \
-    ./src/dep/myshellbif.o \
-    ./src/dep/env_funcs.o \
-    ./src/dep/history.o \
-    ./src/dep/proper_print.o \
-    ../dependencies/errorHandling.o \
-    ../dependencies/mymalloc2.o \
-    ../dependencies/mystring.o \
-    ../dependencies/dynamicarray.o \
-    ../dependencies/hashset.o \
-    ../dependencies/linkedlist.o \
-   	-o myshell
+    	./src/dep/read_input.o \
+    	./src/dep/parse_input.o \
+    	./src/dep/process_tokens.o \
+    	./src/dep/execute_commands.o \
+    	./src/dep/custom_errors.o \
+		./src/dep/myshelldep.o \
+    	./src/dep/myshellbif.o \
+    	./src/dep/env_funcs.o \
+    	./src/dep/history.o \
+    	./src/dep/proper_print.o \
+    	../dependencies/errorHandling.o \
+    	../dependencies/mymalloc2.o \
+    	../dependencies/mystring.o \
+    	../dependencies/dynamicarray.o \
+    	../dependencies/hashset.o \
+    	../dependencies/linkedlist.o \
+   		-o myshell
 
 
 cleaning: linking
 	@echo "Running cleanup"
 	@rm ./src/myshell.o \
-    ./src/dep/read_input.o \
-    ./src/dep/parse_input.o \
-    ./src/dep/process_tokens.o \
-    ./src/dep/execute_commands.o \
-    ./src/dep/custom_errors.o \
-    ./src/dep/myshelldep.o \
-    ./src/dep/myshellbif.o \
-    ./src/dep/env_funcs.o \
-    ./src/dep/history.o \
-    ./src/dep/proper_print.o \
-    ../dependencies/errorHandling.o \
-    ../dependencies/mymalloc2.o \
-    ../dependencies/mystring.o \
-    ../dependencies/dynamicarray.o \
-    ../dependencies/hashset.o \
-    ../dependencies/linkedlist.o 
+    	./src/dep/read_input.o \
+    	./src/dep/parse_input.o \
+    	./src/dep/process_tokens.o \
+    	./src/dep/execute_commands.o \
+    	./src/dep/custom_errors.o \
+    	./src/dep/myshelldep.o \
+    	./src/dep/myshellbif.o \
+    	./src/dep/env_funcs.o \
+    	./src/dep/history.o \
+    	./src/dep/proper_print.o \
+    	../dependencies/errorHandling.o \
+    	../dependencies/mymalloc2.o \
+    	../dependencies/mystring.o \
+    	../dependencies/dynamicarray.o \
+    	../dependencies/hashset.o \
+    	../dependencies/linkedlist.o 
 
 
 final: cleaning
