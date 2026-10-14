@@ -1675,6 +1675,9 @@ _read_input:
         call .update_cursor_position
 
 
+        cmp qword [rel cursor_x_idx], 0
+        je .no_extra_print_line
+
         mov rax, 1
         mov rdi, 1
         lea rsi, [rel new_line]
@@ -1685,7 +1688,7 @@ _read_input:
         ; i have atleast 8 bytes of free memory
         ; add char at end of input_buffer
 
-
+        .no_extra_print_line:
         mov rax, [rel input_buffer_address]
         add rax, [rel filled_size_input_buffer_len]
         mov byte [rax], 0x0a                        ; replace the 0 with \n
