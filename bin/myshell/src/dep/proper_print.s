@@ -1,4 +1,4 @@
-%include "./dep/constants.inc"
+%include "./src/dep/constants.inc"
 %include "../dependencies/mystring.inc"
 
 section .data

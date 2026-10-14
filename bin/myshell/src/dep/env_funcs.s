@@ -1,4 +1,4 @@
-%include "./dep/constants.inc"
+%include "./src/dep/constants.inc"
 %include "../dependencies/mystring.inc"
 %include "../dependencies/dynamicarray.inc"
 %include "../dependencies/mymalloc.inc"

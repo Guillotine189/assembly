@@ -5,9 +5,9 @@ An interactive Linux shell written in x86-64 assembly using NASM. This project f
 ## Requirements
 
 1. **Linux on x86-64**
-2. **NASM** assembler
-3. GNU **`ld`** linker
-4. **Bash** — Required to run the provided build script (`build_myshell.sh`)
+2. Assembler: **NASM** 
+3. GNU linker: **`ld`** 
+4. Build Tool: **GNU Make** 
 
 ## Installation
 
@@ -23,17 +23,12 @@ git clone https://github.com/Guillotine189/assembly.git
 cd ./assembly/bin/myshell
 ```
 
-#### 3. Give installation script permission to execute
+#### 3. Build the program
 
 ```bash
-chmod +x build_myshell.sh
+make
 ```
 
-#### 4. Build the program
-
-```bash
-./build_myshell.sh
-```
 
 ## Run
 
@@ -41,7 +36,7 @@ chmod +x build_myshell.sh
 ./myshell
 ```
 
-**Recommendation:** It is recommended to set `myshell` as your default shell in Konsole, as it has unexpected crashes specifically if ran noramlly using bash.
+~~**Recommendation:** It is recommended to set `myshell` as your default shell in Konsole, as it has unexpected crashes specifically if ran noramlly using bash.~~
 
 ## Features
 
