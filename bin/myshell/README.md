@@ -4,10 +4,10 @@ An interactive Linux shell written in x86-64 assembly using NASM. This project f
 
 ## Requirements
 
-1. **Linux on x86-64**
-2. Assembler: **NASM** 
+1. **`Linux on x86-64`**
+2. Assembler: **`NASM`** 
 3. GNU linker: **`ld`** 
-4. Build Tool: **GNU Make** 
+4. Build Tool: **`GNU Make`** 
 
 ## Installation
 
@@ -237,6 +237,8 @@ foo=bar env | grep SHELL > output.txt
 -  **Background jobs**: Using `&` to run commands in the background is not supported.
 
 -  **&& operator**: Running a command only if the previous one succeeds is not supported.
+
+-  **Limited expansion**: metacharacters [eg: `*`, `?ab.*`] are not expanded and simply treated as normal chars right now.
 
 -  **source bic command**:  this shell doesn't parse Bash syntax like if, fi, etc.
 
