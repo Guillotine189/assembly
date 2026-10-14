@@ -1,6 +1,13 @@
 ; requires linking of mymalloc.o
 ; requires linking of mystring.o
 
+
+section .rodata
+	error_moving_mystring db "linkedlist: Error moving mystring", 10
+	error_moving_mystring_len equ $ - error_moving_mystring
+
+section .text
+
 extern _malloc
 extern _free
 extern _copy_constructor_mystring
@@ -34,7 +41,6 @@ MYSTRING_POINTER_OFF 		equ 16
 NODE_NEXT_NODE_ADD_OFF 		equ 0
 NODE_ELEMENT_ADD_OFF 		equ 8
 
-section .text
 
 ; remember to update the [linkedlist.inc, hash_set.s] after any changes
 global _default_constructor_linked_list
@@ -321,7 +327,9 @@ _add_to_linked_list_mystring:
 		ret
 
 	.error_copying_mystring:
-		mov rdi, r14
+
+		; free the node you just created
+		mov rdi, r12
 		call _free
 
 	.error_creating_node:
@@ -393,7 +401,6 @@ _move_to_linked_list_mystring:
 	test rax, rax
 	jl .error_moving_mystring
 
-
 	mov [r12 + LINKED_LIST_HEAD_NODE_ADD_OFF], r14
 	mov [r12 + LINKED_LIST_END_NODE_ADD_OFF], r14
 
@@ -408,7 +415,14 @@ _move_to_linked_list_mystring:
 		ret
 
 	.error_moving_mystring:
-		mov rdi, r14
+		mov rax, 1
+		mov rdi, 1
+		lea rsi, [rel error_moving_mystring]
+		mov rdx, error_moving_mystring_len
+		syscall
+
+		; free the node just created
+		mov rdi, r12
 		call _free
 
 	.error_creating_node:

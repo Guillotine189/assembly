@@ -25,6 +25,10 @@ section .rodata
 	shell_env_var_for_startup_len equ $ - shell_env_var_for_startup
 	space_char db " ", 0
 
+	error_adding_tohash_set db "Myshell: Error adding to hashset", 10
+	error_adding_tohash_set_len equ $ - error_adding_tohash_set
+
+
 global shell_env_array_object
 section .bss
 	reusable_buffer_path resb 4096
@@ -1118,11 +1122,13 @@ _parse_path_and_check_if_partial_cmd_matches_cmd_in_path:
 			call _move_to_hashset_mystring   ; this also checks if the string is there or not
 			pop r9
 
+			cmp rax, 1 				; 0: added, 1: already there, -ve: error
+			je .free_mystring_object_and_check_next
+
 			test rax, rax 				; 0: added, 1: already there, -ve: error
-			jne .free_mystring_object_and_check_next
-
+			jl .print_error_free_mystring_object_and_check_next
+			
 			add rsp, MYSTRING_OBJECT_SIZE 		; remove mystring from stack
-
 
 			; if not already inside hashset, add this to the list of possible commands
 			mov rdi, [rsp + 32] 				; the address of output string object
@@ -1147,6 +1153,13 @@ _parse_path_and_check_if_partial_cmd_matches_cmd_in_path:
 
 			inc qword [rsp + 40]
 			jmp .move_to_next_segment
+
+		.print_error_free_mystring_object_and_check_next:
+			mov rax, 1
+			mov rdi, 1
+			lea rsi, [rel error_adding_tohash_set]
+			mov rdx, error_adding_tohash_set_len
+			syscall
 
 		.free_mystring_object_and_check_next:
 			mov rdi, rsp

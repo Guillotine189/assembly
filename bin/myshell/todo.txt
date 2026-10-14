@@ -2,12 +2,15 @@
    fix: duplicates removal ✅
    TOO MANY MALLOC CALLS 😭, save output from 1st tab, so you won't have to do everything again in 2nd✅
 
+
+update README, use CMAKE
+
 6) bigger allocation for double tab, messes up the free list merge part of malloc
    Error: check out why: "mymalloc: Error invalid address provided: mymalloc: Error inv"
    check lea,mov instruction probably used the other one instad.
 
 6) visual fix, when command overflows into next line.
-   : everyplace in read input that modified output (printing history etc) ⏳
+   : everyplace in read input that modified output (printing history etc) ⏳   
 
    : history ✅
    : tab ✅ | can do better

@@ -1,6 +1,6 @@
 # MyShell
 
-An interactive Linux shell written in x86-64 assembly using NASM. The project focuses on low-level terminal interaction, command parsing, input editing, and command construction without relying on a high-level language.
+An interactive Linux shell written in x86-64 assembly using NASM. This project focuses on low-level terminal interaction, command parsing, input editing, and command construction without relying on any high-level language.
 
 ## Requirements
 
@@ -41,13 +41,13 @@ chmod +x build_myshell.sh
 ./myshell
 ```
 
-**Recommendation:** It is recommended to set `myshell` as your default shell in Konsole, as this may prevent the segmentation fault encountered when launching it from Bash.
+**Recommendation:** It is recommended to set `myshell` as your default shell in Konsole, as it has unexpected crashes specifically if ran noramlly using bash.
 
 ## Features
 
 **1: Interactive command-line**: input with cursor movement and editing.
 
-**2: Command history** ( Fixed size, can be changed by editing the value of 'history_size' symbolic constant inside history.s file and rebuilding the project).
+**2: Command history**: In-memory and Fixed size ( Size can be changed by editing the value of 'history_size' symbolic constant inside history.s file and rebuilding the project).
 
 **3: Support for expansion**: History commands, shell env vars and last command exit_code_status can be expanded.
 
@@ -98,15 +98,15 @@ This is more of a debugging feature. But it's fun to look at (atleast for me).
 
 ### 1. Terminal Input
 
-The input editor manages interactive input and cursor movement using terminal control sequences. It includes logic for redrawing the input line and handling terminal dimensions.
+The input editor manages interactive input and cursor movement using ANSI seq. It includes logic for redrawing the input line and cursor.
 
 ### 2. Processing input
 
 #### 2.1. Expansion
-The expansion-code expands the SHELL env variables and history comamnds.
+The expansion-code expands the SHELL env variables and history comamnds. Then adds it to history.
 
 ####  2.2. Tokenization and Parsing
-The parsing-code uses this expanded string and resolves the quotes and assigns each possible-operator a value weather it is to be treated as a operator or not.
+The parsing-code uses this expanded string and resolves the quotes and assigns each possible-operator a value weather it is to be treated as a operator or not. (if an operator is inside qutes, it's treated as a normal char)
 
 The tokenizer then converts it into tokens representing words(eg: "grep", "--colo=auto") and shell operators(eg: ">", "|"). 
 Supported token types include words, pipes, input redirection, output redirection, append redirection, and environment assignments.
@@ -172,7 +172,7 @@ foo=bar env | grep SHELL > output.txt
 
 3: **Open src/dst files**: depending on the redirect in/out soecified inside command struct, it opens the file.
 
-4: **Applies I/O redirections** using `dup2()` to redirect standard input or standard output as specified by the command.
+4: **Applies I/O redirections**: Used `dup2()` to redirect standard input or standard output as specified by the command.
 
 5: **Populates the environment array** with the shell's environment variables.
 
@@ -182,7 +182,7 @@ foo=bar env | grep SHELL > output.txt
 
 8: Decides and **Searches for the executable** by checking the directories listed in the **`$PATH` environment variable**.
 
-9: Adds the **`_=`** environment variable to the common/specific environment array, setting its value to the command's executable path (`_=command_path`). (If the user hasn't added any temporary environment variables that need to be injected, I reuse the common envp array constructed in step 1)
+9: Adds the **`_=`** environment variable to the common/specific environment array, setting its value to the command's executable path (`_=command_path`). (If the user hasn't added any temporary environment variables that need to be injected, I reuse the common envp array constructed in step 1 of command execution)
 
 10: **Executes the command**: use `execve` to execute the command then handles error.
 
@@ -253,4 +253,4 @@ foo=bar env | grep SHELL > output.txt
 
 
 ---
-The goal of this project is to understand how a shell works internally by designing and implementing one from scratch. The shell is written entirely in x86-64 assembly, without relying on the C standard library. This is a deliberate choice so i an get an idea of low-level system programming and become more familiar with Linux system calls.
+The goal of this project is to understand how a shell works internally by designing and implementing one from scratch. This shell is written entirely in x86-64 assembly, without relying on the C standard library. This is a deliberate choice i made, so i an get an idea of low-level system programming and become more familiar with Linux system calls.

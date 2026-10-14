@@ -1,8 +1,14 @@
 ; required mymalloc.s
 
 section .rodata
-	error_free db "mystring: Error freeing mystring object", 0
+	error_free db "mystring: Error freeing mystring object", 10
 	error_free_len equ $ - error_free
+
+	already_null db "mystring: Already freed string", 10
+	already_null_len equ $ - already_null
+
+	error_moving db "mystring: Error moving string objects", 10
+	error_moving_len equ $ - error_moving
 
 section .text
 
@@ -109,9 +115,16 @@ _destructor_mystring:
 
 	test rax, rax
 	jl .error_freeing
+	jmp .return
 
 	.null_ptr:
+	mov rax, 1
+	mov rdi, 1
+	lea rsi, [rel already_null]
+	mov rdx, already_null_len
+	syscall
 
+	.return:
 	mov qword [r12 + MYSTRING_SIZE_OFF], 0
 	mov qword [r12 + MYSTRING_CAPACITY_OFF], 0
 	mov qword [r12 + MYSTRING_POINTER_OFF], 0
@@ -207,6 +220,12 @@ _move_constructor_mystring:
 	ret
 
 	.error_invalid_address:
+		mov rax, 1
+		mov rdi, 1
+		lea rsi, [rel error_moving]
+		mov rdx, error_moving_len
+		syscall
+
 		mov rax, -1
 		ret
 
