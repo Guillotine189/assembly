@@ -219,16 +219,19 @@ foo=bar env | grep SHELL > output.txt
 
 
 
-### Comparing to bash: what it doesn't support
+### Comparing to bash: Differences
 
 -  **Multiple redirections**
 
   ```bash
   ls > output1.txt > output2.txt
   ```
+  
+  **BASH behaviour:**
+  Both files are created. But the output is redirected to `output2.txt`.
 
-  **Behavior:**
-  Only `output2.txt` receives the command's standard output because the second output redirection overrides the first.
+  **MyShell behaviour:**
+  Only `output2.txt` is created. And the output is redirected to `output2.txt`.
 
 -  **Alias**: Aliases are not supported yet
 
