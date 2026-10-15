@@ -686,8 +686,6 @@ _unset_var_in_shell_env:
 _check_if_cmd_is_in_path:
 	push r12
 	mov r12, rdi
-	; TODO: change this so i can check the env variables for individual commands
-	; Rn i am checking from the original list on env var.
 
 	lea rdi, [rel path_env_var]
 	mov rsi, 4

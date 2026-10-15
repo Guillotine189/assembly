@@ -591,7 +591,7 @@ _execute_commands:
 
     .error_getting_sync_pipe:
         mov [rel error_code], rax
-        call print_error_getting_sync_pipes  ;TODO: change error to say sync pipe
+        call print_error_getting_sync_pipes  
         call _free_common_env_var_array_object
         jmp .return_failure
 

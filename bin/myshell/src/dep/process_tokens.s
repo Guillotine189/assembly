@@ -299,9 +299,6 @@ _process_token_generate_commands:
     .handle_env_assignment:
         ; rax: the address of current token struct
 
-        ; TODO: CHECK IF THE TOKEN ALREADY EXISTS inside the, eg foo=bar foo=bar2
-        ; should result in foo=bar2 not both
-
         ; add the value inside token to envp array object
         lea rdi, [rsp + COMMAND_STRUCT_ENVP_OBJ_OFF]       ; rdi: address of envp array obj
         lea rsi, [rax + TOKEN_STRUCT_ADDRESS_OFF]       ; rsi: the address of address of value of envp_var

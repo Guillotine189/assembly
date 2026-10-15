@@ -191,7 +191,7 @@ _read_input:
         cmp byte [rel key_buffer], 0x04         ; in non-cononical mode, this is ctrl+d
         je .handle_eof
 
-        cmp byte [rel key_buffer], 0x09         ; TODO: move cursor to end of line before exit
+        cmp byte [rel key_buffer], 0x09
         je .handle_tab
         mov qword [rel tabs_times_pressed], 0
 
@@ -201,7 +201,7 @@ _read_input:
         cmp byte [rel key_buffer], 127          ; backspace
         je .handle_backspace
 
-        cmp byte [rel key_buffer], 0x0a         ; TODO: move cursor to end of line before exit
+        cmp byte [rel key_buffer], 0x0a
         je .return
 
 

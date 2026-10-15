@@ -432,6 +432,8 @@ _parse_expanded_string:
     push r14
 
 
+    ; OLD LOGIC
+
     ; PARSER LOGIC FOR
     ; ["./program arg1  arg2 arg3\n"] -> ["./programNULLagr1NULLarg2NULL"]
     ; copy <space> as 'NULL'
@@ -443,7 +445,6 @@ _parse_expanded_string:
     ;           : "$SHELL" -> expanded
     ; '\' -> ignored, '\\' -> '\' and so on
     ; do not copy "", ''
-    ; RN -> one command followed by everything as arguments
 
     ; construct the string object
     lea rax, [rel input_buffer_string_object]
@@ -1149,7 +1150,7 @@ _parse_expanded_string:
 ; 5. $variable expansion have already been expanded.
 ; 6. tokens are terminated with NULL, everything before it is part of token.
 
-
+; [RESOLVED]
 ; 'foo=bar' env -> will produce error in bash
 ; mine will simply resolve single quotes, and foo=bar will be treated as TOKEN_TYPE_ENV_ASSSIGNMENT
 ; so in my shell equivelant will be "'foo=bar'"
