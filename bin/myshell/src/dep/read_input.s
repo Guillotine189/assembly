@@ -1438,6 +1438,9 @@ _read_input:
         ; r14 has the number of possiblities
         ; if r14 >= 100, ask user if they want to print everything
 
+        test r14, r14               ; after caching, r14 can be 0 when no options were found
+        je .read_key
+
         cmp r14, 100
         jl .print_options
 
