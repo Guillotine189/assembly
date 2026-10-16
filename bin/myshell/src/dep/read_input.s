@@ -65,7 +65,7 @@ section .bss
     dir_get_dent_buffer resb get_dent_buffer_cap
     dir_get_dent_buffer_len resq 1
 
-    command_latest_restore_buffer resb 4096
+    temp_command_string_object resb MYSTRING_OBJECT_SIZE
     number_buffer resb 32
 
 
@@ -148,11 +148,24 @@ _init_read_input:
     test rax, rax
     mov qword [rel exit_status_code], 1
     jl _exit_with_status_code
+
+
+    ; initilaize temp_command_string_object for saving the current command when trversing history
+
+    lea rdi, [rel temp_command_string_object]
+    mov qword [rdi + MYSTRING_CAPACITY_OFF], 256          ; 256 bytes enough for any command, it can grow anyway
+    call _constructor_mystring
+
+    test rax, rax
+    mov qword [rel exit_status_code], 1
+    jl _exit_with_status_code
+
     ret
 
 ; TODO: handle overflow into next line
 _read_input:
-    ; make a read call
+    ; make a read call    
+
     mov rax, [rel win_resize_flag]
     test rax, rax
     jz .fresh_sart
@@ -165,9 +178,12 @@ _read_input:
     .fresh_sart:
     mov qword [rel filled_size_input_buffer_len], 0
     mov qword [rel history_command_number], 0        ; 0 for current, 1 for older
-    mov qword [rel command_latest_restore_buffer], 0
     mov qword [rel cursor_idx_input_buffer], 0
-    
+
+    lea rdi, [rel temp_command_string_object]
+    call _mystring_clear
+
+
     .saved_start:
     mov qword [rel input_interrupted], 0
 
@@ -550,15 +566,15 @@ _read_input:
 
         .print_latest_command:
 
-            lea rdi, [rel command_latest_restore_buffer]
-            call _strlen
-
             ; move the command into the input_buffer
+            lea rdx, [rel temp_command_string_object]
+
             mov rdi, [rel input_buffer_address]
-            lea rsi, [rel command_latest_restore_buffer]
-            mov rcx, rax
+            mov rsi, [rdx + MYSTRING_POINTER_OFF]
+            mov rcx, [rdx + MYSTRING_SIZE_OFF]
             rep movsb
-        
+            
+            mov rax, [rdx + MYSTRING_SIZE_OFF]
             mov [rel filled_size_input_buffer_len], rax
             mov [rel cursor_idx_input_buffer], rax
             call .redraw
@@ -623,12 +639,13 @@ _read_input:
 
         ; TODO: this is a hack, if command is > 4095 bytes, memory overflow
         .save_the_latest_command_in_buffer:
-            lea rdi, [rel command_latest_restore_buffer]
+            lea rdi, [rel temp_command_string_object]
+            call _mystring_clear
+
+            lea rdi, [rel temp_command_string_object]
             mov rsi, [rel input_buffer_address]
-            mov rcx, [rel filled_size_input_buffer_len]
-            rep movsb
-            inc rdi
-            mov byte [rdi], 0       ; terminate it with null byte
+            mov rdx, [rel filled_size_input_buffer_len]
+            call _append_bytes_mystring
 
         .get_older_his:
         inc qword [rel history_command_number]      ; if it was 0 then 1
