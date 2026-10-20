@@ -2,13 +2,15 @@
 
 An interactive Linux shell written in x86-64 assembly using NASM. This project focuses on low-level terminal interaction, command parsing, input editing, and command construction without relying on any high-level language.
 
+
 ## Requirements
 
-1. **Operating System: `Linux on x86-64 architecture.`**
-2. **Minimum Linux Kernel Version: `5.8 (released August 2020).`**
-3. Assembler: **`NASM`** 
-4. GNU linker: **`ld`** 
-5. Build Tool: **`GNU Make`** 
+1. Operating System: **`Linux on x86-64 architecture.`**
+2. Assembler: **`NASM`** 
+3. GNU linker: **`ld`** 
+4. Build Tool: **`GNU Make`** 
+
+**Linux kernel 5.8+ (released august 2020) recommended for native faccessat2() support; older kernels may be supported through failure handling.**
 
 ## Installation
 
