@@ -108,7 +108,7 @@ global _print_free_list_info
 ;     USED = 0
 ;     present exactly once in exactly one free list
 
-; last_segment->NEXT = current_brk
+; last_segment->NEXT = 0
 
 ; first_segment->PREV = 0
 

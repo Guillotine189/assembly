@@ -1,4 +1,4 @@
-; required mymalloc.s
+; requires mymalloc.s
 
 section .rodata
 	error_free db "mystring: Error freeing mystring object", 10
@@ -12,8 +12,6 @@ section .rodata
 
 section .text
 
-global _constructor_mystring
-global _destructor_mystring
 
 extern _malloc
 extern _free

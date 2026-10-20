@@ -4,10 +4,11 @@ An interactive Linux shell written in x86-64 assembly using NASM. This project f
 
 ## Requirements
 
-1. **`Linux on x86-64`**
-2. Assembler: **`NASM`** 
-3. GNU linker: **`ld`** 
-4. Build Tool: **`GNU Make`** 
+1. **Operating System: `Linux on x86-64 architecture.`**
+2. **Minimum Linux Kernel Version: `5.8 (released August 2020).`**
+3. Assembler: **`NASM`** 
+4. GNU linker: **`ld`** 
+5. Build Tool: **`GNU Make`** 
 
 ## Installation
 

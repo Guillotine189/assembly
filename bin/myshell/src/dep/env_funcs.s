@@ -1069,6 +1069,7 @@ _parse_path_and_check_if_partial_cmd_matches_cmd_in_path:
 
 			.try_to_add_to_hashset:
 
+			; [Implemented]
 			; IDEA: too many malloc calls
 			; Make function to check if a string is inside hashset, 
 			; right now it's creating a mystring_obj for every possilbe option
