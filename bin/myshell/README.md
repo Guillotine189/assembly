@@ -10,7 +10,7 @@ An interactive Linux shell written in x86-64 assembly using NASM. This project f
 3. GNU linker: **`ld`** 
 4. Build Tool: **`GNU Make`** 
 
-**Linux kernel 5.8+ (released august 2020) recommended for native faccessat2() support; older kernels may be supported through failure handling.**
+**Linux kernel 5.8+ (released august 2020) recommended for native faccessat2() support. Older kernels may be supported through failure handling.**
 
 ## Installation
 

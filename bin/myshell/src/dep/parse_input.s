@@ -6,8 +6,7 @@ section .rodata
 
 global token_array
 section .bss
-    ; DO not make this less than 32 bytes, i copy that many bytes as exit code status
-    ; directly into the buffer without checking and expanding
+
     parse_buffer_capacity equ 2048
     parse_buffer resb parse_buffer_capacity
     number_buffer resb 32

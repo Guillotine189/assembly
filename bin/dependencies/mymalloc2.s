@@ -96,8 +96,9 @@ global _print_free_list_info
 ; [occupied|free]			   -> 8bytes
 ; [prev segment address] 	   -> 8bytes
 ; [next segment address] 	   -> 8bytes
+; [next free segment address]  -> 8bytes
 ; [actual_data_for_segment] 
-; TOTAL size of segemnt: Requested size + 32bytes 
+; TOTAL size of segemnt: Requested size + 40bytes 
 
 
 ; allocated segment:
